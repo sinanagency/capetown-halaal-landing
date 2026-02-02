@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Cape Town Halaal 2026 | South Africa's Biggest Halaal Lifestyle Expo",
-  description: "Join 350+ vendors and 25,000+ visitors at Cape Town's premier halaal lifestyle exhibition. December 11-13, 2026 at Green Point A Track.",
-  keywords: ["halaal", "cape town", "expo", "halal food", "lifestyle", "exhibition", "south africa", "2026"],
+  title: "Young at Heart Festival 2026 | South Africa's Biggest Halaal Lifestyle Expo",
+  description: "Join 350+ vendors and 25,000+ visitors at Young at Heart Festival. December 11-13, 2026 at Green Point A Track, Cape Town.",
+  keywords: ["young at heart", "halaal", "cape town", "expo", "halal food", "lifestyle", "festival", "south africa", "2026"],
   metadataBase: new URL("https://www.cthalaal.co.za"),
   icons: {
     icon: "/logo.png",
@@ -23,24 +23,24 @@ export const metadata: Metadata = {
     apple: "/logo.png",
   },
   openGraph: {
-    title: "Cape Town Halaal 2026",
-    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026",
+    title: "Young at Heart Festival 2026",
+    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026 | Green Point A Track, Cape Town",
     type: "website",
     url: "https://www.cthalaal.co.za",
-    siteName: "Cape Town Halaal",
+    siteName: "Young at Heart Festival",
     images: [
       {
         url: "https://www.cthalaal.co.za/logo.png",
         width: 512,
         height: 512,
-        alt: "Cape Town Halaal Logo",
+        alt: "Young at Heart Festival Logo",
       },
     ],
   },
   twitter: {
     card: "summary",
-    title: "Cape Town Halaal 2026",
-    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026",
+    title: "Young at Heart Festival 2026",
+    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026 | Cape Town",
     images: ["https://www.cthalaal.co.za/logo.png"],
   },
 };
