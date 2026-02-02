@@ -1,9 +1,395 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback, createContext, useContext } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { gsap } from 'gsap'
 import { Instagram, Facebook, MapPin, Calendar } from 'lucide-react'
+
+// ===== DRAG EDIT MODE =====
+// Set to true to enable drag-to-position editing
+// Set to false for production (edit UI hidden, positions preserved)
+const EDIT_MODE_ENABLED = false
+
+// Store for all element positions (shared state)
+const positionStore: Record<string, { y: number; size?: number }> = {}
+
+// React Context for edit mode
+const EditModeContext = createContext<{ editMode: boolean; toggleEditMode: () => void }>({
+  editMode: true,
+  toggleEditMode: () => {}
+})
+
+function useEditMode() {
+  return useContext(EditModeContext).editMode
+}
+
+// Edit controls component with toggle and export
+function EditControls() {
+  const { editMode, toggleEditMode } = useContext(EditModeContext)
+
+  const handleExport = () => {
+    const output = JSON.stringify(positionStore, null, 2)
+    console.log('=== FINAL POSITIONS ===')
+    console.log(output)
+    console.log('=======================')
+
+    navigator.clipboard.writeText(output).then(() => {
+      alert('Positions copied to clipboard!\n\nNow toggle OFF, screenshot, and send both to Claude.')
+    })
+  }
+
+  if (!EDIT_MODE_ENABLED) return null
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 20,
+        right: 20,
+        zIndex: 9999,
+        display: 'flex',
+        gap: 10,
+      }}
+    >
+      {/* Toggle button */}
+      <button
+        onClick={toggleEditMode}
+        style={{
+          background: editMode ? '#f59e0b' : '#22c55e',
+          color: 'white',
+          border: 'none',
+          padding: '12px 20px',
+          borderRadius: 8,
+          fontSize: 14,
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          boxShadow: editMode ? '0 4px 20px rgba(245, 158, 11, 0.5)' : '0 4px 20px rgba(34, 197, 94, 0.5)',
+        }}
+      >
+        {editMode ? '👁️ PREVIEW' : '✏️ EDIT'}
+      </button>
+
+      {/* Export button - only show in edit mode */}
+      {editMode && (
+        <button
+          onClick={handleExport}
+          style={{
+            background: '#cd2653',
+            color: 'white',
+            border: 'none',
+            padding: '12px 20px',
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            boxShadow: '0 4px 20px rgba(205, 38, 83, 0.5)',
+          }}
+        >
+          📋 COPY
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Draggable wrapper component
+function DraggableElement({
+  id,
+  children,
+  initialY = 0,
+  onPositionChange
+}: {
+  id: string
+  children: React.ReactNode
+  initialY?: number
+  onPositionChange?: (id: string, y: number) => void
+}) {
+  const contextEditMode = useEditMode()
+  const editMode = EDIT_MODE_ENABLED && contextEditMode
+  const [position, setPosition] = useState({ y: initialY })
+  const [isDragging, setIsDragging] = useState(false)
+  const elementRef = useRef<HTMLDivElement>(null)
+  const startY = useRef(0)
+  const startPosY = useRef(0)
+
+  const handleStart = useCallback((clientY: number) => {
+    setIsDragging(true)
+    startY.current = clientY
+    startPosY.current = position.y
+  }, [position.y])
+
+  const handleMove = useCallback((clientY: number) => {
+    if (!isDragging) return
+    const deltaY = clientY - startY.current
+    const newY = startPosY.current + deltaY
+    setPosition({ y: newY })
+    onPositionChange?.(id, newY)
+  }, [isDragging, id, onPositionChange])
+
+  const handleEnd = useCallback(() => {
+    setIsDragging(false)
+    positionStore[id] = { y: Math.round(position.y) }
+    console.log(`📍 ${id}: translateY(${position.y}px)`)
+  }, [id, position.y])
+
+  useEffect(() => {
+    if (!editMode) return
+
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientY)
+    const handleMouseUp = () => handleEnd()
+    const handleTouchMove = (e: TouchEvent) => handleMove(e.touches[0].clientY)
+    const handleTouchEnd = () => handleEnd()
+
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      window.addEventListener('touchmove', handleTouchMove)
+      window.addEventListener('touchend', handleTouchEnd)
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [isDragging, handleMove, handleEnd, editMode])
+
+  // When edit mode is off, just render children with the transform applied
+  if (!editMode) {
+    return (
+      <div style={{ transform: `translateY(${position.y}px)` }}>
+        {children}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      ref={elementRef}
+      style={{
+        transform: `translateY(${position.y}px)`,
+        cursor: isDragging ? 'grabbing' : 'grab',
+        position: 'relative',
+        zIndex: isDragging ? 100 : 1,
+      }}
+      onMouseDown={(e) => handleStart(e.clientY)}
+      onTouchStart={(e) => handleStart(e.touches[0].clientY)}
+    >
+      {/* Label */}
+      <div
+        style={{
+          position: 'absolute',
+          left: -60,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: '#cd2653',
+          color: 'white',
+          padding: '2px 6px',
+          borderRadius: 4,
+          fontSize: 10,
+          fontWeight: 'bold',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {id}: {position.y}px
+      </div>
+      {/* Outline */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: -2,
+          border: isDragging ? '2px solid #cd2653' : '1px dashed rgba(205,38,83,0.5)',
+          borderRadius: 4,
+          pointerEvents: 'none',
+        }}
+      />
+      {children}
+    </div>
+  )
+}
+
+// Resizable + Draggable Logo component
+function ResizableLogo({ id, initialSize = 146, initialY = 65 }: { id: string; initialSize?: number; initialY?: number }) {
+  const contextEditMode = useEditMode()
+  const editMode = EDIT_MODE_ENABLED && contextEditMode
+  const [position, setPosition] = useState({ y: initialY })
+  const [size, setSize] = useState(initialSize)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
+  const startY = useRef(0)
+  const startPosY = useRef(initialY)
+  const startSize = useRef(initialSize)
+
+  // Drag handlers
+  const handleDragStart = useCallback((clientY: number) => {
+    setIsDragging(true)
+    startY.current = clientY
+    startPosY.current = position.y
+  }, [position.y])
+
+  const handleDragMove = useCallback((clientY: number) => {
+    if (!isDragging) return
+    const deltaY = clientY - startY.current
+    setPosition({ y: startPosY.current + deltaY })
+  }, [isDragging])
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false)
+    positionStore[id] = { y: Math.round(position.y), size: Math.round(size) }
+    console.log(`📍 ${id}: translateY(${position.y}px), size: ${size}px`)
+  }, [id, position.y, size])
+
+  // Resize handlers
+  const handleResizeStart = useCallback((clientY: number, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation()
+    setIsResizing(true)
+    startY.current = clientY
+    startSize.current = size
+  }, [size])
+
+  const handleResizeMove = useCallback((clientY: number) => {
+    if (!isResizing) return
+    const deltaY = clientY - startY.current
+    const newSize = Math.max(32, Math.min(200, startSize.current + deltaY))
+    setSize(newSize)
+  }, [isResizing])
+
+  const handleResizeEnd = useCallback(() => {
+    setIsResizing(false)
+    positionStore[id] = { y: Math.round(position.y), size: Math.round(size) }
+    console.log(`📍 ${id}: translateY(${position.y}px), size: ${size}px`)
+  }, [id, position.y, size])
+
+  useEffect(() => {
+    if (!editMode) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) handleDragMove(e.clientY)
+      if (isResizing) handleResizeMove(e.clientY)
+    }
+    const handleMouseUp = () => {
+      if (isDragging) handleDragEnd()
+      if (isResizing) handleResizeEnd()
+    }
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isDragging) handleDragMove(e.touches[0].clientY)
+      if (isResizing) handleResizeMove(e.touches[0].clientY)
+    }
+    const handleTouchEnd = () => {
+      if (isDragging) handleDragEnd()
+      if (isResizing) handleResizeEnd()
+    }
+
+    if (isDragging || isResizing) {
+      window.addEventListener('mousemove', handleMouseMove)
+      window.addEventListener('mouseup', handleMouseUp)
+      window.addEventListener('touchmove', handleTouchMove)
+      window.addEventListener('touchend', handleTouchEnd)
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [isDragging, isResizing, handleDragMove, handleDragEnd, handleResizeMove, handleResizeEnd, editMode])
+
+  // When edit mode is off, just render the logo with current size/position (no drag handles)
+  if (!editMode) {
+    return (
+      <div style={{ transform: `translateY(${position.y}px)` }}>
+        <img
+          src="/logo.png"
+          alt="Cape Town Halaal"
+          style={{ width: size, height: size, display: 'block' }}
+          className="object-contain"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        transform: `translateY(${position.y}px)`,
+        cursor: isDragging ? 'grabbing' : 'grab',
+        position: 'relative',
+        zIndex: isDragging || isResizing ? 100 : 1,
+      }}
+      onMouseDown={(e) => handleDragStart(e.clientY)}
+      onTouchStart={(e) => handleDragStart(e.touches[0].clientY)}
+    >
+      {/* Label */}
+      <div
+        style={{
+          position: 'absolute',
+          left: -80,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          background: '#cd2653',
+          color: 'white',
+          padding: '2px 6px',
+          borderRadius: 4,
+          fontSize: 10,
+          fontWeight: 'bold',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {id}: {size}px
+      </div>
+
+      {/* Outline */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: -2,
+          border: (isDragging || isResizing) ? '2px solid #cd2653' : '1px dashed rgba(205,38,83,0.5)',
+          borderRadius: 4,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Logo - no extra space */}
+      <motion.img
+        src="/logo.png"
+        alt="Cape Town Halaal"
+        style={{ width: size, height: size, display: 'block' }}
+        className="object-contain"
+        animate={{
+          filter: ['drop-shadow(0 0 6px rgba(205, 38, 83, 0.3))', 'drop-shadow(0 0 12px rgba(205, 38, 83, 0.5))', 'drop-shadow(0 0 6px rgba(205, 38, 83, 0.3))']
+        }}
+        transition={{ duration: 3, repeat: Infinity }}
+      />
+
+      {/* Resize handle - bottom center */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -8,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 20,
+          height: 20,
+          background: '#f59e0b',
+          borderRadius: '50%',
+          cursor: 'ns-resize',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 10,
+          color: 'white',
+          fontWeight: 'bold',
+        }}
+        onMouseDown={(e) => handleResizeStart(e.clientY, e)}
+        onTouchStart={(e) => handleResizeStart(e.touches[0].clientY, e)}
+      >
+        ↕
+      </div>
+    </div>
+  )
+}
 
 // All 6 videos for the rotating panels
 const VIDEOS = [
@@ -678,6 +1064,11 @@ export default function HomePage() {
   const timeLeft = useCountdown(targetDate)
   const [mounted, setMounted] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [editMode, setEditMode] = useState(true)
+
+  const toggleEditMode = useCallback(() => {
+    setEditMode(prev => !prev)
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -690,7 +1081,11 @@ export default function HomePage() {
   if (!mounted) return null
 
   return (
+    <EditModeContext.Provider value={{ editMode, toggleEditMode }}>
     <div className="h-screen bg-[#0e0e11] text-white overflow-hidden relative">
+      {/* Edit controls - toggle + export */}
+      <EditControls />
+
       {isMobile ? (
         <>
           <MobileVideoBackground />
@@ -724,9 +1119,18 @@ export default function HomePage() {
             alt="Cape Town Halaal"
             className="w-48 lg:w-72 h-48 lg:h-72 object-contain relative z-10"
             animate={{
-              filter: ['drop-shadow(0 0 6px rgba(205, 38, 83, 0.2))', 'drop-shadow(0 0 12px rgba(205, 38, 83, 0.35))', 'drop-shadow(0 0 6px rgba(205, 38, 83, 0.2))']
+              scale: [1, 1.05, 1],
+              filter: [
+                'drop-shadow(0 0 8px rgba(205, 38, 83, 0.3))',
+                'drop-shadow(0 0 20px rgba(205, 38, 83, 0.5))',
+                'drop-shadow(0 0 8px rgba(205, 38, 83, 0.3))'
+              ]
             }}
-            transition={{ duration: 3, repeat: Infinity }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: 'easeInOut'
+            }}
           />
         </div>
       </motion.div>
@@ -737,28 +1141,29 @@ export default function HomePage() {
         <div className="relative z-20 h-full">
           {/* PANEL 1 (0-33%): Just video, no content */}
 
-          {/* PANEL 2 (33%-66%): All content + logo - Apple HIG spacing */}
+          {/* PANEL 2 (33%-66%): All content + logo - Draggable in edit mode */}
           <div className="absolute top-[33.33%] left-0 right-0 h-[33.33%] flex flex-col items-center justify-center px-6">
 
             {/* Event Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="mb-3" /* 12px gap to title */
-            >
-              <ShimmerBorder>
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full">
-                  <Calendar className="w-3 h-3 text-[#cd2653]" />
-                  <span className="text-[11px] font-semibold tracking-wider text-[#cd2653]">
-                    DECEMBER 11-13, 2026
-                  </span>
-                </div>
-              </ShimmerBorder>
-            </motion.div>
+            <DraggableElement id="badge" initialY={-25}>
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <ShimmerBorder>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full">
+                    <Calendar className="w-3 h-3 text-[#cd2653]" />
+                    <span className="text-[11px] font-semibold tracking-wider text-[#cd2653]">
+                      DECEMBER 11-13, 2026
+                    </span>
+                  </div>
+                </ShimmerBorder>
+              </motion.div>
+            </DraggableElement>
 
-            {/* HERO: Title Block - tight leading within, space after */}
-            <div className="mb-4"> {/* 16px gap to info group */}
+            {/* HERO: Title Block */}
+            <DraggableElement id="title" initialY={-14}>
               <motion.h1
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -779,82 +1184,76 @@ export default function HomePage() {
                   <AnimatedText text="FESTIVAL" delay={0.6} />
                 </motion.span>
               </motion.h1>
-            </div>
+            </DraggableElement>
 
-            {/* Info Group: Tagline + Location - tight spacing within */}
-            <div className="mb-4 flex flex-col items-center"> {/* 16px gap to data group */}
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8 }}
-                className="text-[11px] text-white/60 text-center"
+            {/* Info Group: Tagline + Location */}
+            <DraggableElement id="info" initialY={-8}>
+              <div className="flex flex-col items-center">
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.8 }}
+                  className="text-[11px] text-white/60 text-center"
+                >
+                  South Africa's Biggest Halaal Lifestyle Expo
+                </motion.p>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.9 }}
+                  className="text-[10px] text-white/40 flex items-center gap-1 mt-1"
+                >
+                  <MapPin className="w-3 h-3" />
+                  Green Point A Track, Cape Town
+                </motion.div>
+              </div>
+            </DraggableElement>
+
+            {/* Data Group: Countdown */}
+            <DraggableElement id="countdown" initialY={0}>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 1 }}
+                className="flex gap-4"
               >
-                South Africa's Biggest Halaal Lifestyle Expo
-              </motion.p>
+                {[
+                  { value: timeLeft.days, label: 'DAYS' },
+                  { value: timeLeft.hours, label: 'HRS' },
+                  { value: timeLeft.minutes, label: 'MIN' },
+                  { value: timeLeft.seconds, label: 'SEC' },
+                ].map((item, i) => (
+                  <div key={i} className="text-center">
+                    <div className="text-xl font-black tabular-nums leading-none">{item.value.toString().padStart(2, '0')}</div>
+                    <div className="text-[8px] text-white/40 tracking-wider mt-1">{item.label}</div>
+                  </div>
+                ))}
+              </motion.div>
+            </DraggableElement>
+
+            {/* Data Group: Stats */}
+            <DraggableElement id="stats" initialY={0}>
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.9 }}
-                className="text-[10px] text-white/40 flex items-center gap-1 mt-1" /* 4px gap within group */
+                transition={{ delay: 1.2 }}
+                className="flex gap-8"
               >
-                <MapPin className="w-3 h-3" />
-                Green Point A Track, Cape Town
-              </motion.div>
-            </div>
-
-            {/* Data Group: Countdown */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 1 }}
-              className="flex gap-4 mb-3" /* 12px gap to stats */
-            >
-              {[
-                { value: timeLeft.days, label: 'DAYS' },
-                { value: timeLeft.hours, label: 'HRS' },
-                { value: timeLeft.minutes, label: 'MIN' },
-                { value: timeLeft.seconds, label: 'SEC' },
-              ].map((item, i) => (
-                <div key={i} className="text-center">
-                  <div className="text-xl font-black tabular-nums leading-none">{item.value.toString().padStart(2, '0')}</div>
-                  <div className="text-[8px] text-white/40 tracking-wider mt-1">{item.label}</div>
-                </div>
-              ))}
-            </motion.div>
-
-            {/* Data Group: Stats */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 1.2 }}
-              className="flex gap-8 mb-4" /* 16px gap to logo */
-            >
-              {STATS.map((stat, i) => (
-                <div key={i} className="text-center">
-                  <div className="text-lg font-black text-[#cd2653] leading-none">
-                    <AnimatedNumber value={stat.value} suffix={stat.suffix} />
+                {STATS.map((stat, i) => (
+                  <div key={i} className="text-center">
+                    <div className="text-lg font-black text-[#cd2653] leading-none">
+                      <AnimatedNumber value={stat.value} suffix={stat.suffix} />
+                    </div>
+                    <div className="text-[8px] text-white/40 tracking-wider mt-1">{stat.label}</div>
                   </div>
-                  <div className="text-[8px] text-white/40 tracking-wider mt-1">{stat.label}</div>
-                </div>
-              ))}
-            </motion.div>
+                ))}
+              </motion.div>
+            </DraggableElement>
 
-            {/* Brand Anchor: Logo */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5, duration: 0.6 }}
-            >
-              <motion.img
-                src="/logo.png"
-                alt="Cape Town Halaal"
-                className="w-14 h-14 object-contain"
-                animate={{
-                  filter: ['drop-shadow(0 0 6px rgba(205, 38, 83, 0.3))', 'drop-shadow(0 0 12px rgba(205, 38, 83, 0.5))', 'drop-shadow(0 0 6px rgba(205, 38, 83, 0.3))']
-                }}
-                transition={{ duration: 3, repeat: Infinity }}
-              />
-            </motion.div>
+            {/* Brand Anchor: Logo - Resizable */}
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-0">
+              <ResizableLogo id="logo" />
+            </div>
           </div>
 
           {/* PANEL 3 (66%-100%): Just video, no content */}
@@ -1015,5 +1414,6 @@ export default function HomePage() {
         }}
       />
     </div>
+    </EditModeContext.Provider>
   )
 }
