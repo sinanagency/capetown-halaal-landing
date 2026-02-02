@@ -1313,7 +1313,7 @@ export default function HomePage() {
 
             {/* Brand Anchor: Logo - Resizable */}
             <div className="absolute left-1/2 -translate-x-1/2 bottom-0">
-              <ResizableLogo id="logo" initialY={65} initialSize={102} />
+              <ResizableLogo id="logo" initialY={58} initialSize={102} />
             </div>
           </div>
 
