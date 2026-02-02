@@ -1,0 +1,366 @@
+/**
+ * PIXL - Visual Editor Styles
+ * By Lord / Sinan Agency
+ */
+
+/* =====================
+   PANEL
+   ===================== */
+#pixl-panel {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 280px;
+  background: #0e0e11;
+  border: 1px solid #2a2a2e;
+  border-radius: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  color: #fff;
+  z-index: 999999;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transform: translateY(-10px) scale(0.95);
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+#pixl-panel.active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Header */
+.pixl-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #2a2a2e;
+  cursor: move;
+}
+
+.pixl-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+}
+
+.pixl-icon {
+  color: #cd2653;
+  font-size: 16px;
+}
+
+.pixl-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.pixl-controls button {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid #3a3a3e;
+  border-radius: 6px;
+  color: #888;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pixl-controls button:hover {
+  background: #1a1a1e;
+  border-color: #4a4a4e;
+  color: #fff;
+}
+
+/* Body */
+.pixl-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pixl-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pixl-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.pixl-value {
+  color: #aaa;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 11px;
+}
+
+/* Input Grid */
+.pixl-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pixl-input-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #1a1a1e;
+  border: 1px solid #2a2a2e;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.pixl-input-group label {
+  color: #666;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.pixl-input-group input {
+  flex: 1;
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+  outline: none;
+}
+
+.pixl-input-group input::-webkit-inner-spin-button,
+.pixl-input-group input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.pixl-input-group span {
+  color: #555;
+  font-size: 10px;
+}
+
+/* Scale Slider */
+#pixl-scale {
+  width: 100%;
+  height: 4px;
+  background: #2a2a2e;
+  border-radius: 2px;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+#pixl-scale::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #cd2653;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+#pixl-scale::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Device Preview */
+.pixl-devices {
+  display: flex;
+  gap: 6px;
+}
+
+.pixl-device {
+  flex: 1;
+  padding: 8px 4px;
+  background: #1a1a1e;
+  border: 1px solid #2a2a2e;
+  border-radius: 6px;
+  color: #888;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pixl-device:hover {
+  background: #222;
+  border-color: #3a3a3e;
+}
+
+.pixl-device.active {
+  background: #cd2653;
+  border-color: #cd2653;
+  color: #fff;
+}
+
+/* Footer */
+.pixl-footer {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #2a2a2e;
+}
+
+.pixl-btn {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pixl-btn.primary {
+  background: #cd2653;
+  color: #fff;
+}
+
+.pixl-btn.primary:hover {
+  background: #e02d5f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(205, 38, 83, 0.4);
+}
+
+.pixl-btn.secondary {
+  background: #1a1a1e;
+  border: 1px solid #3a3a3e;
+  color: #aaa;
+}
+
+.pixl-btn.secondary:hover {
+  background: #222;
+  border-color: #4a4a4e;
+  color: #fff;
+}
+
+/* Toast */
+.pixl-toast {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: #1a1a1e;
+  border: 1px solid #3a3a3e;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.2s ease;
+}
+
+.pixl-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* =====================
+   SELECTION OVERLAY
+   ===================== */
+#pixl-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 999998;
+  display: none;
+}
+
+.pixl-selection-box {
+  position: absolute;
+  border: 2px solid #cd2653;
+  background: rgba(205, 38, 83, 0.1);
+  pointer-events: auto;
+  cursor: move;
+}
+
+.pixl-label-box {
+  position: absolute;
+  background: #cd2653;
+  color: #fff;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Resize Handles */
+.pixl-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border: 2px solid #cd2653;
+  border-radius: 2px;
+  pointer-events: auto;
+}
+
+.pixl-handle.nw { top: -5px; left: -5px; cursor: nw-resize; }
+.pixl-handle.n { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
+.pixl-handle.ne { top: -5px; right: -5px; cursor: ne-resize; }
+.pixl-handle.w { top: 50%; margin-top: -5px; left: -5px; cursor: w-resize; }
+.pixl-handle.e { top: 50%; margin-top: -5px; right: -5px; cursor: e-resize; }
+.pixl-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.pixl-handle.s { bottom: -5px; left: 50%; margin-left: -5px; cursor: s-resize; }
+.pixl-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
+
+/* =====================
+   BODY STATES
+   ===================== */
+body.pixl-active {
+  cursor: crosshair;
+}
+
+body.pixl-active *:hover:not(#pixl-panel):not(#pixl-panel *):not(#pixl-overlay):not(#pixl-overlay *) {
+  outline: 2px dashed rgba(205, 38, 83, 0.5) !important;
+  outline-offset: 2px;
+}
+
+.pixl-selected {
+  outline: none !important;
+}
+
+/* =====================
+   GUIDES (optional)
+   ===================== */
+.pixl-guide-h,
+.pixl-guide-v {
+  position: fixed;
+  background: #cd2653;
+  pointer-events: none;
+  z-index: 999997;
+  opacity: 0.5;
+}
+
+.pixl-guide-h {
+  height: 1px;
+  width: 100%;
+  left: 0;
+}
+
+.pixl-guide-v {
+  width: 1px;
+  height: 100%;
+  top: 0;
+}

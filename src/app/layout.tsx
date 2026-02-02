@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,12 +29,18 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isDev = process.env.NODE_ENV === 'development';
+
   return (
     <html lang="en" className="dark">
+      <head>
+        {isDev && <link rel="stylesheet" href="/pixl.css" />}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950 text-white`}
       >
         {children}
+        {isDev && <Script src="/pixl.js" strategy="afterInteractive" />}
       </body>
     </html>
   );
