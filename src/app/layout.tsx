@@ -17,10 +17,31 @@ export const metadata: Metadata = {
   title: "Cape Town Halaal 2026 | South Africa's Biggest Halaal Lifestyle Expo",
   description: "Join 350+ vendors and 25,000+ visitors at Cape Town's premier halaal lifestyle exhibition. December 11-13, 2026 at Green Point A Track.",
   keywords: ["halaal", "cape town", "expo", "halal food", "lifestyle", "exhibition", "south africa", "2026"],
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
   openGraph: {
     title: "Cape Town Halaal 2026",
     description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026",
     type: "website",
+    url: "https://www.cthalaal.co.za",
+    siteName: "Cape Town Halaal",
+    images: [
+      {
+        url: "/logo.png",
+        width: 512,
+        height: 512,
+        alt: "Cape Town Halaal Logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "Cape Town Halaal 2026",
+    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026",
+    images: ["/logo.png"],
   },
 };
 
