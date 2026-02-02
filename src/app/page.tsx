@@ -964,13 +964,10 @@ function MobileVideoBackground() {
         )
       })}
 
-      {/* Gradient overlay for readability */}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e11] via-[#0e0e11]/50 to-transparent pointer-events-none z-10" />
-
-      {/* Middle panel darker overlay for text readability */}
+      {/* Middle panel ONLY - darker overlay for text readability */}
       <div
         className="absolute left-0 right-0 top-[33.33%] h-[33.33%] pointer-events-none z-10"
-        style={{ background: 'rgba(14, 14, 17, 0.65)' }}
+        style={{ background: 'rgba(14, 14, 17, 0.6)' }}
       />
 
       {/* Panel divider lines */}
@@ -1296,7 +1293,7 @@ export default function HomePage() {
             </DraggableElement>
 
             {/* Data Group: Stats */}
-            <DraggableElement id="stats" initialY={0}>
+            <DraggableElement id="stats" initialY={3}>
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1316,7 +1313,7 @@ export default function HomePage() {
 
             {/* Brand Anchor: Logo - Resizable */}
             <div className="absolute left-1/2 -translate-x-1/2 bottom-0">
-              <ResizableLogo id="logo" />
+              <ResizableLogo id="logo" initialY={58} />
             </div>
           </div>
 
