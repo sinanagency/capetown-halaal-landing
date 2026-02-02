@@ -1202,11 +1202,11 @@ export default function HomePage() {
         <div className="relative z-20 h-full">
           {/* PANEL 1 (0-33%): Just video, no content */}
 
-          {/* PANEL 2 (33%-66%): All content + logo - Draggable in edit mode */}
-          <div className="absolute top-[33.33%] left-0 right-0 h-[33.33%] flex flex-col items-center justify-center px-6">
+          {/* PANEL 2 (33%-66%): All content + logo - Responsive layout */}
+          <div className="absolute top-[33.33%] left-0 right-0 h-[33.33%] flex flex-col items-center justify-center px-6 gap-[1.5vh]">
 
             {/* Event Badge */}
-            <DraggableElement id="badge" initialY={-25}>
+            <DraggableElement id="badge" initialY={0}>
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -1215,7 +1215,7 @@ export default function HomePage() {
                 <ShimmerBorder>
                   <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full">
                     <Calendar className="w-3 h-3 text-[#cd2653]" />
-                    <span className="text-[11px] font-semibold tracking-wider text-[#cd2653]">
+                    <span className="text-[10px] sm:text-[11px] font-semibold tracking-wider text-[#cd2653]">
                       DECEMBER 11-13, 2026
                     </span>
                   </div>
@@ -1224,18 +1224,18 @@ export default function HomePage() {
             </DraggableElement>
 
             {/* HERO: Title Block */}
-            <DraggableElement id="title" initialY={-14}>
+            <DraggableElement id="title" initialY={0}>
               <motion.h1
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-[26px] font-black text-center leading-[1] tracking-tight"
+                className="text-[clamp(22px,6vw,28px)] font-black text-center leading-[1] tracking-tight"
               >
                 <GlitchText text="YOUNG AT HEART" />
               </motion.h1>
               <motion.h1
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-[26px] font-black text-center leading-[1] tracking-tight -mt-0.5"
+                className="text-[clamp(22px,6vw,28px)] font-black text-center leading-[1] tracking-tight -mt-0.5"
               >
                 <motion.span
                   className="bg-gradient-to-r from-[#cd2653] via-[#e84c6f] to-[#f59e0b] bg-clip-text text-transparent bg-[length:200%_auto]"
@@ -1248,7 +1248,7 @@ export default function HomePage() {
             </DraggableElement>
 
             {/* Info Group: Tagline + Location */}
-            <DraggableElement id="info" initialY={-8}>
+            <DraggableElement id="info" initialY={0}>
               <div className="flex flex-col items-center">
                 <motion.p
                   initial={{ opacity: 0 }}
@@ -1293,7 +1293,7 @@ export default function HomePage() {
             </DraggableElement>
 
             {/* Data Group: Stats */}
-            <DraggableElement id="stats" initialY={3}>
+            <DraggableElement id="stats" initialY={0}>
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1311,10 +1311,7 @@ export default function HomePage() {
               </motion.div>
             </DraggableElement>
 
-            {/* Brand Anchor: Logo - Resizable */}
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-0">
-              <ResizableLogo id="logo" initialY={58} initialSize={102} />
-            </div>
+            {/* Logo removed for now - will add back later */}
           </div>
 
           {/* PANEL 3 (66%-100%): Just video, no content */}
