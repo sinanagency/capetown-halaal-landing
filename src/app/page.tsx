@@ -11,7 +11,7 @@ import { Instagram, Facebook, MapPin, Calendar } from 'lucide-react'
 const EDIT_MODE_ENABLED = false
 
 // Store for all element positions (shared state)
-const positionStore: Record<string, { y: number; size?: number }> = {}
+const positionStore: Record<string, { y: number; size?: number; scale?: number }> = {}
 
 // React Context for edit mode
 const EditModeContext = createContext<{ editMode: boolean; toggleEditMode: () => void }>({
@@ -92,26 +92,32 @@ function EditControls() {
   )
 }
 
-// Draggable wrapper component
+// Draggable + Resizable wrapper component
 function DraggableElement({
   id,
   children,
   initialY = 0,
+  initialScale = 1,
   onPositionChange
 }: {
   id: string
   children: React.ReactNode
   initialY?: number
-  onPositionChange?: (id: string, y: number) => void
+  initialScale?: number
+  onPositionChange?: (id: string, y: number, scale: number) => void
 }) {
   const contextEditMode = useEditMode()
   const editMode = EDIT_MODE_ENABLED && contextEditMode
   const [position, setPosition] = useState({ y: initialY })
+  const [scale, setScale] = useState(initialScale)
   const [isDragging, setIsDragging] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
   const elementRef = useRef<HTMLDivElement>(null)
   const startY = useRef(0)
   const startPosY = useRef(0)
+  const startScale = useRef(initialScale)
 
+  // Drag handlers
   const handleStart = useCallback((clientY: number) => {
     setIsDragging(true)
     startY.current = clientY
@@ -123,24 +129,58 @@ function DraggableElement({
     const deltaY = clientY - startY.current
     const newY = startPosY.current + deltaY
     setPosition({ y: newY })
-    onPositionChange?.(id, newY)
-  }, [isDragging, id, onPositionChange])
+    onPositionChange?.(id, newY, scale)
+  }, [isDragging, id, onPositionChange, scale])
 
   const handleEnd = useCallback(() => {
     setIsDragging(false)
-    positionStore[id] = { y: Math.round(position.y) }
-    console.log(`📍 ${id}: translateY(${position.y}px)`)
-  }, [id, position.y])
+    positionStore[id] = { y: Math.round(position.y), scale: Math.round(scale * 100) / 100 }
+    console.log(`📍 ${id}: Y=${Math.round(position.y)}px, scale=${scale.toFixed(2)}`)
+  }, [id, position.y, scale])
+
+  // Resize handlers
+  const handleResizeStart = useCallback((clientY: number, e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation()
+    setIsResizing(true)
+    startY.current = clientY
+    startScale.current = scale
+  }, [scale])
+
+  const handleResizeMove = useCallback((clientY: number) => {
+    if (!isResizing) return
+    const deltaY = clientY - startY.current
+    // Scale changes by 0.01 per pixel moved
+    const newScale = Math.max(0.5, Math.min(2, startScale.current + deltaY * 0.005))
+    setScale(newScale)
+  }, [isResizing])
+
+  const handleResizeEnd = useCallback(() => {
+    setIsResizing(false)
+    positionStore[id] = { y: Math.round(position.y), scale: Math.round(scale * 100) / 100 }
+    console.log(`📍 ${id}: Y=${Math.round(position.y)}px, scale=${scale.toFixed(2)}`)
+  }, [id, position.y, scale])
 
   useEffect(() => {
     if (!editMode) return
 
-    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientY)
-    const handleMouseUp = () => handleEnd()
-    const handleTouchMove = (e: TouchEvent) => handleMove(e.touches[0].clientY)
-    const handleTouchEnd = () => handleEnd()
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) handleMove(e.clientY)
+      if (isResizing) handleResizeMove(e.clientY)
+    }
+    const handleMouseUp = () => {
+      if (isDragging) handleEnd()
+      if (isResizing) handleResizeEnd()
+    }
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isDragging) handleMove(e.touches[0].clientY)
+      if (isResizing) handleResizeMove(e.touches[0].clientY)
+    }
+    const handleTouchEnd = () => {
+      if (isDragging) handleEnd()
+      if (isResizing) handleResizeEnd()
+    }
 
-    if (isDragging) {
+    if (isDragging || isResizing) {
       window.addEventListener('mousemove', handleMouseMove)
       window.addEventListener('mouseup', handleMouseUp)
       window.addEventListener('touchmove', handleTouchMove)
@@ -153,12 +193,12 @@ function DraggableElement({
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [isDragging, handleMove, handleEnd, editMode])
+  }, [isDragging, isResizing, handleMove, handleEnd, handleResizeMove, handleResizeEnd, editMode])
 
-  // When edit mode is off, just render children with the transform applied
+  // When edit mode is off, just render children with transforms applied
   if (!editMode) {
     return (
-      <div style={{ transform: `translateY(${position.y}px)` }}>
+      <div style={{ transform: `translateY(${position.y}px) scale(${scale})` }}>
         {children}
       </div>
     )
@@ -168,10 +208,10 @@ function DraggableElement({
     <div
       ref={elementRef}
       style={{
-        transform: `translateY(${position.y}px)`,
+        transform: `translateY(${position.y}px) scale(${scale})`,
         cursor: isDragging ? 'grabbing' : 'grab',
         position: 'relative',
-        zIndex: isDragging ? 100 : 1,
+        zIndex: (isDragging || isResizing) ? 100 : 1,
       }}
       onMouseDown={(e) => handleStart(e.clientY)}
       onTouchStart={(e) => handleStart(e.touches[0].clientY)}
@@ -180,31 +220,55 @@ function DraggableElement({
       <div
         style={{
           position: 'absolute',
-          left: -60,
+          left: -70,
           top: '50%',
           transform: 'translateY(-50%)',
           background: '#cd2653',
           color: 'white',
           padding: '2px 6px',
           borderRadius: 4,
-          fontSize: 10,
+          fontSize: 9,
           fontWeight: 'bold',
           whiteSpace: 'nowrap',
         }}
       >
-        {id}: {position.y}px
+        {id}: {Math.round(position.y)}px | {(scale * 100).toFixed(0)}%
       </div>
       {/* Outline */}
       <div
         style={{
           position: 'absolute',
           inset: -2,
-          border: isDragging ? '2px solid #cd2653' : '1px dashed rgba(205,38,83,0.5)',
+          border: (isDragging || isResizing) ? '2px solid #cd2653' : '1px dashed rgba(205,38,83,0.5)',
           borderRadius: 4,
           pointerEvents: 'none',
         }}
       />
       {children}
+      {/* Resize handle - bottom right */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -10,
+          right: -10,
+          width: 20,
+          height: 20,
+          background: '#f59e0b',
+          borderRadius: '50%',
+          cursor: 'ns-resize',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 10,
+          color: 'white',
+          fontWeight: 'bold',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        }}
+        onMouseDown={(e) => handleResizeStart(e.clientY, e)}
+        onTouchStart={(e) => handleResizeStart(e.touches[0].clientY, e)}
+      >
+        ↕
+      </div>
     </div>
   )
 }
