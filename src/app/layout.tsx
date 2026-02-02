@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Young at Heart Festival 2026 | South Africa's Biggest Halaal Lifestyle Expo",
-  description: "Join 350+ vendors and 25,000+ visitors at Young at Heart Festival. December 11-13, 2026 at Green Point A Track, Cape Town.",
+  description: "Join 350+ vendors and 25,000+ visitors at Young at Heart Festival. December 11-13, 2026 at Youngsfield Military Base, Cape Town.",
   keywords: ["young at heart", "halaal", "cape town", "expo", "halal food", "lifestyle", "festival", "south africa", "2026"],
   metadataBase: new URL("https://www.cthalaal.co.za"),
   icons: {
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "Young at Heart Festival 2026",
-    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026 | Green Point A Track, Cape Town",
+    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026 | Youngsfield Military Base, Cape Town",
     type: "website",
     url: "https://www.cthalaal.co.za",
     siteName: "Young at Heart Festival",

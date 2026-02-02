@@ -1265,7 +1265,7 @@ export default function HomePage() {
                   className="text-[10px] text-white/40 flex items-center gap-1 mt-1"
                 >
                   <MapPin className="w-3 h-3" />
-                  Green Point A Track, Cape Town
+                  Youngsfield Military Base, Cape Town
                 </motion.div>
               </div>
             </DraggableElement>
@@ -1385,7 +1385,7 @@ export default function HomePage() {
             >
               <MapPin className="w-4 h-4" />
             </motion.span>
-            Green Point A Track, Cape Town
+            Youngsfield Military Base, Cape Town
           </motion.div>
 
           {/* Countdown with flip effect */}
