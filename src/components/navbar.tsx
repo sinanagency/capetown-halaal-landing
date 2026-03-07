@@ -13,8 +13,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { ShoppingCart, User, LogOut, LayoutDashboard, Menu, MapPin } from 'lucide-react'
+import { User, LogOut, LayoutDashboard, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/logo'
 
@@ -32,7 +31,7 @@ export function Navbar() {
   }
 
   return (
-    <nav className="fixed top-0 left-0 right-0 h-16 bg-gray-950/80 backdrop-blur-xl border-b border-white/10 z-50">
+    <nav className="fixed top-0 left-0 right-0 h-16 bg-white/80 backdrop-blur-xl border-b border-neutral-200 z-50">
       <div className="container mx-auto h-full px-4 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="hover:opacity-80 transition-opacity">
@@ -45,24 +44,24 @@ export function Navbar() {
             <Button
               variant="ghost"
               className={cn(
-                'gap-2',
-                pathname === '/' && 'bg-white/10'
+                'gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100',
+                pathname === '/' && 'bg-neutral-100'
               )}
             >
               <MapPin className="w-4 h-4" />
-              Floor Plan
+              Home
             </Button>
           </Link>
-          <Link href="/vendors">
+          <Link href="/apply">
             <Button
               variant="ghost"
               className={cn(
-                'gap-2',
-                pathname === '/vendors' && 'bg-white/10'
+                'gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100',
+                pathname === '/apply' && 'bg-neutral-100'
               )}
             >
               <User className="w-4 h-4" />
-              Vendors
+              Exhibitors
             </Button>
           </Link>
           {isAuthenticated && (
@@ -70,8 +69,8 @@ export function Navbar() {
               <Button
                 variant="ghost"
                 className={cn(
-                  'gap-2',
-                  pathname === '/dashboard' && 'bg-white/10'
+                  'gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100',
+                  pathname === '/dashboard' && 'bg-neutral-100'
                 )}
               >
                 <LayoutDashboard className="w-4 h-4" />
@@ -83,47 +82,35 @@ export function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
-          {/* Cart */}
-          <Link href="/#floor-plan">
-            <Button variant="ghost" size="icon" className="relative">
-              <ShoppingCart className="w-5 h-5" />
-              {cart.length > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-[#cd2653] text-[10px]">
-                  {cart.length}
-                </Badge>
-              )}
-            </Button>
-          </Link>
-
           {/* User menu */}
           {isAuthenticated ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="gap-2">
+                <Button variant="ghost" className="gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-xs">
+                    <AvatarFallback className="bg-gradient-to-br from-[#cd2653] to-[#bf3026] text-white text-xs">
                       {user ? getInitials(user.name) : 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <span className="hidden sm:inline text-sm">{user?.name.split(' ')[0]}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 bg-gray-900 border-white/10">
+              <DropdownMenuContent align="end" className="w-56 bg-white border-neutral-200">
                 <DropdownMenuLabel>
-                  <p className="font-medium">{user?.name}</p>
-                  <p className="text-xs text-gray-400 font-normal">{user?.email}</p>
+                  <p className="font-medium text-neutral-900">{user?.name}</p>
+                  <p className="text-xs text-neutral-500 font-normal">{user?.email}</p>
                 </DropdownMenuLabel>
-                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuSeparator className="bg-neutral-200" />
                 <Link href="/dashboard">
                   <DropdownMenuItem className="cursor-pointer">
                     <LayoutDashboard className="w-4 h-4 mr-2" />
                     Dashboard
                   </DropdownMenuItem>
                 </Link>
-                <DropdownMenuSeparator className="bg-white/10" />
+                <DropdownMenuSeparator className="bg-neutral-200" />
                 <DropdownMenuItem
                   onClick={() => logout()}
-                  className="cursor-pointer text-red-400 focus:text-red-400"
+                  className="cursor-pointer text-red-600 focus:text-red-600"
                 >
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign out
@@ -132,14 +119,9 @@ export function Navbar() {
             </DropdownMenu>
           ) : (
             <div className="flex items-center gap-2">
-              <Link href="/login">
-                <Button variant="ghost" size="sm">
-                  Sign in
-                </Button>
-              </Link>
-              <Link href="/register">
-                <Button size="sm" className="bg-[#cd2653] hover:bg-[#bf3026]">
-                  Register
+              <Link href="/apply">
+                <Button size="sm" className="bg-[#cd2653] hover:bg-[#bf3026] text-white">
+                  Apply as Exhibitor
                 </Button>
               </Link>
             </div>

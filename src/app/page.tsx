@@ -602,11 +602,11 @@ export default function HomePage() {
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => router.push('/exhibitor')}
+                  onClick={() => router.push('/apply')}
                   className="group relative flex items-center gap-3 px-8 py-4 text-lg font-semibold text-white overflow-hidden rounded-2xl bg-gradient-to-r from-[#cd2653] to-[#bf3026] shadow-2xl shadow-[#cd2653]/30 cursor-pointer"
                 >
                   <Store className="w-5 h-5" />
-                  Book Your Booth
+                  Apply as Exhibitor
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </motion.button>
                 <motion.button

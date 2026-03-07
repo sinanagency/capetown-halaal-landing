@@ -241,7 +241,7 @@ export function HeroSection() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => router.push('/exhibitor')}
+                onClick={() => router.push('/apply')}
                 className="group relative flex items-center gap-3 px-8 py-4 text-lg font-semibold text-white overflow-hidden rounded-2xl cursor-pointer"
               >
                 {/* Button gradient background */}
@@ -258,7 +258,7 @@ export function HeroSection() {
                 <div className="absolute inset-0 rounded-2xl shadow-[0_0_40px_rgba(205,38,83,0.4)]" />
 
                 <span className="relative z-10 flex items-center gap-3">
-                  Book Your Booth
+                  Apply as Exhibitor
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </span>
               </motion.button>

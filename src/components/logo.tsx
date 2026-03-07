@@ -49,8 +49,8 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
 
       {showText && (
         <div>
-          <p className={cn('font-bold text-white leading-tight', s.text)}>Cape Town Halaal</p>
-          <p className={cn('text-neutral-400 leading-tight', s.subtext)}>Lifestyle Expo 2026</p>
+          <p className={cn('font-bold text-neutral-900 leading-tight', s.text)}>Young at Heart</p>
+          <p className={cn('text-neutral-500 leading-tight', s.subtext)}>Festival 2026</p>
         </div>
       )}
     </div>
