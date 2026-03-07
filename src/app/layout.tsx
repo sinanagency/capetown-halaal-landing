@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,35 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Young at Heart Festival 2026 | South Africa's Biggest Halaal Lifestyle Expo",
-  description: "Join 350+ vendors and 25,000+ visitors at Young at Heart Festival. December 11-13, 2026 at Youngsfield Military Base, Cape Town.",
-  keywords: ["young at heart", "halaal", "cape town", "expo", "halal food", "lifestyle", "festival", "south africa", "2026"],
-  metadataBase: new URL("https://www.cthalaal.co.za"),
-  icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
-  },
+  title: "Young at Heart Festival 2026 | Cape Town",
+  description: "Cape Town's premier lifestyle festival. 350+ vendors, 25,000+ visitors. December 11-13, 2026 at Youngsfield Military Base.",
+  keywords: ["young at heart festival", "cape town festival", "lifestyle exhibition", "south africa", "vendor", "december 2026"],
+  authors: [{ name: "Samreen Kumandan" }],
   openGraph: {
-    title: "Young at Heart Festival 2026",
-    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026 | Youngsfield Military Base, Cape Town",
+    title: "Young at Heart Festival 2026 | Cape Town",
+    description: "Cape Town's premier lifestyle festival. December 11-13, 2026.",
     type: "website",
-    url: "https://www.cthalaal.co.za",
-    siteName: "Young at Heart Festival",
-    images: [
-      {
-        url: "https://www.cthalaal.co.za/logo.png",
-        width: 512,
-        height: 512,
-        alt: "Young at Heart Festival Logo",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary",
-    title: "Young at Heart Festival 2026",
-    description: "South Africa's Biggest Halaal Lifestyle Expo | December 11-13, 2026 | Cape Town",
-    images: ["https://www.cthalaal.co.za/logo.png"],
+    locale: "en_ZA",
   },
 };
 
@@ -51,11 +32,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950 text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-white text-neutral-900`}
       >
         {children}
+        <Toaster />
       </body>
     </html>
   );

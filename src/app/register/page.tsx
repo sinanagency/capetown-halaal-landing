@@ -1,310 +1,208 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { ArrowLeft, Store, Send, CheckCircle, Instagram, Facebook, Globe, Mail, Phone, Building2, User } from 'lucide-react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
+import { useBoothStore } from '@/lib/store'
+import { registerUser, validateEmail, validatePhone } from '@/lib/auth'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { ArrowLeft, Loader2, Mail, Lock, User, Building, Phone, AlertCircle, Check } from 'lucide-react'
+import { LogoMark } from '@/components/logo'
 
 export default function RegisterPage() {
-  const [mounted, setMounted] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const { register } = useBoothStore()
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
+  const [formData, setFormData] = useState({
+    name: 'Demo User',
+    email: 'demo@example.com',
+    company: 'Demo Company Ltd',
+    phone: '+27 12 345 6789',
+    password: 'demo123',
+    confirmPassword: 'demo123'
+  })
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setLoading(true)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isLoading, setIsLoading] = useState(false)
 
-    const form = e.currentTarget
-    const formData = new FormData(form)
-
-    // Convert FormData to object
-    const data: Record<string, string> = {}
-    formData.forEach((value, key) => {
-      if (key !== 'form-name' && key !== 'bot-field') {
-        data[key] = value.toString()
-      }
-    })
-
-    try {
-      const response = await fetch('/.netlify/functions/submit-vendor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-
-      if (response.ok) {
-        setSubmitted(true)
-      } else {
-        throw new Error('Submission failed')
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('Something went wrong. Please try again.')
-    } finally {
-      setLoading(false)
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }))
     }
   }
 
-  if (!mounted) return null
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {}
 
-  if (submitted) {
-    return (
-      <div className="min-h-screen bg-[#0e0e11] text-white flex items-center justify-center px-6">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center max-w-md"
-        >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2, type: 'spring' }}
-            className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-6"
-          >
-            <CheckCircle className="w-10 h-10 text-green-500" />
-          </motion.div>
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required'
+    }
 
-          <h1 className="text-3xl font-bold mb-4">Application Received!</h1>
-          <p className="text-white/60 mb-8">
-            Thank you for your interest in Cape Town Halaal 2026. Our team will review your application and get back to you soon.
-          </p>
+    if (!validateEmail(formData.email)) {
+      newErrors.email = 'Valid email is required'
+    }
 
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-[#cd2653] rounded-full font-semibold hover:bg-[#e03a5f] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-        </motion.div>
-      </div>
-    )
+    if (!formData.company.trim()) {
+      newErrors.company = 'Company name is required'
+    }
+
+    if (!validatePhone(formData.phone)) {
+      newErrors.phone = 'Valid phone number is required'
+    }
+
+    if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters'
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!validate()) return
+
+    setIsLoading(true)
+
+    try {
+      const result = await registerUser({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        company: formData.company,
+        phone: formData.phone
+      })
+
+      if (result.success && result.user) {
+        register(result.user)
+        router.push('/')
+      } else {
+        setErrors({ submit: result.error || 'Registration failed' })
+      }
+    } catch {
+      setErrors({ submit: 'An error occurred. Please try again.' })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const inputFields = [
+    { id: 'name', label: 'Full Name', icon: User, type: 'text', placeholder: 'John Doe' },
+    { id: 'email', label: 'Email', icon: Mail, type: 'email', placeholder: 'you@company.com' },
+    { id: 'company', label: 'Company Name', icon: Building, type: 'text', placeholder: 'Your Company Ltd' },
+    { id: 'phone', label: 'Phone Number', icon: Phone, type: 'tel', placeholder: '+27 12 345 6789' },
+    { id: 'password', label: 'Password', icon: Lock, type: 'password', placeholder: '••••••••' },
+    { id: 'confirmPassword', label: 'Confirm Password', icon: Lock, type: 'password', placeholder: '••••••••' }
+  ]
+
   return (
-    <div className="min-h-screen bg-[#0e0e11] text-white">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#0e0e11]/80 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">Back</span>
-          </Link>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+      {/* Background pattern */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMjIiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDE0di0yaDIyek0zNCAyNnYtMkgxNnYyaDE4ek0zMCAyMnYtMkgxOHYyaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
 
-          <div className="text-sm font-semibold text-[#cd2653]">
-            CAPE TOWN HALAAL 2026
-          </div>
-        </div>
-      </header>
-
-      {/* Form */}
-      <main className="pt-32 pb-20 px-6">
-        <div className="max-w-2xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12"
-          >
-            <div className="w-16 h-16 rounded-2xl bg-[#cd2653]/20 flex items-center justify-center mx-auto mb-6">
-              <Store className="w-8 h-8 text-[#cd2653]" />
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Become a Vendor</h1>
-            <p className="text-white/60 max-w-md mx-auto">
-              Join 350+ vendors at South Africa's biggest Halaal lifestyle expo. Fill out the form below and we'll get back to you.
-            </p>
-          </motion.div>
-
-          <motion.form
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            name="vendor-application"
-            method="POST"
-            data-netlify="true"
-            netlify-honeypot="bot-field"
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
-            <input type="hidden" name="form-name" value="vendor-application" />
-            <input type="hidden" name="bot-field" />
-
-            {/* Business Info */}
-            <div className="bg-white/5 rounded-2xl p-6 space-y-5">
-              <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                <Building2 className="w-5 h-5 text-[#cd2653]" />
-                Business Information
-              </h2>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  Business Name *
-                </label>
-                <input
-                  type="text"
-                  name="business_name"
-                  required
-                  className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors"
-                  placeholder="Your business name"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  What do you sell? *
-                </label>
-                <textarea
-                  name="business_description"
-                  required
-                  rows={3}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors resize-none"
-                  placeholder="Briefly describe your products or services"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  <Globe className="w-4 h-4 inline mr-1" />
-                  Website
-                </label>
-                <input
-                  type="url"
-                  name="website"
-                  className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors"
-                  placeholder="https://yourbusiness.com"
-                />
-              </div>
-            </div>
-
-            {/* Social Media */}
-            <div className="bg-white/5 rounded-2xl p-6 space-y-5">
-              <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                <Instagram className="w-5 h-5 text-[#cd2653]" />
-                Social Media
-              </h2>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  Instagram Handle
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">@</span>
-                  <input
-                    type="text"
-                    name="instagram"
-                    className="w-full h-12 pl-8 pr-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors"
-                    placeholder="yourhandle"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  <Facebook className="w-4 h-4 inline mr-1" />
-                  Facebook Page
-                </label>
-                <input
-                  type="text"
-                  name="facebook"
-                  className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors"
-                  placeholder="facebook.com/yourbusiness"
-                />
-              </div>
-            </div>
-
-            {/* Contact Info */}
-            <div className="bg-white/5 rounded-2xl p-6 space-y-5">
-              <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-                <User className="w-5 h-5 text-[#cd2653]" />
-                Contact Information
-              </h2>
-
-              <div className="grid md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">
-                    Contact Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="contact_name"
-                    required
-                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors"
-                    placeholder="Your full name"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">
-                    <Phone className="w-4 h-4 inline mr-1" />
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    required
-                    className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors"
-                    placeholder="+27 XX XXX XXXX"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  <Mail className="w-4 h-4 inline mr-1" />
-                  Email Address *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  required
-                  className="w-full h-12 px-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors"
-                  placeholder="you@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-white/70 mb-2">
-                  Additional Notes
-                </label>
-                <textarea
-                  name="notes"
-                  rows={3}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30 focus:outline-none focus:border-[#cd2653] transition-colors resize-none"
-                  placeholder="Anything else you'd like us to know?"
-                />
-              </div>
-            </div>
-
-            {/* Submit */}
-            <motion.button
-              type="submit"
-              disabled={loading}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="w-full h-14 bg-gradient-to-r from-[#cd2653] to-[#e03a5f] rounded-xl font-bold text-lg flex items-center justify-center gap-3 shadow-lg shadow-[#cd2653]/25 hover:shadow-[#cd2653]/40 transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-md"
+      >
+        <Card className="bg-gray-900/50 border-white/10 backdrop-blur-xl">
+          <CardHeader className="space-y-1 text-center">
+            <Link
+              href="/"
+              className="inline-flex items-center text-sm text-gray-400 hover:text-white mb-4 transition-colors self-start"
             >
-              {loading ? (
-                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Send className="w-5 h-5" />
-                  Submit Application
-                </>
-              )}
-            </motion.button>
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Back to floor plan
+            </Link>
 
-            <p className="text-center text-white/40 text-sm">
-              By submitting, you agree to be contacted about Cape Town Halaal 2026.
-            </p>
-          </motion.form>
-        </div>
-      </main>
+            <div className="mx-auto mb-4">
+              <LogoMark size="xl" />
+            </div>
+
+            <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+            <CardDescription>
+              Register to book your booth at Cape Town Halaal
+            </CardDescription>
+          </CardHeader>
+
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              {errors.submit && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.submit}
+                </motion.div>
+              )}
+
+              {inputFields.map((field) => (
+                <div key={field.id} className="space-y-2">
+                  <Label htmlFor={field.id}>{field.label}</Label>
+                  <div className="relative">
+                    <field.icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Input
+                      id={field.id}
+                      type={field.type}
+                      placeholder={field.placeholder}
+                      value={formData[field.id as keyof typeof formData]}
+                      onChange={(e) => handleChange(field.id, e.target.value)}
+                      className={`pl-10 bg-white/5 border-white/10 ${errors[field.id] ? 'border-red-500' : ''}`}
+                      required
+                    />
+                    {formData[field.id as keyof typeof formData] && !errors[field.id] && (
+                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    )}
+                  </div>
+                  {errors[field.id] && (
+                    <p className="text-xs text-red-400">{errors[field.id]}</p>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-4">
+              <Button
+                type="submit"
+                className="w-full bg-[#cd2653] hover:bg-[#bf3026]"
+                disabled={isLoading}
+              >
+                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Create Account
+              </Button>
+
+              <Separator className="bg-white/10" />
+
+              <p className="text-sm text-gray-400 text-center">
+                Already have an account?{' '}
+                <Link href="/login" className="text-[#cd2653] hover:text-[#bf3026] font-medium">
+                  Sign in
+                </Link>
+              </p>
+
+              {/* Demo mode notice */}
+              <p className="text-[10px] text-green-500 text-center font-medium">
+                Demo mode • Data pre-filled - just click Create Account!
+              </p>
+            </CardFooter>
+          </form>
+        </Card>
+      </motion.div>
     </div>
   )
 }
