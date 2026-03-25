@@ -44,7 +44,7 @@ export default function AdminLoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-neutral-900">
-            CT Halaal <span className="text-[#cd2653]">Admin</span>
+            Young at Heart <span className="text-[#cd2653]">Admin</span>
           </h1>
           <p className="text-neutral-500 mt-2">Sign in to manage applications</p>
         </div>

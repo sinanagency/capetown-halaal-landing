@@ -156,7 +156,7 @@ export function HeroSection() {
         >
           <Image
             src={HERO_IMAGE}
-            alt="Halaal cuisine"
+            alt="Cuisine"
             fill
             className="object-cover opacity-10"
             priority

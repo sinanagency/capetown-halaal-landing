@@ -28,7 +28,7 @@ export function AdminSidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-neutral-200">
         <h1 className="text-xl font-bold text-neutral-900">
-          CT Halaal <span className="text-[#cd2653]">Admin</span>
+          Young at Heart <span className="text-[#cd2653]">Admin</span>
         </h1>
       </div>
 

@@ -203,7 +203,7 @@ function ContactModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-white mb-2">Get In Touch</h3>
               <p className="text-neutral-400 text-sm">
-                Have questions about Cape Town Halaal 2026? We'd love to hear from you.
+                Have questions about Young at Heart Festival 2026? We'd love to hear from you.
               </p>
             </div>
 
@@ -439,14 +439,14 @@ export default function HomePage() {
               <h2 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-6 leading-tight">
                 South Africa's Largest
                 <span className="block">
-                  <GradientText from="#cd2653" to="#f59e0b">Halaal Lifestyle</GradientText>
+                  <GradientText from="#cd2653" to="#f59e0b">Lifestyle</GradientText>
                 </span>
                 Exhibition
               </h2>
               <p className="text-neutral-600 text-lg leading-relaxed mb-8">
-                Cape Town Halaal Lifestyle Expo brings together the finest halaal products, services,
+                Cape Town Lifestyle Expo brings together the finest products, services,
                 and experiences under one roof. From authentic cuisine to lifestyle brands, discover
-                everything halaal living has to offer.
+                everything living has to offer.
               </p>
 
               <div className="grid grid-cols-2 gap-4">
@@ -454,7 +454,7 @@ export default function HomePage() {
                   <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
                     <Utensils className="w-5 h-5 text-red-500" />
                   </div>
-                  <span className="text-neutral-700 font-medium">Halaal Certified</span>
+                  <span className="text-neutral-700 font-medium">Quality Certified</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
@@ -519,7 +519,7 @@ export default function HomePage() {
           <SectionHeading
             badge="Why Attend"
             title="An Unmissable Experience"
-            description="Everything you need for an unforgettable halaal lifestyle exhibition"
+            description="Everything you need for an unforgettable lifestyle exhibition"
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -556,7 +556,7 @@ export default function HomePage() {
             <FeatureCard
               icon={Zap}
               title="Innovation Zone"
-              description="Discover the latest in halaal tech, fintech, and sustainable products."
+              description="Discover the latest in tech, fintech, and sustainable products."
               delay={0.5}
             />
           </div>
@@ -595,7 +595,7 @@ export default function HomePage() {
                 <GradientText from="#cd2653" to="#f59e0b" className="ml-3">Join Us?</GradientText>
               </h2>
               <p className="text-neutral-400 text-xl mb-10">
-                Secure your booth today and be part of South Africa's biggest halaal lifestyle event.
+                Secure your booth today and be part of South Africa's biggest lifestyle event.
               </p>
 
               <div className="flex flex-wrap justify-center gap-4">
@@ -631,7 +631,7 @@ export default function HomePage() {
             <div>
               <Logo size="lg" showText={true} className="mb-6" />
               <p className="text-neutral-600 text-sm mb-6">
-                South Africa's premier halaal lifestyle exhibition. Experience the best of halaal living.
+                South Africa's premier lifestyle exhibition. Experience the best of modern living.
               </p>
               <div className="flex gap-3">
                 {[

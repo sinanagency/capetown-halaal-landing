@@ -112,7 +112,7 @@ export default function HomePage() {
                   />
                   <div className="flex items-baseline gap-4">
                     <TextReveal
-                      text="Halaal"
+                      text="Lifestyle"
                       className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight"
                       delay={0.4}
                     />
@@ -130,8 +130,8 @@ export default function HomePage() {
                 {/* Subheading */}
                 <BlurIn delay={0.6}>
                   <p className="text-xl text-gray-400 max-w-lg leading-relaxed">
-                    South Africa's premier halaal lifestyle exhibition. Secure your booth at{' '}
-                    <span className="text-white font-medium">Green Point A Track</span>, Cape Town.
+                    South Africa's largest lifestyle exhibition. Secure your booth at{' '}
+                    <span className="text-white font-medium">Youngsfield Military Base</span>, Cape Town.
                   </p>
                 </BlurIn>
 
@@ -395,7 +395,7 @@ export default function HomePage() {
                     </div>
                     <h3 className="text-xl font-bold text-white mb-3">Prime Location</h3>
                     <p className="text-gray-400">
-                      Green Point A Track - Over 20,000m² of exhibition space with excellent accessibility and parking.
+                      Youngsfield Military Base - Over 20,000m² of exhibition space with excellent accessibility and parking.
                     </p>
                   </div>
                 </motion.div>
@@ -441,20 +441,6 @@ export default function HomePage() {
         </section>
       </main>
 
-      {/* Demo Banner */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2 }}
-        className="bg-gradient-to-r from-amber-500/10 via-amber-500/20 to-amber-500/10 border-y border-amber-500/20 py-4"
-      >
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-amber-400 text-sm">
-            <span className="font-bold">DEMO VERSION</span> — This is a demonstration portal. Booth selections and payments are not processed.
-          </p>
-        </div>
-      </motion.div>
-
       {/* Footer */}
       <footer className="border-t border-white/5 py-12 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-[#cd2653]/5 to-transparent" />
@@ -463,13 +449,13 @@ export default function HomePage() {
             <Logo size="md" showText={true} />
 
             <div className="flex items-center gap-6 text-sm text-neutral-400">
-              <span>Green Point A Track, Cape Town</span>
+              <span>Youngsfield Military Base, Cape Town</span>
               <span className="hidden md:inline">•</span>
               <span>Coming 2026</span>
             </div>
 
             <p className="text-sm text-neutral-500">
-              © 2026 Cape Town Halaal. All rights reserved.
+              © 2026 Young at Heart Festival. All rights reserved.
             </p>
           </div>
         </div>

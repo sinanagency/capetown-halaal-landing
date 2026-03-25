@@ -1,31 +1,31 @@
 // Event details
 export const EVENT = {
-  name: 'Cape Town Halaal Lifestyle Expo 2026',
-  shortName: 'Cape Town Halaal',
-  tagline: 'South Africa\'s Largest Halaal Lifestyle Exhibition',
+  name: 'Young at Heart Festival 2026',
+  shortName: 'Young at Heart',
+  tagline: 'South Africa\'s Largest Lifestyle Exhibition',
   dates: {
-    start: new Date('2026-03-20'),
-    end: new Date('2026-03-22'),
+    start: new Date('2026-12-11'),
+    end: new Date('2026-12-13'),
   },
   venue: {
-    name: 'Green Point A Track',
-    address: 'Green Point, Cape Town, South Africa',
+    name: 'Youngsfield Military Base',
+    address: 'Wetton Road, Wynberg, Cape Town 7700',
   },
   stats: {
-    vendors: '400+',
+    vendors: '350+',
     days: '3',
-    visitors: '50,000+',
-    booths: '400',
+    visitors: '25,000+',
+    booths: '264',
   },
 } as const;
 
 // Contact info
 export const CONTACT = {
-  email: 'info@capetownhalaal.co.za',
-  phone: '+27 21 555 0000',
+  email: 'capetownhalaal@gmail.com',
+  phone: '+27 65 943 5012',
   social: {
     facebook: 'https://www.facebook.com/globalcuisineco/',
-    instagram: 'https://www.instagram.com/globalcuisineco/',
+    instagram: 'https://www.instagram.com/youngatheart_capetown/',
     linkedin: 'https://www.linkedin.com/company/85941152',
   },
 } as const;

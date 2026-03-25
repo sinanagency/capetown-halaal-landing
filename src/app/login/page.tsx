@@ -17,8 +17,8 @@ import { LogoMark } from '@/components/logo'
 export default function LoginPage() {
   const router = useRouter()
   const { login } = useBoothStore()
-  const [email, setEmail] = useState('admin')
-  const [password, setPassword] = useState('admin123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -135,33 +135,6 @@ export default function LoginPage() {
                 Sign in
               </Button>
 
-              {/* Quick demo login button */}
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full border-green-500/50 text-green-400 hover:bg-green-500/10"
-                disabled={isLoading}
-                onClick={async () => {
-                  setError('')
-                  setIsLoading(true)
-                  try {
-                    const result = await loginUser({ email: 'admin', password: 'admin123' })
-                    if (result.success && result.user) {
-                      login(result.user)
-                      router.push('/dashboard')
-                    } else {
-                      setError('Demo login failed')
-                    }
-                  } catch {
-                    setError('An error occurred')
-                  } finally {
-                    setIsLoading(false)
-                  }
-                }}
-              >
-                Quick Demo Login
-              </Button>
-
               <Separator className="bg-white/10" />
 
               <p className="text-sm text-gray-400 text-center">
@@ -171,10 +144,6 @@ export default function LoginPage() {
                 </Link>
               </p>
 
-              {/* Demo mode notice */}
-              <p className="text-[10px] text-green-500 text-center font-medium">
-                Demo mode • Click "Quick Demo Login" for instant access!
-              </p>
             </CardFooter>
           </form>
         </Card>

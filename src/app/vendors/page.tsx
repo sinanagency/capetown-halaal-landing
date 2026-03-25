@@ -118,7 +118,7 @@ export default function VendorsPage() {
               </span>
             </h1>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-neutral-300">
-              Discover the amazing vendors who will be exhibiting at Cape Town Halaal Lifestyle Expo.
+              Discover the amazing vendors who will be exhibiting at Young at Heart Festival.
             </p>
           </motion.div>
         </div>
@@ -262,7 +262,7 @@ export default function VendorsPage() {
           >
             <h2 className="text-3xl font-bold text-white">Want to Be a Vendor?</h2>
             <p className="mx-auto mt-4 max-w-2xl text-neutral-300">
-              Join over 300 vendors at Cape Town's largest Halaal festival. Book your booth today
+              Join over 300 vendors at Cape Town's largest lifestyle festival. Book your booth today
               and showcase your products to thousands of visitors.
             </p>
             <div className="mt-8">
@@ -282,7 +282,7 @@ export default function VendorsPage() {
       <footer className="border-t border-white/5 py-8 bg-neutral-950">
         <div className="container mx-auto px-4 text-center">
           <p className="text-neutral-600 text-sm">
-            © 2026 Cape Town Halaal Lifestyle Expo. All rights reserved.
+            © 2026 Young at Heart Festival. All rights reserved.
           </p>
         </div>
       </footer>

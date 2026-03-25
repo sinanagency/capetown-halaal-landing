@@ -1,4 +1,4 @@
-// Cape Town Halaal Expo - Brand Theme
+// Young at Heart Festival - Brand Theme
 // Based on Global Cuisine branding
 
 export const theme = {
@@ -55,20 +55,20 @@ export const theme = {
 
 // Event Information
 export const eventInfo = {
-  name: 'Cape Town Halaal Lifestyle Expo',
-  tagline: "South Africa's Premier Halaal Exhibition",
+  name: 'Young at Heart Festival',
+  tagline: "South Africa's Largest Lifestyle Exhibition",
   year: 2026,
-  dates: 'Date TBA',
+  dates: 'December 11-13, 2026',
   duration: '3 Days',
   venue: {
-    name: 'Green Point A Track',
+    name: 'Youngsfield Military Base',
     city: 'Cape Town',
     country: 'South Africa',
     capacity: '20,000m²',
   },
   stats: {
-    exhibitors: 400,
-    expectedVisitors: 50000,
+    exhibitors: 264,
+    expectedVisitors: 25000,
     exhibitionSpace: 20000,
     days: 3,
     countries: 15,
@@ -79,8 +79,8 @@ export const eventInfo = {
     website: 'https://globalcuisine.co.za',
   },
   social: {
-    instagram: '#',
-    facebook: '#',
+    instagram: 'https://www.instagram.com/youngatheart_capetown/',
+    facebook: 'https://www.facebook.com/globalcuisineco/',
     twitter: '#',
     linkedin: '#',
   },

@@ -15,8 +15,8 @@ export default function SiteMapPage() {
   const handleShare = async () => {
     if (navigator.share) {
       await navigator.share({
-        title: 'Cape Town Halaal 2026 - Site Map',
-        text: 'Check out the site map for Cape Town Halaal 2026!',
+        title: 'Young at Heart Festival 2026 - Site Map',
+        text: 'Check out the site map for Young at Heart Festival 2026!',
         url: window.location.href,
       })
     } else {
@@ -101,7 +101,7 @@ export default function SiteMapPage() {
             className="text-center mb-8"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Cape Town Halaal{' '}
+              Young at Heart{' '}
               <span className="bg-gradient-to-r from-[#cd2653] to-[#f59e0b] bg-clip-text text-transparent">
                 2026
               </span>
@@ -164,7 +164,7 @@ export default function SiteMapPage() {
       <footer className="border-t border-white/5 py-6">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-neutral-500">
-            © 2026 Cape Town Halaal Lifestyle Expo. All rights reserved.
+            © 2026 Young at Heart Festival. All rights reserved.
           </p>
         </div>
       </footer>

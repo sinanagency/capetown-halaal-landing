@@ -87,7 +87,7 @@ export function VideoSection() {
               </span>
             </h2>
             <p className="text-neutral-400 text-lg max-w-2xl mx-auto">
-              Experience the energy, excitement, and opportunities that await you at Cape Town Halaal Expo.
+              Experience the energy, excitement, and opportunities that await you at Young at Heart Festival.
             </p>
           </motion.div>
 
@@ -142,7 +142,7 @@ export function VideoSection() {
                     Expo Highlights 2025
                   </p>
                   <h3 className="text-2xl md:text-3xl font-bold text-white">
-                    The Cape Town Halaal Experience
+                    The Young at Heart Experience
                   </h3>
                 </motion.div>
               </div>

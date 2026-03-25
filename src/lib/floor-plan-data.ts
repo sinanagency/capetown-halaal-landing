@@ -1,4 +1,4 @@
-// Cape Town Halaal 2025 Site Map Data
+// Young at Heart 2026 Site Map Data
 // Based on official site map
 
 export type BoothStatus = 'available' | 'reserved' | 'sold'

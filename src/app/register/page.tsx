@@ -19,12 +19,12 @@ export default function RegisterPage() {
   const { register } = useBoothStore()
 
   const [formData, setFormData] = useState({
-    name: 'Demo User',
-    email: 'demo@example.com',
-    company: 'Demo Company Ltd',
-    phone: '+27 12 345 6789',
-    password: 'demo123',
-    confirmPassword: 'demo123'
+    name: '',
+    email: '',
+    company: '',
+    phone: '',
+    password: '',
+    confirmPassword: ''
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -134,7 +134,7 @@ export default function RegisterPage() {
 
             <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
             <CardDescription>
-              Register to book your booth at Cape Town Halaal
+              Register to book your booth at Young at Heart Festival
             </CardDescription>
           </CardHeader>
 
@@ -195,10 +195,6 @@ export default function RegisterPage() {
                 </Link>
               </p>
 
-              {/* Demo mode notice */}
-              <p className="text-[10px] text-green-500 text-center font-medium">
-                Demo mode • Data pre-filled - just click Create Account!
-              </p>
             </CardFooter>
           </form>
         </Card>

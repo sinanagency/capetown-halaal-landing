@@ -110,7 +110,7 @@ export default function ApplyPage() {
             Application Submitted!
           </h1>
           <p className="text-neutral-600 mb-8">
-            Thank you for your interest in Cape Town Halaal Expo 2026. We'll review your
+            Thank you for your interest in Young at Heart Festival 2026. We'll review your
             application and get back to you within 3-5 business days.
           </p>
           <Link

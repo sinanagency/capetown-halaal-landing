@@ -203,9 +203,6 @@ export default function CheckoutPage() {
                           className="bg-white/5 border-white/10"
                         />
                       </div>
-                      <p className="text-[10px] text-green-500 font-medium">
-                        Demo mode • Card details pre-filled - just click Pay!
-                      </p>
                     </div>
                   ) : (
                     <div className="space-y-4 p-4 bg-white/5 rounded-lg">
@@ -219,7 +216,7 @@ export default function CheckoutPage() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Account Name:</span>
-                          <span className="text-white">Cape Town Halaal Events</span>
+                          <span className="text-white">Young at Heart Festival</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">Account Number:</span>

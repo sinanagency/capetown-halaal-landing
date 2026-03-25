@@ -13,9 +13,9 @@ const officialSponsor = {
   tagline: 'Official Sponsor',
   logo: null, // Will show placeholder
   website: '#',
-  description: 'Become the Official Sponsor of Cape Town Halaal 2026 and get exclusive naming rights, premium positioning, and maximum brand exposure.',
+  description: 'Become the Official Sponsor of Young at Heart Festival 2026 and get exclusive naming rights, premium positioning, and maximum brand exposure.',
   benefits: [
-    'Event naming rights (Cape Town Halaal presented by [Your Brand])',
+    'Event naming rights (Young at Heart Festival presented by [Your Brand])',
     'Largest 10x10m premium booth at main entrance',
     'Logo on ALL marketing materials, signage & tickets',
     'Exclusive main stage branding & MC mentions',
@@ -465,7 +465,7 @@ export function SponsorsSection() {
             </span>
           </h2>
           <p className="text-neutral-400 text-lg max-w-2xl mx-auto">
-            Partner with South Africa's premier halaal lifestyle expo. Exclusive sponsorship packages designed for maximum brand visibility.
+            Partner with South Africa's premier lifestyle expo. Exclusive sponsorship packages designed for maximum brand visibility.
           </p>
         </motion.div>
 

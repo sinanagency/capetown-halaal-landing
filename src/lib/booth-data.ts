@@ -1,6 +1,6 @@
-// Booth data generator for Cape Town Halaal Lifestyle Expo
+// Booth data generator for Young at Heart Festival
 // 400 booths with varying sizes and prices (R2,500 - R8,000)
-// Venue: Green Point A Track, Cape Town
+// Venue: Youngsfield Military Base, Cape Town
 
 export type BoothSize = '3x2' | '3x3' | '4x4' | '6x6'
 

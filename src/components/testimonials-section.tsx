@@ -13,7 +13,7 @@ const testimonials = [
     role: 'Food Business Owner',
     company: 'Cape Malay Delights',
     image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&q=80',
-    quote: 'The Cape Town Halaal Expo transformed our small family business. We connected with distributors and now supply to major retailers across South Africa.',
+    quote: 'The Young at Heart Festival transformed our small family business. We connected with distributors and now supply to major retailers across South Africa.',
     rating: 5,
     stats: { leads: 150, sales: 'R450K' }
   },
@@ -31,9 +31,9 @@ const testimonials = [
     id: 3,
     name: 'Aisha Khan',
     role: 'Founder',
-    company: 'Halaal Cosmetics ZA',
+    company: 'Cosmetics ZA',
     image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&q=80',
-    quote: 'From product sampling to brand awareness, the expo provides everything a growing halaal brand needs. The organization is world-class.',
+    quote: 'From product sampling to brand awareness, the expo provides everything a growing lifestyle brand needs. The organization is world-class.',
     rating: 5,
     stats: { leads: 200, sales: 'R680K' }
   },
@@ -146,7 +146,7 @@ export function TestimonialsSection() {
             </span>
           </h2>
           <p className="text-neutral-600 text-lg max-w-2xl mx-auto">
-            Join hundreds of successful exhibitors who have grown their business at Cape Town Halaal Expo.
+            Join hundreds of successful exhibitors who have grown their business at Young at Heart Festival.
           </p>
         </motion.div>
 

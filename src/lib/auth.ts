@@ -9,7 +9,7 @@ const DEMO_USERS: Record<string, User & { password: string; role: 'admin' | 'exh
     id: '0',
     email: 'admin',
     name: 'Administrator',
-    company: 'Cape Town Halaal Expo',
+    company: 'Young at Heart Festival',
     phone: '+27 21 555 0000',
     password: 'admin123',
     role: 'admin'

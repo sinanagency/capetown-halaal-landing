@@ -1,4 +1,4 @@
-// Curated Unsplash images for Cape Town Halaal Festival
+// Curated Unsplash images for Young at Heart Festival
 // Using Unsplash Source API for high-quality, relevant images
 
 export const IMAGES = {

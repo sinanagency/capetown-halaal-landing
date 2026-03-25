@@ -28,7 +28,7 @@ const sectors = [
   {
     icon: Sparkles,
     title: 'Beauty & Wellness',
-    description: 'Halaal cosmetics, skincare & wellness products',
+    description: 'Cosmetics, skincare & wellness products',
     color: 'from-pink-500 to-rose-500',
     bgGlow: 'rgba(236, 72, 153, 0.2)',
     count: '60+'
@@ -36,7 +36,7 @@ const sectors = [
   {
     icon: Heart,
     title: 'Health & Pharmacy',
-    description: 'Halaal supplements, medicine & health products',
+    description: 'Supplements, medicine & health products',
     color: 'from-emerald-500 to-teal-500',
     bgGlow: 'rgba(16, 185, 129, 0.2)',
     count: '40+'
@@ -44,7 +44,7 @@ const sectors = [
   {
     icon: Plane,
     title: 'Travel & Tourism',
-    description: 'Halaal travel agencies, destinations & experiences',
+    description: 'Travel agencies, destinations & experiences',
     color: 'from-blue-500 to-cyan-500',
     bgGlow: 'rgba(59, 130, 246, 0.2)',
     count: '35+'
@@ -200,11 +200,11 @@ export function SectorsSection() {
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
             Every Corner of{' '}
             <span className="bg-gradient-to-r from-[#cd2653] to-[#f59e0b] bg-clip-text text-transparent">
-              Halaal Living
+              Lifestyle
             </span>
           </h2>
           <p className="text-neutral-400 text-lg max-w-2xl mx-auto">
-            From food and fashion to finance and travel, discover exhibitors across all aspects of the halaal lifestyle.
+            From food and fashion to finance and travel, discover exhibitors across all aspects of the lifestyle.
           </p>
         </motion.div>
 

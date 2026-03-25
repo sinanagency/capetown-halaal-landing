@@ -88,7 +88,7 @@ export default function DashboardPage() {
               Welcome back, {user.name.split(' ')[0]}
             </h1>
             <p className="text-gray-400">
-              Manage your booth bookings for Cape Town Halaal 2024
+              Manage your booth bookings for Young at Heart Festival 2026
             </p>
           </motion.div>
 
@@ -259,18 +259,18 @@ export default function DashboardPage() {
                 <CardContent className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-400">Event</p>
-                    <p className="font-semibold text-white">Cape Town Halaal 2024</p>
+                    <p className="font-semibold text-white">Young at Heart Festival 2026</p>
                   </div>
                   <Separator className="bg-white/10" />
                   <div>
                     <p className="text-sm text-gray-400">Date</p>
-                    <p className="font-semibold text-white">15-17 June 2024</p>
+                    <p className="font-semibold text-white">11-13 December 2026</p>
                   </div>
                   <Separator className="bg-white/10" />
                   <div>
                     <p className="text-sm text-gray-400">Venue</p>
-                    <p className="font-semibold text-white">Castle of Good Hope</p>
-                    <p className="text-sm text-gray-500">Cape Town Military Base</p>
+                    <p className="font-semibold text-white">Youngsfield Military Base</p>
+                    <p className="text-sm text-gray-500">Wetton Road, Wynberg, Cape Town</p>
                   </div>
                   <Separator className="bg-white/10" />
                   <div>
@@ -289,7 +289,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2"
-                    onClick={() => toast.info('Demo Mode', { description: 'Invoice download not available in demo.' })}
+                    onClick={() => toast.info('Coming Soon', { description: 'Invoice download will be available after payment.' })}
                   >
                     <Download className="w-4 h-4" />
                     Download Invoice
@@ -297,7 +297,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2"
-                    onClick={() => toast.info('Demo Mode', { description: 'Guidelines will be sent to exhibitors closer to the event.' })}
+                    onClick={() => toast.info('Coming Soon', { description: 'Guidelines will be sent to exhibitors closer to the event.' })}
                   >
                     <FileText className="w-4 h-4" />
                     Exhibitor Guidelines
@@ -305,7 +305,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     className="w-full justify-start gap-2"
-                    onClick={() => toast.info('Demo Mode', { description: 'Venue map will be available after booking.' })}
+                    onClick={() => toast.info('Coming Soon', { description: 'Venue map will be available after booking.' })}
                   >
                     <MapPin className="w-4 h-4" />
                     Venue Map

@@ -28,10 +28,10 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
           'rounded-xl bg-gradient-to-br from-[#cd2653] to-[#bf3026] flex items-center justify-center shadow-lg shadow-red-500/20 relative overflow-hidden'
         )}
       >
-        {/* Decorative halaal crescent moon symbol */}
+        {/* Decorative crescent moon symbol */}
         <div className="absolute inset-0 flex items-center justify-center">
           <svg viewBox="0 0 40 40" className="w-full h-full p-2">
-            {/* Crescent moon - halaal symbol */}
+            {/* Crescent moon symbol */}
             <path
               d="M20 4C11.2 4 4 11.2 4 20s7.2 16 16 16c2.4 0 4.6-.5 6.6-1.4-3.6-2.4-6-6.4-6-11.1 0-4.7 2.4-8.7 6-11.1C24.6 4.5 22.4 4 20 4z"
               fill="white"
