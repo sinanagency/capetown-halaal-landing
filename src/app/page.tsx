@@ -88,8 +88,8 @@ function SectionHeading({ badge, title, description }: { badge: string; title: s
       <span className="inline-block px-4 py-1.5 bg-[#cd2653]/10 border border-[#cd2653]/20 rounded-full text-[#cd2653] text-sm font-medium mb-6">
         {badge}
       </span>
-      <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold text-neutral-900 mb-6">{title}</h2>
-      <p className="text-neutral-600 text-lg max-w-2xl mx-auto">{description}</p>
+      <h2 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-neutral-900 mb-4 md:mb-6">{title}</h2>
+      <p className="text-neutral-600 text-sm md:text-lg max-w-2xl mx-auto px-2">{description}</p>
     </motion.div>
   )
 }
@@ -482,14 +482,14 @@ export default function HomePage() {
               <span className="inline-block px-4 py-1.5 bg-[#cd2653]/10 border border-[#cd2653]/20 rounded-full text-[#cd2653] text-sm font-medium mb-6">
                 About the Festival
               </span>
-              <h2 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-6 leading-tight">
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-neutral-900 mb-6 leading-tight">
                 South Africa's Largest
                 <span className="block">
                   <GradientText from="#cd2653" to="#f59e0b">Lifestyle</GradientText>
                 </span>
                 Exhibition
               </h2>
-              <p className="text-neutral-600 text-lg leading-relaxed mb-8">
+              <p className="text-neutral-600 text-base md:text-lg leading-relaxed mb-8">
                 Young at Heart Festival brings together the finest products, services,
                 and experiences under one roof. From authentic cuisine to lifestyle brands, discover
                 everything living has to offer.
@@ -622,7 +622,7 @@ export default function HomePage() {
       <SponsorsSection />
 
       {/* CTA Section */}
-      <section className="py-24 relative overflow-hidden">
+      <section className="py-16 md:py-24 relative overflow-x-clip">
         <div className="absolute inset-0">
           <Image src={IMAGES.food4} alt="Food" fill className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-r from-neutral-950/95 via-neutral-950/90 to-neutral-950/95" />
@@ -636,20 +636,20 @@ export default function HomePage() {
               viewport={{ once: true }}
               transition={{ duration: 0.8 }}
             >
-              <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-                Ready to
-                <GradientText from="#cd2653" to="#f59e0b" className="ml-3">Join Us?</GradientText>
+              <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 md:mb-6 text-white">
+                Ready to{' '}
+                <GradientText from="#cd2653" to="#f59e0b">Join Us?</GradientText>
               </h2>
-              <p className="text-neutral-400 text-xl mb-10">
+              <p className="text-neutral-400 text-base md:text-xl mb-8 md:mb-10 px-2">
                 Secure your booth today and be part of South Africa's biggest lifestyle event.
               </p>
 
-              <div className="flex flex-wrap justify-center gap-4">
+              <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 px-4">
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => router.push('/apply')}
-                  className="group relative flex items-center gap-3 px-8 py-4 text-lg font-semibold text-white overflow-hidden rounded-2xl bg-gradient-to-r from-[#cd2653] to-[#bf3026] shadow-2xl shadow-[#cd2653]/30 cursor-pointer"
+                  className="group relative flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-white rounded-2xl bg-gradient-to-r from-[#cd2653] to-[#bf3026] shadow-2xl shadow-[#cd2653]/30 cursor-pointer"
                 >
                   <Store className="w-5 h-5" />
                   Apply as Exhibitor
@@ -659,7 +659,7 @@ export default function HomePage() {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => router.push('/register')}
-                  className="flex items-center gap-3 px-8 py-4 text-lg font-semibold text-white bg-white/10 hover:bg-white/20 rounded-2xl border border-white/20 backdrop-blur-sm transition-all cursor-pointer"
+                  className="flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-white bg-white/10 hover:bg-white/20 rounded-2xl border border-white/20 backdrop-blur-sm transition-all cursor-pointer"
                 >
                   <Ticket className="w-5 h-5" />
                   Register as Visitor
