@@ -167,7 +167,7 @@ export function HeroSection() {
 
       {/* Content */}
       <motion.div
-        className="relative z-10 container mx-auto px-4 pt-32 pb-20 min-h-screen flex flex-col justify-center"
+        className="relative z-10 container mx-auto px-4 pt-24 md:pt-32 pb-16 md:pb-20 min-h-screen flex flex-col justify-center"
         style={{ opacity }}
       >
         <div className="max-w-5xl mx-auto">
@@ -192,7 +192,7 @@ export function HeroSection() {
 
           {/* Main heading */}
           <div className="text-center mb-8">
-            <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-4">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight mb-4">
               <AnimatedLetters
                 text="Young at Heart"
                 className="text-neutral-900 block mb-2"
@@ -210,7 +210,7 @@ export function HeroSection() {
                   transition={{ delay: 1, duration: 0.6, type: 'spring' }}
                   className="inline-block ml-4"
                 >
-                  <GradientText from="#cd2653" to="#f59e0b" className="text-5xl md:text-7xl lg:text-8xl font-bold">
+                  <GradientText from="#cd2653" to="#f59e0b" className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold">
                     2026
                   </GradientText>
                 </motion.span>

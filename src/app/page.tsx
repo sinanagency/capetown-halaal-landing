@@ -8,7 +8,7 @@ import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'fra
 import {
   Calendar, MapPin, Users, Building2, ArrowRight, ArrowUpRight,
   Utensils, ShoppingBag, Sparkles, Globe, Award, Clock,
-  ChevronRight, Instagram, Facebook, Linkedin, Youtube,
+  ChevronRight, Instagram, Facebook, Youtube,
   Mail, Phone, Star, Ticket, Store, Play, ChevronDown, Zap, X, Send
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/logo'
@@ -327,6 +327,7 @@ export default function HomePage() {
   const router = useRouter()
   const [isLoaded, setIsLoaded] = useState(false)
   const [contactModalOpen, setContactModalOpen] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoaded(true), 1200)
@@ -337,6 +338,25 @@ export default function HomePage() {
     return <LoadingScreen />
   }
 
+  const navItems = [
+    { label: 'About', href: '#about', action: null },
+    { label: 'Vendors', href: '/vendors', action: null },
+    { label: 'Sectors', href: '#sectors', action: null },
+    { label: 'Sponsors', href: '#sponsors', action: null },
+    { label: 'Contact', href: '#contact', action: 'openContact' },
+  ]
+
+  const handleNavClick = (item: typeof navItems[0]) => {
+    setMobileMenuOpen(false)
+    if (item.action === 'openContact') {
+      setContactModalOpen(true)
+    } else if (item.href.startsWith('#')) {
+      document.querySelector(item.href)?.scrollIntoView({ behavior: 'smooth' })
+    } else {
+      router.push(item.href)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white text-neutral-900">
       <ContactModal isOpen={contactModalOpen} onClose={() => setContactModalOpen(false)} />
@@ -345,51 +365,22 @@ export default function HomePage() {
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-neutral-200">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center justify-between h-16 md:h-20">
             <Link href="/">
               <Logo size="md" showText={true} />
             </Link>
 
+            {/* Desktop nav */}
             <div className="hidden lg:flex items-center gap-8">
-              {[
-                { label: 'About', href: '#about', action: null },
-                { label: 'Vendors', href: '/vendors', action: null },
-                { label: 'Sectors', href: '#sectors', action: null },
-                { label: 'Sponsors', href: '#sponsors', action: null },
-                { label: 'Contact', href: '#contact', action: 'openContact' },
-              ].map((item) => (
-                item.action === 'openContact' ? (
-                  <button
-                    key={item.label}
-                    onClick={() => setContactModalOpen(true)}
-                    className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors relative group cursor-pointer"
-                  >
-                    {item.label}
-                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#cd2653] group-hover:w-full transition-all duration-300" />
-                  </button>
-                ) : item.href.startsWith('#') ? (
-                  <a
-                    key={item.label}
-                    href={item.href}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      document.querySelector(item.href)?.scrollIntoView({ behavior: 'smooth' })
-                    }}
-                    className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors relative group cursor-pointer"
-                  >
-                    {item.label}
-                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#cd2653] group-hover:w-full transition-all duration-300" />
-                  </a>
-                ) : (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors relative group"
-                  >
-                    {item.label}
-                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#cd2653] group-hover:w-full transition-all duration-300" />
-                  </Link>
-                )
+              {navItems.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => handleNavClick(item)}
+                  className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors relative group cursor-pointer"
+                >
+                  {item.label}
+                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#cd2653] group-hover:w-full transition-all duration-300" />
+                </button>
               ))}
             </div>
 
@@ -398,15 +389,70 @@ export default function HomePage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => router.push('/register')}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl shadow-lg shadow-[#cd2653]/20 cursor-pointer"
+                className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl shadow-lg shadow-[#cd2653]/20 cursor-pointer"
               >
                 <Store className="w-4 h-4" />
-                Vendor Application
+                <span className="hidden md:inline">Vendor Application</span>
+                <span className="md:hidden">Apply</span>
                 <ArrowUpRight className="w-4 h-4" />
               </motion.button>
+
+              {/* Mobile hamburger */}
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="lg:hidden w-10 h-10 flex flex-col items-center justify-center gap-1.5 rounded-xl hover:bg-neutral-100 transition-colors"
+              >
+                <motion.span
+                  animate={mobileMenuOpen ? { rotate: 45, y: 6 } : { rotate: 0, y: 0 }}
+                  className="block w-5 h-0.5 bg-neutral-900"
+                />
+                <motion.span
+                  animate={mobileMenuOpen ? { opacity: 0 } : { opacity: 1 }}
+                  className="block w-5 h-0.5 bg-neutral-900"
+                />
+                <motion.span
+                  animate={mobileMenuOpen ? { rotate: -45, y: -6 } : { rotate: 0, y: 0 }}
+                  className="block w-5 h-0.5 bg-neutral-900"
+                />
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="lg:hidden overflow-hidden bg-white border-t border-neutral-100"
+            >
+              <div className="container mx-auto px-4 py-4 space-y-1">
+                {navItems.map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={() => handleNavClick(item)}
+                    className="block w-full text-left px-4 py-3 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 rounded-xl transition-colors text-base font-medium"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false)
+                    router.push('/register')
+                  }}
+                  className="w-full mt-2 flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl sm:hidden"
+                >
+                  <Store className="w-4 h-4" />
+                  Vendor Application
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* Hero Section */}
@@ -635,9 +681,8 @@ export default function HomePage() {
               </p>
               <div className="flex gap-3">
                 {[
-                  { icon: Instagram, href: 'https://www.instagram.com/globalcuisineco/' },
-                  { icon: Facebook, href: 'https://www.facebook.com/globalcuisineco/' },
-                  { icon: Linkedin, href: 'https://www.linkedin.com/company/85941152' },
+                  { icon: Instagram, href: 'https://www.instagram.com/capetownhalaal/' },
+                  { icon: Facebook, href: 'https://www.facebook.com/capetownhalaal/' },
                   { icon: Youtube, href: '#' },
                 ].map((social, i) => (
                   <a
