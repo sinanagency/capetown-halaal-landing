@@ -2,58 +2,54 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
 import { ArrowRight, Calendar, MapPin, Users, Sparkles, Play, ChevronDown } from 'lucide-react'
 import { AnimatedLetters, GradientText } from '@/components/ui/animated-text'
 import { SpotlightCard } from '@/components/ui/spotlight'
 
-const VIDEOS = [
-  '/videos/video1.mp4',
-  '/videos/video2.mp4',
-  '/videos/video3.mp4',
-  '/videos/reel3.mp4',
-  '/videos/reel4.mp4',
-  '/videos/reel5.mp4',
+const PHOTOS = [
+  '/photos/3g9a3214.jpg',
+  '/photos/3g9a3280.jpg',
+  '/photos/3g9a3367.jpg',
+  '/photos/3g9a3379.jpg',
+  '/photos/3g9a3350.jpg',
+  '/photos/3g9a3412.jpg',
 ]
 
-const CLIP_DURATION = 3000 // 3 seconds per clip
-
-function VideoBackground() {
+function PhotoBackground() {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const advanceVideo = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % VIDEOS.length)
-  }, [])
 
   useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
-
-    video.src = VIDEOS[currentIndex]
-    video.currentTime = 0
-    video.play().catch(() => {})
-
-    // Move to next clip after 3 seconds
-    timerRef.current = setTimeout(advanceVideo, CLIP_DURATION)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    }
-  }, [currentIndex, advanceVideo])
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % PHOTOS.length)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className="absolute inset-0">
-      <video
-        ref={videoRef}
-        muted
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
-      />
-      {/* Light overlay so text is readable but video is clearly visible */}
-      <div className="absolute inset-0 bg-white/40" />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-white/20 to-white/60" />
+      <AnimatePresence mode="sync">
+        <motion.div
+          key={currentIndex}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 1.2 }}
+          className="absolute inset-0"
+        >
+          <Image
+            src={PHOTOS[currentIndex]}
+            alt="Young at Heart Festival"
+            fill
+            className="object-cover"
+            priority={currentIndex === 0}
+          />
+        </motion.div>
+      </AnimatePresence>
+      {/* Light overlay so text is readable */}
+      <div className="absolute inset-0 bg-white/55" />
+      <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-white/20 to-white/70" />
     </div>
   )
 }
@@ -70,10 +66,8 @@ export function HeroSection() {
 
   return (
     <section ref={containerRef} className="relative min-h-screen overflow-hidden bg-white">
-      {/* Video Background — 3s clips cycling through all videos */}
-      <VideoBackground />
+      <PhotoBackground />
 
-      {/* Content */}
       <motion.div
         className="relative z-10 container mx-auto px-4 pt-24 md:pt-32 pb-16 md:pb-20 min-h-screen flex flex-col justify-center"
         style={{ opacity }}
@@ -216,7 +210,6 @@ export function HeroSection() {
         </motion.div>
       </motion.div>
 
-      {/* Bottom gradient fade */}
       <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-white to-transparent pointer-events-none z-10" />
     </section>
   )

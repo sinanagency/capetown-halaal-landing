@@ -18,8 +18,10 @@ const sponsorTiers = [
       'Naming placement under festival name',
       '10 digital ads (6 months pre-event + during event)',
       '3 on-site banners',
-      '6m × 3m booth',
-      'VIP access'
+      '6m × 3m premium booth',
+      'VIP access for 10 guests',
+      'Logo on all printed materials',
+      'Main stage brand mentions'
     ],
     available: 2
   },
@@ -34,7 +36,10 @@ const sponsorTiers = [
       '8 digital ads (6 months pre-event + during event)',
       '3 on-site banners',
       '6m × 3m booth',
-      'VIP access'
+      'VIP access for 6 guests',
+      'Logo on event website',
+      'Social media feature posts',
+      'Event program listing'
     ],
     available: 4
   },
@@ -48,7 +53,11 @@ const sponsorTiers = [
     benefits: [
       '1 on-site banner',
       '3m × 3m booth',
-      'VIP access'
+      'VIP access for 2 guests',
+      'Logo on event website',
+      'Social media mention',
+      'Event program listing',
+      'Networking event access'
     ],
     available: 8
   }
@@ -249,7 +258,7 @@ function SponsorCard({ tier, index, onEnquire }: { tier: typeof sponsorTiers[0];
       )}
 
       <div className={cn(
-        "relative h-full p-8 bg-neutral-900/80 backdrop-blur-sm border rounded-3xl hover:border-white/20 transition-all duration-500",
+        "relative h-full p-8 bg-neutral-900/80 backdrop-blur-sm border rounded-3xl hover:border-white/20 transition-all duration-500 flex flex-col",
         tier.featured ? "border-white/20" : "border-white/10"
       )}>
         {/* Available badge */}
@@ -291,7 +300,7 @@ function SponsorCard({ tier, index, onEnquire }: { tier: typeof sponsorTiers[0];
         </p>
 
         {/* Benefits */}
-        <ul className="space-y-3 mb-8">
+        <ul className="space-y-3 flex-1">
           {tier.benefits.map((benefit, i) => (
             <li key={i} className="flex items-start gap-3">
               <Sparkles className="w-4 h-4 text-[#cd2653] mt-1 flex-shrink-0" />
@@ -300,13 +309,13 @@ function SponsorCard({ tier, index, onEnquire }: { tier: typeof sponsorTiers[0];
           ))}
         </ul>
 
-        {/* CTA */}
+        {/* CTA — always at bottom */}
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={onEnquire}
           className={cn(
-            "w-full py-3 rounded-xl font-medium text-white transition-all",
+            "w-full py-3 rounded-xl font-medium text-white transition-all mt-8",
             tier.featured
               ? "bg-gradient-to-r from-[#cd2653] to-[#bf3026] shadow-lg shadow-[#cd2653]/20"
               : "bg-white/5 hover:bg-white/10 border border-white/10"

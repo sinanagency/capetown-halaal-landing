@@ -4,12 +4,12 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, useInView } from 'framer-motion'
 
 const VIDEOS = [
-  { src: '/videos/video1.mp4', title: 'Festival Highlights' },
-  { src: '/videos/video2.mp4', title: 'Vendors & Exhibitors' },
-  { src: '/videos/video3.mp4', title: 'Food & Cuisine' },
-  { src: '/videos/reel3.mp4', title: 'Live Entertainment' },
-  { src: '/videos/reel4.mp4', title: 'Community Spirit' },
-  { src: '/videos/reel5.mp4', title: 'The Experience' },
+  '/videos/video1.mp4',
+  '/videos/video2.mp4',
+  '/videos/video3.mp4',
+  '/videos/reel3.mp4',
+  '/videos/reel4.mp4',
+  '/videos/reel5.mp4',
 ]
 
 const CLIP_DURATION = 3000 // 3 seconds per clip
@@ -27,7 +27,7 @@ function VideoReel() {
     const video = videoRef.current
     if (!video) return
 
-    video.src = VIDEOS[currentIndex].src
+    video.src = VIDEOS[currentIndex]
     video.currentTime = 0
     video.play().catch(() => {})
 
@@ -48,18 +48,10 @@ function VideoReel() {
       />
 
       {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
-      {/* Current clip indicator */}
+      {/* Progress dots only — no titles */}
       <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6">
-        <p className="text-white/60 text-xs uppercase tracking-wider mb-1">
-          {currentIndex + 1} / {VIDEOS.length}
-        </p>
-        <h3 className="text-base md:text-xl font-semibold text-white mb-3">
-          {VIDEOS[currentIndex].title}
-        </h3>
-
-        {/* Progress dots */}
         <div className="flex gap-1.5">
           {VIDEOS.map((_, i) => (
             <div
