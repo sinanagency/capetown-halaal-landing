@@ -43,10 +43,10 @@ function VideoBackground() {
       >
         <source src={VIDEOS[currentVideo]} type="video/mp4" />
       </video>
-      {/* White overlay for readability */}
-      <div className="absolute inset-0 bg-white/80" />
-      {/* Extra gradient for bottom fade */}
-      <div className="absolute inset-0 bg-gradient-to-t from-white via-white/60 to-white/40" />
+      {/* Overlay for readability — light enough to see video */}
+      <div className="absolute inset-0 bg-white/50" />
+      {/* Gradient for text contrast in center */}
+      <div className="absolute inset-0 bg-gradient-to-t from-white/70 via-white/40 to-white/30" />
     </div>
   )
 }
@@ -122,7 +122,7 @@ export function HeroSection() {
               >
                 <Sparkles className="w-4 h-4 text-amber-400" />
               </motion.span>
-              <span className="text-sm font-medium text-white">Early Bird Pricing Available</span>
+              <span className="text-sm font-medium text-white">Tickets Selling Now</span>
               <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             </SpotlightCard>
           </motion.div>

@@ -76,10 +76,10 @@ function CountdownUnit({ value, label, delay = 0 }: { value: number; label: stri
           {label}
         </p>
 
-        {/* Separator dots - hidden on mobile to prevent overflow */}
-        <div className="absolute -right-3 md:-right-4 top-1/2 -translate-y-1/2 hidden md:flex flex-col gap-2">
-          <div className="w-2 h-2 rounded-full bg-[#cd2653] animate-pulse" />
-          <div className="w-2 h-2 rounded-full bg-[#cd2653] animate-pulse [animation-delay:300ms]" />
+        {/* Separator colon — inline, no overflow */}
+        <div className="absolute -right-2 md:-right-3.5 top-1/3 -translate-y-1/2 hidden md:flex flex-col gap-1.5 z-10">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#cd2653]" />
+          <div className="w-1.5 h-1.5 rounded-full bg-[#cd2653]" />
         </div>
       </div>
     </motion.div>
@@ -93,7 +93,7 @@ export function CountdownSection() {
   const isInView = useInView(containerRef, { once: true, margin: '-100px' })
 
   return (
-    <section className="py-16 md:py-24 relative overflow-hidden">
+    <section className="py-16 md:py-24 relative overflow-x-clip">
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-white to-neutral-50" />
 
@@ -132,7 +132,7 @@ export function CountdownSection() {
         </motion.div>
 
         {/* Countdown grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 max-w-4xl mx-auto">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 max-w-4xl mx-auto">
           <CountdownUnit value={timeLeft.days} label="Days" delay={0} />
           <CountdownUnit value={timeLeft.hours} label="Hours" delay={0.1} />
           <CountdownUnit value={timeLeft.minutes} label="Minutes" delay={0.2} />
@@ -149,7 +149,7 @@ export function CountdownSection() {
           <div className="inline-flex items-center gap-3 px-4 md:px-6 py-3 bg-amber-50 border border-amber-200 rounded-full">
             <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
             <span className="text-amber-700 font-medium text-sm md:text-base">
-              Early Bird Pricing Ends Soon
+              Tickets On Sale Now — Secure Your Spot
             </span>
           </div>
         </motion.div>
