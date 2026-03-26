@@ -277,13 +277,13 @@ function ContactModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
             </form>
 
             <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-center gap-6 text-sm text-neutral-400">
-              <a href="mailto:info@capetownhalaal.co.za" className="flex items-center gap-2 hover:text-white transition-colors">
+              <a href="mailto:capetownhalaal@gmail.com" className="flex items-center gap-2 hover:text-white transition-colors">
                 <Mail className="w-4 h-4" />
-                info@capetownhalaal.co.za
+                capetownhalaal@gmail.com
               </a>
-              <a href="tel:+27215550000" className="flex items-center gap-2 hover:text-white transition-colors">
+              <a href="tel:+27659435012" className="flex items-center gap-2 hover:text-white transition-colors">
                 <Phone className="w-4 h-4" />
-                +27 21 555 0000
+                065 943 5012
               </a>
             </div>
           </motion.div>
@@ -480,7 +480,7 @@ export default function HomePage() {
               transition={{ duration: 0.8 }}
             >
               <span className="inline-block px-4 py-1.5 bg-[#cd2653]/10 border border-[#cd2653]/20 rounded-full text-[#cd2653] text-sm font-medium mb-6">
-                About the Expo
+                About the Festival
               </span>
               <h2 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-6 leading-tight">
                 South Africa's Largest
@@ -490,7 +490,7 @@ export default function HomePage() {
                 Exhibition
               </h2>
               <p className="text-neutral-600 text-lg leading-relaxed mb-8">
-                Cape Town Lifestyle Expo brings together the finest products, services,
+                Young at Heart Festival brings together the finest products, services,
                 and experiences under one roof. From authentic cuisine to lifestyle brands, discover
                 everything living has to offer.
               </p>
@@ -677,7 +677,7 @@ export default function HomePage() {
             <div>
               <Logo size="lg" showText={true} className="mb-6" />
               <p className="text-neutral-600 text-sm mb-6">
-                South Africa's premier lifestyle exhibition. Experience the best of modern living.
+                South Africa's largest lifestyle exhibition. December 11-13, 2026 at Youngsfield Military Base, Cape Town.
               </p>
               <div className="flex gap-3">
                 {[
@@ -752,24 +752,18 @@ export default function HomePage() {
               <h4 className="font-semibold text-neutral-900 mb-6">Contact</h4>
               <ul className="space-y-3 text-sm">
                 <li>
-                  <a href="mailto:info@capetownhalaal.co.za" className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 transition-colors">
+                  <a href="mailto:capetownhalaal@gmail.com" className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 transition-colors">
                     <Mail className="w-4 h-4" />
-                    info@capetownhalaal.co.za
+                    capetownhalaal@gmail.com
                   </a>
                 </li>
                 <li>
-                  <a href="tel:+27215550000" className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 transition-colors">
+                  <a href="tel:+27659435012" className="flex items-center gap-2 text-neutral-600 hover:text-neutral-900 transition-colors">
                     <Phone className="w-4 h-4" />
-                    +27 21 555 0000
+                    065 943 5012
                   </a>
                 </li>
               </ul>
-              <div className="mt-6 pt-6 border-t border-neutral-200">
-                <p className="text-neutral-500 text-xs mb-1">Organized by</p>
-                <a href="https://globalcuisine.co.za" target="_blank" rel="noopener noreferrer" className="text-[#cd2653] hover:text-[#bf3026] font-medium">
-                  Global Cuisine
-                </a>
-              </div>
             </div>
           </div>
 

@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
@@ -22,29 +23,16 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
   return (
     <div className={cn('flex items-center gap-3', className)}>
       <motion.div
-        whileHover={{ scale: 1.05, rotate: 3 }}
-        className={cn(
-          s.icon,
-          'rounded-xl bg-gradient-to-br from-[#cd2653] to-[#bf3026] flex items-center justify-center shadow-lg shadow-red-500/20 relative overflow-hidden'
-        )}
+        whileHover={{ scale: 1.05 }}
+        className={cn(s.icon, 'relative flex-shrink-0')}
       >
-        {/* Decorative crescent moon symbol */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <svg viewBox="0 0 40 40" className="w-full h-full p-2">
-            {/* Crescent moon symbol */}
-            <path
-              d="M20 4C11.2 4 4 11.2 4 20s7.2 16 16 16c2.4 0 4.6-.5 6.6-1.4-3.6-2.4-6-6.4-6-11.1 0-4.7 2.4-8.7 6-11.1C24.6 4.5 22.4 4 20 4z"
-              fill="white"
-              opacity="0.9"
-            />
-            {/* Star accent */}
-            <path
-              d="M30 14l1.2 2.4 2.8.4-2 2 .5 2.8-2.5-1.3-2.5 1.3.5-2.8-2-2 2.8-.4L30 14z"
-              fill="white"
-              opacity="0.8"
-            />
-          </svg>
-        </div>
+        <Image
+          src="/logo.png"
+          alt="Young at Heart"
+          fill
+          className="object-contain"
+          priority
+        />
       </motion.div>
 
       {showText && (
@@ -67,25 +55,15 @@ export function LogoMark({ size = 'md', className }: { size?: 'sm' | 'md' | 'lg'
 
   return (
     <motion.div
-      whileHover={{ scale: 1.05, rotate: 3 }}
-      className={cn(
-        iconSizes[size],
-        'rounded-xl bg-gradient-to-br from-[#cd2653] to-[#bf3026] flex items-center justify-center shadow-lg shadow-red-500/20 relative overflow-hidden',
-        className
-      )}
+      whileHover={{ scale: 1.05 }}
+      className={cn(iconSizes[size], 'relative', className)}
     >
-      <svg viewBox="0 0 40 40" className="w-full h-full p-2">
-        <path
-          d="M20 4C11.2 4 4 11.2 4 20s7.2 16 16 16c2.4 0 4.6-.5 6.6-1.4-3.6-2.4-6-6.4-6-11.1 0-4.7 2.4-8.7 6-11.1C24.6 4.5 22.4 4 20 4z"
-          fill="white"
-          opacity="0.9"
-        />
-        <path
-          d="M30 14l1.2 2.4 2.8.4-2 2 .5 2.8-2.5-1.3-2.5 1.3.5-2.8-2-2 2.8-.4L30 14z"
-          fill="white"
-          opacity="0.8"
-        />
-      </svg>
+      <Image
+        src="/logo.png"
+        alt="Young at Heart"
+        fill
+        className="object-contain"
+      />
     </motion.div>
   )
 }
