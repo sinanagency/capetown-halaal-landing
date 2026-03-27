@@ -12,60 +12,98 @@ const VIDEOS = [
   '/videos/reel5.mp4',
 ]
 
-const CLIP_DURATION = 3000 // 3 seconds per clip
+const CLIP_DURATION = 3000
 
 function VideoReel() {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const [ready, setReady] = useState(false)
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const loadedCount = useRef(0)
 
   const advance = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % VIDEOS.length)
+    setCurrentIndex((prev) => {
+      const next = (prev + 1) % VIDEOS.length
+      // Pause current, play next
+      const currentVideo = videoRefs.current[prev]
+      const nextVideo = videoRefs.current[next]
+      if (currentVideo) {
+        currentVideo.pause()
+        currentVideo.currentTime = 0
+      }
+      if (nextVideo) {
+        nextVideo.currentTime = 0
+        nextVideo.play().catch(() => {})
+      }
+      return next
+    })
   }, [])
 
+  // Start cycling once enough videos are buffered
   useEffect(() => {
-    const video = videoRef.current
-    if (!video) return
+    if (!ready) return
 
-    video.src = VIDEOS[currentIndex]
-    video.currentTime = 0
-    video.play().catch(() => {})
-
-    timerRef.current = setTimeout(advance, CLIP_DURATION)
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
+    // Play the first video
+    const first = videoRefs.current[0]
+    if (first) {
+      first.currentTime = 0
+      first.play().catch(() => {})
     }
-  }, [currentIndex, advance])
+
+    const interval = setInterval(advance, CLIP_DURATION)
+    return () => clearInterval(interval)
+  }, [ready, advance])
+
+  const handleCanPlay = () => {
+    loadedCount.current += 1
+    // Start as soon as first 2 videos are ready
+    if (loadedCount.current >= 2 && !ready) {
+      setReady(true)
+    }
+  }
 
   return (
-    <div className="relative aspect-[16/9] md:aspect-[21/9] rounded-2xl md:rounded-3xl overflow-hidden bg-black">
-      <video
-        ref={videoRef}
-        muted
-        playsInline
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+    <div className="relative aspect-[16/9] md:aspect-[21/9] rounded-2xl md:rounded-3xl overflow-hidden bg-neutral-900">
+      {/* All videos preloaded, only active one visible */}
+      {VIDEOS.map((src, i) => (
+        <video
+          key={src}
+          ref={(el) => { videoRefs.current[i] = el }}
+          muted
+          playsInline
+          preload="auto"
+          onCanPlayThrough={handleCanPlay}
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+          style={{ opacity: i === currentIndex ? 1 : 0 }}
+        >
+          <source src={src} type="video/mp4" />
+        </video>
+      ))}
+
+      {/* Loading state */}
+      {!ready && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        </div>
+      )}
 
       {/* Subtle gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
 
-      {/* Progress dots only — no titles */}
+      {/* Progress dots */}
       <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6">
         <div className="flex gap-1.5">
           {VIDEOS.map((_, i) => (
-            <div
-              key={i}
-              className="h-1 rounded-full flex-1 overflow-hidden bg-white/20"
-            >
-              <motion.div
-                className="h-full bg-white rounded-full"
-                initial={{ width: '0%' }}
-                animate={{
-                  width: i === currentIndex ? '100%' : i < currentIndex ? '100%' : '0%'
-                }}
-                transition={i === currentIndex ? { duration: CLIP_DURATION / 1000, ease: 'linear' } : { duration: 0.2 }}
-              />
+            <div key={i} className="h-1 rounded-full flex-1 bg-white/20">
+              {i === currentIndex && (
+                <motion.div
+                  className="h-full bg-white rounded-full"
+                  initial={{ width: '0%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: CLIP_DURATION / 1000, ease: 'linear' }}
+                  key={`progress-${currentIndex}`}
+                />
+              )}
             </div>
           ))}
         </div>

@@ -58,12 +58,12 @@ function CountdownUnit({ value, label, delay = 0 }: { value: number; label: stri
 
       <div className="relative bg-white shadow-lg border border-neutral-200 rounded-xl md:rounded-2xl p-4 sm:p-5 md:p-8">
         {/* Number display */}
-        <div className="relative overflow-hidden">
+        <div className="relative">
           <motion.span
             key={value}
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="block text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tabular-nums"
+            className="block text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-bold tabular-nums"
           >
             <span className="bg-gradient-to-b from-neutral-900 to-neutral-600 bg-clip-text text-transparent">
               {value.toString().padStart(2, '0')}

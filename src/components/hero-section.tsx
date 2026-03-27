@@ -94,25 +94,31 @@ export function HeroSection() {
 
           {/* Main heading */}
           <div className="text-center mb-6 md:mb-8 px-2">
-            <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-bold tracking-tight mb-3 md:mb-4">
-              <AnimatedLetters
-                text="Young at Heart"
-                className="text-neutral-900 block mb-1 md:mb-2"
-                delay={0.2}
-              />
+            <h1 className="font-bold tracking-tight mb-3 md:mb-4">
+              <motion.span
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.2 }}
+                className="text-neutral-900 block text-[2rem] sm:text-4xl md:text-6xl lg:text-7xl mb-1 md:mb-2"
+              >
+                Young at Heart
+              </motion.span>
               <span className="block">
-                <AnimatedLetters
-                  text="Festival"
-                  className="text-neutral-900"
-                  delay={0.5}
-                />
                 <motion.span
-                  initial={{ opacity: 0, scale: 0.5, rotate: -10 }}
-                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                  transition={{ delay: 1, duration: 0.6, type: 'spring' }}
-                  className="inline-block ml-2 md:ml-4"
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 0.5 }}
+                  className="text-neutral-900 text-[2rem] sm:text-4xl md:text-6xl lg:text-7xl"
                 >
-                  <GradientText from="#cd2653" to="#f59e0b" className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-bold">
+                  Festival{' '}
+                </motion.span>
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1, duration: 0.6, type: 'spring' }}
+                  className="inline-block"
+                >
+                  <GradientText from="#cd2653" to="#f59e0b" className="text-[2rem] sm:text-4xl md:text-6xl lg:text-7xl font-bold">
                     2026
                   </GradientText>
                 </motion.span>
