@@ -10,10 +10,10 @@ interface LogoProps {
 }
 
 const sizes = {
-  sm: { icon: 180, text: 'text-sm', subtext: 'text-[8px]' },
-  md: { icon: 220, text: 'text-base', subtext: 'text-[10px]' },
-  lg: { icon: 280, text: 'text-lg', subtext: 'text-xs' },
-  xl: { icon: 360, text: 'text-2xl', subtext: 'text-sm' },
+  sm: { icon: 40, text: 'text-sm', subtext: 'text-[8px]' },
+  md: { icon: 56, text: 'text-base', subtext: 'text-[10px]' },
+  lg: { icon: 64, text: 'text-lg', subtext: 'text-xs' },
+  xl: { icon: 80, text: 'text-2xl', subtext: 'text-sm' },
 }
 
 export function Logo({ size = 'md', showText = true, className }: LogoProps) {
