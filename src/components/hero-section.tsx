@@ -80,16 +80,18 @@ export function HeroSection() {
             transition={{ duration: 0.6 }}
             className="flex justify-center mb-6 md:mb-8"
           >
-            <SpotlightCard className="inline-flex items-center gap-3 px-5 py-2.5 bg-neutral-900 backdrop-blur-xl border border-neutral-800 rounded-full">
-              <motion.span
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                <Sparkles className="w-4 h-4 text-amber-400" />
-              </motion.span>
-              <span className="text-sm font-medium text-white">Tickets Selling Now</span>
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            </SpotlightCard>
+            <a href="https://tickets.youngatheart.co.za" target="_blank" rel="noopener noreferrer">
+              <SpotlightCard className="inline-flex items-center gap-3 px-5 py-2.5 bg-neutral-900 backdrop-blur-xl border border-neutral-800 rounded-full hover:bg-neutral-800 transition-colors cursor-pointer">
+                <motion.span
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                >
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                </motion.span>
+                <span className="text-sm font-medium text-white">Tickets Selling Now</span>
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              </SpotlightCard>
+            </a>
           </motion.div>
 
           {/* Main heading */}

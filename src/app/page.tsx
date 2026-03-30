@@ -655,15 +655,17 @@ export default function HomePage() {
                   Apply as Exhibitor
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </motion.button>
-                <motion.button
+                <motion.a
+                  href="https://tickets.youngatheart.co.za"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => router.push('/register')}
                   className="flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-white bg-white/10 hover:bg-white/20 rounded-2xl border border-white/20 backdrop-blur-sm transition-all cursor-pointer"
                 >
                   <Ticket className="w-5 h-5" />
-                  Register as Visitor
-                </motion.button>
+                  Get Tickets
+                </motion.a>
               </div>
             </motion.div>
           </div>
