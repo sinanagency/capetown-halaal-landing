@@ -15,13 +15,16 @@ interface ApplicationApprovedProps {
   businessName: string
   contactName: string
   boothTier?: string
+  applicationId?: string
 }
 
 export function ApplicationApproved({
   businessName,
   contactName,
   boothTier,
+  applicationId,
 }: ApplicationApprovedProps) {
+  const checkoutUrl = `https://tickets.youngatheart.co.za/vendor-checkout/${boothTier ? `?tier=${boothTier}` : ''}${applicationId ? `${boothTier ? '&' : '?'}app_id=${applicationId}` : ''}`
   return (
     <Html>
       <Head />
@@ -55,16 +58,16 @@ export function ApplicationApproved({
             </Text>
 
             <Text style={paragraph}>
-              1. You'll receive a separate email with booth selection details and payment instructions.
+              1. Click the button below to select your booth and complete payment.
               <br />
-              2. Complete your payment to secure your booth.
+              2. Once payment is confirmed, you'll receive your exhibitor pack with all event details.
               <br />
-              3. Once confirmed, you'll receive your exhibitor pack with all event details.
+              3. Setup instructions will be sent closer to the event date.
             </Text>
 
             <Section style={buttonContainer}>
-              <Button href="https://cthalaal.co.za/exhibitor" style={button}>
-                View Booth Options
+              <Button href={checkoutUrl} style={button}>
+                Select Booth & Pay Now
               </Button>
             </Section>
 

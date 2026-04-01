@@ -113,6 +113,7 @@ export async function PATCH(
               businessName: data.business_name,
               contactName: data.contact_name,
               boothTier: data.preferred_booth_tier || undefined,
+              applicationId: id,
             }),
           })
         } else if (validated.status === 'rejected') {
