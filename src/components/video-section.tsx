@@ -18,13 +18,11 @@ function VideoReel() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [ready, setReady] = useState(false)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const loadedCount = useRef(0)
 
   const advance = useCallback(() => {
     setCurrentIndex((prev) => {
       const next = (prev + 1) % VIDEOS.length
-      // Pause current, play next
       const currentVideo = videoRefs.current[prev]
       const nextVideo = videoRefs.current[next]
       if (currentVideo) {
@@ -39,32 +37,26 @@ function VideoReel() {
     })
   }, [])
 
-  // Start cycling once enough videos are buffered
   useEffect(() => {
     if (!ready) return
-
-    // Play the first video
     const first = videoRefs.current[0]
     if (first) {
       first.currentTime = 0
       first.play().catch(() => {})
     }
-
     const interval = setInterval(advance, CLIP_DURATION)
     return () => clearInterval(interval)
   }, [ready, advance])
 
   const handleCanPlay = () => {
     loadedCount.current += 1
-    // Start as soon as first 2 videos are ready
     if (loadedCount.current >= 2 && !ready) {
       setReady(true)
     }
   }
 
   return (
-    <div className="relative aspect-[16/9] md:aspect-[21/9] rounded-2xl md:rounded-3xl overflow-hidden bg-neutral-900">
-      {/* All videos preloaded, only active one visible */}
+    <div className="relative aspect-[16/9] rounded-2xl md:rounded-3xl overflow-hidden bg-neutral-900">
       {VIDEOS.map((src, i) => (
         <video
           key={src}
@@ -74,40 +66,14 @@ function VideoReel() {
           preload="auto"
           onCanPlayThrough={handleCanPlay}
           className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
-          style={{ opacity: i === currentIndex ? 1 : 0 }}
+          style={{ opacity: i === currentIndex && ready ? 1 : 0 }}
         >
           <source src={src} type="video/mp4" />
         </video>
       ))}
 
-      {/* Loading state */}
-      {!ready && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-        </div>
-      )}
-
       {/* Subtle gradient overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-
-      {/* Progress dots */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 md:p-6">
-        <div className="flex gap-1.5">
-          {VIDEOS.map((_, i) => (
-            <div key={i} className="h-1 rounded-full flex-1 bg-white/20">
-              {i === currentIndex && (
-                <motion.div
-                  className="h-full bg-white rounded-full"
-                  initial={{ width: '0%' }}
-                  animate={{ width: '100%' }}
-                  transition={{ duration: CLIP_DURATION / 1000, ease: 'linear' }}
-                  key={`progress-${currentIndex}`}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
+      <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
     </div>
   )
 }
@@ -145,7 +111,7 @@ export function VideoSection() {
           initial={{ opacity: 0, y: 60 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="max-w-6xl mx-auto"
+          className="max-w-5xl mx-auto"
         >
           <VideoReel />
         </motion.div>

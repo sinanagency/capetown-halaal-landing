@@ -1,58 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion'
+import { motion, useScroll, useTransform } from 'framer-motion'
 import { ArrowRight, Calendar, MapPin, Users, Sparkles, Play, ChevronDown } from 'lucide-react'
-import { AnimatedLetters, GradientText } from '@/components/ui/animated-text'
+import { GradientText } from '@/components/ui/animated-text'
 import { SpotlightCard } from '@/components/ui/spotlight'
-
-const PHOTOS = [
-  '/photos/3g9a3214.jpg',
-  '/photos/3g9a3280.jpg',
-  '/photos/3g9a3367.jpg',
-  '/photos/3g9a3379.jpg',
-  '/photos/3g9a3350.jpg',
-  '/photos/3g9a3412.jpg',
-]
-
-function PhotoBackground() {
-  const [currentIndex, setCurrentIndex] = useState(0)
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % PHOTOS.length)
-    }, 4000)
-    return () => clearInterval(interval)
-  }, [])
-
-  return (
-    <div className="absolute inset-0">
-      <AnimatePresence mode="sync">
-        <motion.div
-          key={currentIndex}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 1.2 }}
-          className="absolute inset-0"
-        >
-          <Image
-            src={PHOTOS[currentIndex]}
-            alt="Young at Heart Festival"
-            fill
-            className="object-cover"
-            priority={currentIndex === 0}
-          />
-        </motion.div>
-      </AnimatePresence>
-      {/* Light overlay so text is readable */}
-      <div className="absolute inset-0 bg-white/55" />
-      <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-white/20 to-white/70" />
-    </div>
-  )
-}
 
 export function HeroSection() {
   const router = useRouter()
@@ -66,7 +19,13 @@ export function HeroSection() {
 
   return (
     <section ref={containerRef} className="relative min-h-screen overflow-hidden bg-white">
-      <PhotoBackground />
+      {/* Subtle geometric background pattern */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: `radial-gradient(circle at 1px 1px, #cd2653 1px, transparent 0)`,
+        backgroundSize: '40px 40px',
+      }} />
+      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-[#cd2653]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-[#f59e0b]/5 to-transparent rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
       <motion.div
         className="relative z-10 container mx-auto px-4 pt-24 md:pt-32 pb-16 md:pb-20 min-h-screen flex flex-col justify-center"
@@ -164,13 +123,13 @@ export function HeroSection() {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => document.getElementById('video')?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => document.getElementById('gallery')?.scrollIntoView({ behavior: 'smooth' })}
               className="group flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-neutral-900 bg-white/80 hover:bg-white rounded-2xl border border-neutral-200 backdrop-blur-sm transition-all cursor-pointer"
             >
               <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-neutral-200 flex items-center justify-center group-hover:bg-neutral-300 transition-colors">
                 <Play className="w-4 h-4 ml-0.5" />
               </div>
-              Watch Highlights
+              View Gallery
             </motion.button>
           </motion.div>
 

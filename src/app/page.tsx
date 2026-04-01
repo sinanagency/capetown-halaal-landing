@@ -22,6 +22,7 @@ import { TestimonialsSection } from '@/components/testimonials-section'
 import { CountdownSection } from '@/components/countdown-section'
 import { VideoSection } from '@/components/video-section'
 import { SponsorsSection } from '@/components/sponsors-section'
+import { GallerySection } from '@/components/gallery-section'
 import { GlowingLine } from '@/components/ui/floating-particles'
 import { toast } from 'sonner'
 
@@ -340,7 +341,7 @@ export default function HomePage() {
 
   const navItems = [
     { label: 'About', href: '#about', action: null },
-    { label: 'Vendors', href: '/vendors', action: null },
+    { label: 'Vendors', href: '/apply', action: null },
     { label: 'Sectors', href: '#sectors', action: null },
     { label: 'Sponsors', href: '#sponsors', action: null },
     { label: 'Contact', href: '#contact', action: 'openContact' },
@@ -388,7 +389,7 @@ export default function HomePage() {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => router.push('/register')}
+                onClick={() => router.push('/apply')}
                 className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl shadow-lg shadow-[#cd2653]/20 cursor-pointer"
               >
                 <Store className="w-4 h-4" />
@@ -553,6 +554,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Gallery Section */}
+      <GallerySection />
+
       {/* Sectors Section */}
       <SectorsSection />
 
@@ -683,7 +687,7 @@ export default function HomePage() {
               </p>
               <div className="flex gap-3">
                 {[
-                  { icon: Instagram, href: 'https://www.instagram.com/capetownhalaal/' },
+                  { icon: Instagram, href: 'https://www.instagram.com/youngatheart_capetown/' },
                   { icon: Facebook, href: 'https://www.facebook.com/capetownhalaal/' },
                   { icon: Youtube, href: '#' },
                 ].map((social, i) => (
@@ -705,10 +709,10 @@ export default function HomePage() {
               <ul className="space-y-3 text-sm">
                 {[
                   { label: 'About', href: '#about' },
-                  { label: 'Vendors', href: '/vendors' },
-                  { label: 'Exhibitor Portal', href: '/exhibitor' },
-                  { label: 'Register', href: '/register' },
-                  { label: 'Floor Plan', href: '/exhibitor#floor-plan' },
+                  { label: 'Apply as Vendor', href: '/apply' },
+                  { label: 'Buy Tickets', href: 'https://tickets.youngatheart.co.za' },
+                  { label: 'Gallery', href: '#gallery' },
+                  { label: 'Sponsors', href: '#sponsors' },
                 ].map((link) => (
                   <li key={link.label}>
                     {link.href.startsWith('#') ? (
