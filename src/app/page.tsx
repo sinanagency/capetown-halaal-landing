@@ -534,10 +534,10 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-gradient-to-br from-[#cd2653]/20 to-[#f59e0b]/10 rounded-3xl blur-3xl" />
               <div className="relative grid grid-cols-2 gap-4">
                 <TiltCard className="aspect-square rounded-2xl overflow-hidden">
-                  <Image src={IMAGES.food2} alt="Food" fill className="object-cover" />
+                  <Image src="/about/festival-food.jpg" alt="Festival food" fill className="object-cover" />
                 </TiltCard>
                 <TiltCard className="aspect-square rounded-2xl overflow-hidden mt-8">
-                  <Image src={IMAGES.crowd} alt="Crowd" fill className="object-cover" />
+                  <Image src="/about/festival-crowd.jpg" alt="Festival crowd" fill className="object-cover" />
                 </TiltCard>
                 <TiltCard className="col-span-2 aspect-video rounded-2xl overflow-hidden shadow-xl">
                   <Image src={IMAGES.capetown} alt="Cape Town" fill className="object-cover" />
