@@ -11,7 +11,7 @@ interface LogoProps {
 
 const sizes = {
   sm: { icon: 40, text: 'text-sm', subtext: 'text-[8px]' },
-  md: { icon: 62, text: 'text-base', subtext: 'text-[10px]' },
+  md: { icon: 65, text: 'text-base', subtext: 'text-[10px]' },
   lg: { icon: 64, text: 'text-lg', subtext: 'text-xs' },
   xl: { icon: 80, text: 'text-2xl', subtext: 'text-sm' },
 }
@@ -26,7 +26,7 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
         alt="Young at Heart"
         width={s.icon}
         height={s.icon}
-        className="flex-shrink-0 translate-y-[6%]"
+        className="flex-shrink-0 translate-y-[11%]"
         priority
       />
 

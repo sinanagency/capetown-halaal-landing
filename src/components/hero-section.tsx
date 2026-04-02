@@ -44,7 +44,7 @@ export function HeroSection() {
 
       {/* Right photo — feathers into white center */}
       <motion.div
-        className="absolute inset-y-0 right-0 w-[45%] hidden md:block"
+        className="absolute inset-y-0 -right-[5%] w-[45%] hidden md:block"
         style={{ x: rightX }}
       >
         <Image
