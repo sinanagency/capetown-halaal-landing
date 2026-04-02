@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
 import {
   ArrowLeft,
   Building2,
@@ -97,11 +96,7 @@ export default function ApplyPage() {
   if (formState === 'success') {
     return (
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full text-center"
-        >
+        <div className="max-w-md w-full text-center">
           <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
@@ -118,7 +113,7 @@ export default function ApplyPage() {
           >
             Return to Home
           </Link>
-        </motion.div>
+        </div>
       </div>
     )
   }
@@ -155,17 +150,13 @@ export default function ApplyPage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Error Message */}
             {formState === 'error' && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg"
-              >
+              <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-red-800">Submission Failed</p>
                   <p className="text-sm text-red-600">{error}</p>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {/* Business Information */}
