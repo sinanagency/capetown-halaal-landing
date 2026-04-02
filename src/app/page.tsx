@@ -325,7 +325,7 @@ function LoadingScreen() {
 
       <div className="relative z-10 text-center">
         {/* Animated text reveal */}
-        <div className="overflow-hidden mb-8">
+        <div className="overflow-hidden mb-8 pb-2">
           <motion.h1
             initial={{ y: 80 }}
             animate={{ y: 0 }}
