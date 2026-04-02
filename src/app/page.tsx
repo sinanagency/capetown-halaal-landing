@@ -296,31 +296,73 @@ function ContactModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 
 function LoadingScreen() {
   return (
-    <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+    <motion.div
+      className="fixed inset-0 z-50 bg-neutral-950 flex items-center justify-center overflow-hidden"
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      {/* Animated gradient orbs */}
       <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="text-center"
-      >
+        className="absolute w-[500px] h-[500px] rounded-full blur-[120px] opacity-30"
+        style={{ background: 'radial-gradient(circle, #cd2653, transparent 70%)' }}
+        animate={{
+          x: [-100, 100, -100],
+          y: [-50, 80, -50],
+          scale: [1, 1.3, 1],
+        }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.div
+        className="absolute w-[400px] h-[400px] rounded-full blur-[100px] opacity-20"
+        style={{ background: 'radial-gradient(circle, #f59e0b, transparent 70%)' }}
+        animate={{
+          x: [80, -120, 80],
+          y: [60, -40, 60],
+          scale: [1.2, 0.9, 1.2],
+        }}
+        transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      <div className="relative z-10 text-center">
+        {/* Animated text reveal */}
+        <div className="overflow-hidden mb-8">
+          <motion.h1
+            initial={{ y: 80 }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.8, ease: [0.215, 0.61, 0.355, 1] }}
+            className="text-4xl md:text-6xl font-bold text-white tracking-tight"
+          >
+            Young at Heart
+          </motion.h1>
+        </div>
+        <div className="overflow-hidden mb-10">
+          <motion.p
+            initial={{ y: 40 }}
+            animate={{ y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2, ease: [0.215, 0.61, 0.355, 1] }}
+            className="text-lg text-neutral-500 tracking-[0.3em] uppercase"
+          >
+            Festival 2026
+          </motion.p>
+        </div>
+
+        {/* Loading bar */}
         <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          className="mb-6"
-        >
-          <LogoMark size="xl" />
-        </motion.div>
-        <motion.div
-          className="w-48 h-1 bg-neutral-200 rounded-full overflow-hidden"
+          initial={{ opacity: 0, scaleX: 0.5 }}
+          animate={{ opacity: 1, scaleX: 1 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="w-48 h-[2px] bg-white/10 rounded-full overflow-hidden mx-auto"
         >
           <motion.div
-            className="h-full bg-gradient-to-r from-[#cd2653] to-[#f59e0b]"
+            className="h-full rounded-full"
+            style={{ background: 'linear-gradient(90deg, #cd2653, #f59e0b, #cd2653)' }}
             initial={{ x: '-100%' }}
             animate={{ x: '100%' }}
-            transition={{ duration: 1, repeat: Infinity }}
+            transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
           />
         </motion.div>
-      </motion.div>
-    </div>
+      </div>
+    </motion.div>
   )
 }
 
