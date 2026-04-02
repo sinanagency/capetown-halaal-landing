@@ -426,7 +426,7 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Link
+              <a
                 href="/apply"
                 className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl shadow-lg shadow-[#cd2653]/20 hover:opacity-90 transition-opacity"
               >
@@ -434,7 +434,7 @@ export default function HomePage() {
                 <span className="hidden md:inline">Vendor Application</span>
                 <span className="md:hidden">Apply</span>
                 <ArrowUpRight className="w-4 h-4" />
-              </Link>
+              </a>
 
               {/* Mobile hamburger */}
               <button
@@ -490,14 +490,13 @@ export default function HomePage() {
                     </Link>
                   )
                 ))}
-                <Link
+                <a
                   href="/apply"
-                  onClick={() => setMobileMenuOpen(false)}
                   className="w-full mt-2 flex items-center justify-center gap-2 px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl sm:hidden"
                 >
                   <Store className="w-4 h-4" />
                   Vendor Application
-                </Link>
+                </a>
               </div>
             </motion.div>
           )}
@@ -697,14 +696,14 @@ export default function HomePage() {
               </p>
 
               <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 px-4">
-                <Link
+                <a
                   href="/apply"
                   className="group relative flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-white rounded-2xl bg-gradient-to-r from-[#cd2653] to-[#bf3026] shadow-2xl shadow-[#cd2653]/30 hover:opacity-90 transition-opacity"
                 >
                   <Store className="w-5 h-5" />
                   Apply as Exhibitor
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </Link>
+                </a>
                 <motion.a
                   href="https://tickets.youngatheart.co.za"
                   target="_blank"

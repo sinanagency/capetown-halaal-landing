@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import Link from 'next/link'
+// Using plain <a> tags instead of Next.js Link for reliable full-page navigation
 import Image from 'next/image'
 import { motion, useScroll, useTransform } from 'framer-motion'
 import { ArrowRight, Calendar, MapPin, Users, Sparkles, Play, ChevronDown } from 'lucide-react'
@@ -156,7 +156,7 @@ export function HeroSection() {
             transition={{ delay: 1.4, duration: 0.6 }}
             className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 mb-10 md:mb-16 px-4"
           >
-            <Link
+            <a
               href="/apply"
               className="group relative flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-white overflow-hidden rounded-2xl hover:opacity-90 transition-opacity"
             >
@@ -166,7 +166,7 @@ export function HeroSection() {
                 Apply as Exhibitor
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
-            </Link>
+            </a>
 
             <motion.button
               whileHover={{ scale: 1.02 }}
