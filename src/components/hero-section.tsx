@@ -2,8 +2,8 @@
 
 import { useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion, useScroll, useTransform } from 'framer-motion'
-// useRouter removed — CTAs use <Link> for proper href navigation
 import { ArrowRight, Calendar, MapPin, Users, Sparkles, Play, ChevronDown } from 'lucide-react'
 import { GradientText } from '@/components/ui/animated-text'
 import { SpotlightCard } from '@/components/ui/spotlight'
@@ -16,22 +16,72 @@ export function HeroSection() {
   })
 
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0])
+  const leftX = useTransform(scrollYProgress, [0, 0.5], [0, -60])
+  const rightX = useTransform(scrollYProgress, [0, 0.5], [0, 60])
 
   return (
     <section ref={containerRef} className="relative min-h-screen overflow-hidden bg-white">
-      {/* Subtle geometric background pattern */}
-      <div className="absolute inset-0 opacity-[0.03]" style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, #cd2653 1px, transparent 0)`,
-        backgroundSize: '40px 40px',
-      }} />
-      <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-[#cd2653]/5 to-transparent rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-gradient-to-tr from-[#f59e0b]/5 to-transparent rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
+      {/* Left photo — feathers into white center */}
+      <motion.div
+        className="absolute inset-y-0 left-0 w-[45%] hidden md:block"
+        style={{ x: leftX }}
+      >
+        <Image
+          src="/about/festival-crowd.jpg"
+          alt="Festival crowd"
+          fill
+          className="object-cover"
+          priority
+          sizes="45vw"
+        />
+        {/* Feathered edge: fades right into white */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-white" style={{
+          background: 'linear-gradient(to right, transparent 0%, transparent 40%, rgba(255,255,255,0.4) 60%, rgba(255,255,255,0.85) 80%, white 100%)',
+        }} />
+        {/* Slight top/bottom fade */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-white/30" />
+      </motion.div>
 
+      {/* Right photo — feathers into white center */}
+      <motion.div
+        className="absolute inset-y-0 right-0 w-[45%] hidden md:block"
+        style={{ x: rightX }}
+      >
+        <Image
+          src="/gallery/gallery-3389.jpg"
+          alt="Festival vendors"
+          fill
+          className="object-cover"
+          priority
+          sizes="45vw"
+        />
+        {/* Feathered edge: fades left into white */}
+        <div className="absolute inset-0" style={{
+          background: 'linear-gradient(to left, transparent 0%, transparent 40%, rgba(255,255,255,0.4) 60%, rgba(255,255,255,0.85) 80%, white 100%)',
+        }} />
+        {/* Slight top/bottom fade */}
+        <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-white/30" />
+      </motion.div>
+
+      {/* Mobile: subtle background photos with heavy overlay */}
+      <div className="absolute inset-0 md:hidden">
+        <Image
+          src="/about/festival-crowd.jpg"
+          alt="Festival"
+          fill
+          className="object-cover"
+          priority
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-white/80" />
+      </div>
+
+      {/* Center content */}
       <motion.div
         className="relative z-10 container mx-auto px-4 pt-24 md:pt-32 pb-16 md:pb-20 min-h-screen flex flex-col justify-center"
         style={{ opacity }}
       >
-        <div className="max-w-5xl mx-auto w-full">
+        <div className="max-w-3xl mx-auto w-full">
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
