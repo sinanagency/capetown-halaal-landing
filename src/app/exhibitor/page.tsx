@@ -1,464 +1,249 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
-import dynamic from 'next/dynamic'
+import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
-import { Navbar } from '@/components/navbar'
-import { FloorPlan } from '@/components/floor-plan'
-import { BoothFilters } from '@/components/booth-filters'
-import { BoothDetail } from '@/components/booth-detail'
-import { Cart } from '@/components/cart'
-import { useBoothStore } from '@/lib/store'
-import { getBoothStats, formatPrice, BOOTH_TIERS } from '@/lib/booth-data'
-import { MapPin, Users, Calendar, Sparkles, ArrowDown, Zap, Shield, Star } from 'lucide-react'
-import { Logo, LogoMark } from '@/components/logo'
-import { TextReveal, GradientText } from '@/components/ui/text-reveal'
-import { FloatingOrbs, GridBackground, Particles, CursorGlow } from '@/components/ui/particles'
-import { AnimatedButton, GlowButton } from '@/components/ui/animated-button'
-import { Counter, StatCard } from '@/components/ui/counter'
-import { ScrollReveal, StaggerContainer, StaggerItem, BlurIn } from '@/components/ui/scroll-reveal'
-import { Magnetic } from '@/components/ui/magnetic'
+import {
+  ArrowRight, MapPin, Users, Calendar, CheckCircle,
+  Utensils, ShoppingBag, Sparkles, Heart, Plane, Home, Briefcase, Building
+} from 'lucide-react'
+import { Logo } from '@/components/logo'
 
-// Dynamic import for 3D preview (heavy component)
-const HeroVenuePreview = dynamic(
-  () => import('@/components/hero-venue-preview').then(mod => ({ default: mod.HeroVenuePreview })),
-  { ssr: false, loading: () => <div className="w-full h-full bg-gray-900/50 rounded-2xl animate-pulse" /> }
-)
+const BOOTH_TIERS = [
+  {
+    name: 'Standard',
+    size: '3×3m',
+    price: 'R15,000',
+    features: ['Table & 2 chairs', 'Power outlet', 'Festival signage', 'Wi-Fi access'],
+  },
+  {
+    name: 'Premium',
+    size: '3×6m',
+    price: 'R25,000',
+    popular: true,
+    features: ['2 Tables & 4 chairs', 'Dual power outlets', 'Corner positioning', 'Priority setup', 'Wi-Fi access'],
+  },
+  {
+    name: 'Corner',
+    size: '6×6m',
+    price: 'R45,000',
+    features: ['4 Tables & 8 chairs', 'Premium power setup', 'High foot traffic', 'Early access setup', 'Wi-Fi access'],
+  },
+  {
+    name: 'Island',
+    size: '9×9m',
+    price: 'R85,000',
+    features: ['Full infrastructure', '360° visibility', 'Central location', 'Dedicated setup time', 'Premium branding', 'Wi-Fi access'],
+  },
+]
 
-function LoadingScreen() {
+const SECTORS = [
+  { icon: Utensils, name: 'Food & Beverage', count: '120+' },
+  { icon: ShoppingBag, name: 'Fashion & Modest Wear', count: '80+' },
+  { icon: Sparkles, name: 'Beauty & Wellness', count: '60+' },
+  { icon: Heart, name: 'Health & Pharmacy', count: '40+' },
+  { icon: Plane, name: 'Travel & Tourism', count: '35+' },
+  { icon: Home, name: 'Home & Living', count: '45+' },
+  { icon: Briefcase, name: 'Finance & Services', count: '25+' },
+  { icon: Building, name: 'Business & Trade', count: '30+' },
+]
+
+export default function ExhibitorPage() {
   return (
-    <div className="fixed inset-0 z-50 bg-neutral-950 flex items-center justify-center">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="text-center"
-      >
-        <motion.div
-          className="mb-6"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-        >
-          <LogoMark size="xl" />
-        </motion.div>
-        <motion.div
-          className="w-48 h-1 bg-neutral-800 rounded-full overflow-hidden"
-        >
-          <motion.div
-            className="h-full bg-gradient-to-r from-[#cd2653] to-[#f59e0b]"
-            initial={{ x: '-100%' }}
-            animate={{ x: '100%' }}
-            transition={{ duration: 1, repeat: Infinity }}
-          />
-        </motion.div>
-      </motion.div>
-    </div>
-  )
-}
-
-export default function HomePage() {
-  const { booths } = useBoothStore()
-  const stats = getBoothStats(booths)
-  const [showCursor, setShowCursor] = useState(false)
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setShowCursor(window.innerWidth > 1024)
-    }
-  }, [])
-
-  return (
-    <div className="min-h-screen bg-neutral-950 text-white overflow-x-hidden">
-      {/* Cursor glow effect (desktop only) */}
-      {showCursor && <CursorGlow />}
-
-      <Navbar />
-
-      <main>
-        {/* HERO SECTION */}
-        <section className="relative min-h-screen flex items-center overflow-hidden">
-          {/* Background effects */}
-          <GridBackground />
-          <FloatingOrbs />
-          <Particles quantity={30} color="#cd2653" />
-
-          {/* Hero content */}
-          <div className="container mx-auto px-4 pt-24 pb-12 relative z-10">
-            <div className="grid lg:grid-cols-2 gap-12 items-center">
-              {/* Left: Text content */}
-              <div className="space-y-8">
-                {/* Badge */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                >
-                  <span className="inline-flex items-center gap-2 px-4 py-2 bg-[#cd2653]/10 border border-[#cd2653]/30 rounded-full text-[#cd2653] text-sm font-medium">
-                    <motion.span
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                    >
-                      <Sparkles className="w-4 h-4" />
-                    </motion.span>
-                    Early Bird Pricing Available
-                  </span>
-                </motion.div>
-
-                {/* Main heading */}
-                <div className="space-y-4">
-                  <TextReveal
-                    text="Cape Town"
-                    className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight"
-                    delay={0.2}
-                  />
-                  <div className="flex items-baseline gap-4">
-                    <TextReveal
-                      text="Lifestyle"
-                      className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight"
-                      delay={0.4}
-                    />
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.8, type: 'spring' }}
-                      className="text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#cd2653] to-[#bf3026] bg-clip-text text-transparent"
-                    >
-                      2026
-                    </motion.span>
-                  </div>
-                </div>
-
-                {/* Subheading */}
-                <BlurIn delay={0.6}>
-                  <p className="text-xl text-gray-400 max-w-lg leading-relaxed">
-                    South Africa's largest lifestyle exhibition. Secure your booth at{' '}
-                    <span className="text-white font-medium">Youngsfield Military Base</span>, Cape Town.
-                  </p>
-                </BlurIn>
-
-                {/* CTA Buttons */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.8, duration: 0.5 }}
-                  className="flex flex-wrap gap-4"
-                >
-                  <AnimatedButton
-                    variant="primary"
-                    size="lg"
-                    onClick={() => document.getElementById('floor-plan')?.scrollIntoView({ behavior: 'smooth' })}
-                  >
-                    <Zap className="w-5 h-5" />
-                    Browse Booths
-                  </AnimatedButton>
-                  <GlowButton>
-                    View Pricing
-                  </GlowButton>
-                </motion.div>
-
-                {/* Quick stats inline */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 1, duration: 0.5 }}
-                  className="flex flex-wrap gap-6 pt-4"
-                >
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <MapPin className="w-5 h-5 text-[#cd2653]" />
-                    <span><Counter value={stats.available} /> booths available</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Users className="w-5 h-5 text-[#cd2653]" />
-                    <span>400+ exhibitor spaces</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Calendar className="w-5 h-5 text-[#cd2653]" />
-                    <span>Coming 2026</span>
-                  </div>
-                </motion.div>
-              </div>
-
-              {/* Right: 3D Preview */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5, duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
-                className="relative"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-[#cd2653]/20 to-[#bf3026]/20 rounded-3xl blur-3xl" />
-                <div className="relative bg-gray-900/50 backdrop-blur-sm border border-white/10 rounded-3xl overflow-hidden h-[400px] md:h-[500px]">
-                  <Suspense fallback={<div className="w-full h-full animate-pulse bg-gray-800/50" />}>
-                    <HeroVenuePreview />
-                  </Suspense>
-
-                  {/* Overlay info */}
-                  <div className="absolute bottom-4 left-4 right-4 flex justify-between items-end">
-                    <div className="bg-black/60 backdrop-blur-md rounded-xl px-4 py-2">
-                      <p className="text-xs text-gray-400">Interactive Preview</p>
-                      <p className="text-sm text-white font-medium">400 Booth Layout</p>
-                    </div>
-                    <motion.div
-                      animate={{ y: [0, -5, 0] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="bg-[#cd2653]/20 backdrop-blur-md rounded-full p-2"
-                    >
-                      <ArrowDown className="w-5 h-5 text-[#cd2653]" />
-                    </motion.div>
-                  </div>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-
-          {/* Scroll indicator */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.5 }}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2"
-          >
-            <motion.div
-              animate={{ y: [0, 10, 0] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="flex flex-col items-center gap-2 text-gray-500"
-            >
-              <span className="text-xs uppercase tracking-wider">Scroll to explore</span>
-              <ArrowDown className="w-4 h-4" />
-            </motion.div>
-          </motion.div>
-        </section>
-
-        {/* PRICING TIERS */}
-        <section className="py-24 relative">
-          <div className="container mx-auto px-4">
-            <ScrollReveal>
-              <div className="text-center mb-16">
-                <span className="text-[#cd2653] text-sm font-medium uppercase tracking-wider">Pricing</span>
-                <h2 className="text-4xl md:text-5xl font-bold mt-4 mb-6">Choose Your Space</h2>
-                <p className="text-gray-400 max-w-2xl mx-auto">
-                  From compact starter booths to premium corner locations. All packages include tables, chairs, signage, and power.
-                </p>
-              </div>
-            </ScrollReveal>
-
-            <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" staggerDelay={0.1}>
-              {Object.entries(BOOTH_TIERS).map(([key, tier], index) => (
-                <StaggerItem key={key}>
-                  <Magnetic strength={0.1}>
-                    <motion.div
-                      whileHover={{ y: -8, scale: 1.02 }}
-                      className={`relative group rounded-2xl p-6 border transition-all duration-300 ${
-                        index === 3
-                          ? 'bg-gradient-to-br from-[#cd2653]/20 to-[#bf3026]/10 border-[#cd2653]/30'
-                          : 'bg-white/5 border-white/10 hover:border-white/20'
-                      }`}
-                    >
-                      {index === 3 && (
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                          <span className="bg-gradient-to-r from-[#cd2653] to-[#bf3026] text-white text-xs font-bold px-3 py-1 rounded-full">
-                            POPULAR
-                          </span>
-                        </div>
-                      )}
-
-                      <div
-                        className="w-12 h-12 rounded-xl mb-4 flex items-center justify-center"
-                        style={{ backgroundColor: `${tier.color}20` }}
-                      >
-                        <div
-                          className="w-6 h-6 rounded"
-                          style={{ backgroundColor: tier.color }}
-                        />
-                      </div>
-
-                      <h3 className="text-xl font-bold text-white mb-1">{tier.label}</h3>
-                      <p className="text-gray-400 text-sm mb-4">{tier.size} • {tier.sqm}m²</p>
-
-                      <div className="mb-6">
-                        <span className="text-3xl font-bold text-white">{formatPrice(tier.price)}</span>
-                      </div>
-
-                      <ul className="space-y-2 mb-6">
-                        {tier.features.slice(0, 4).map((feature, i) => (
-                          <li key={i} className="flex items-center gap-2 text-sm text-gray-300">
-                            <Star className="w-4 h-4 text-[#cd2653] flex-shrink-0" />
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
-
-                      <AnimatedButton
-                        variant={index === 3 ? 'primary' : 'secondary'}
-                        className="w-full"
-                        magnetic={false}
-                        onClick={() => document.getElementById('floor-plan')?.scrollIntoView({ behavior: 'smooth' })}
-                      >
-                        Select Booth
-                      </AnimatedButton>
-                    </motion.div>
-                  </Magnetic>
-                </StaggerItem>
-              ))}
-            </StaggerContainer>
-          </div>
-        </section>
-
-        {/* STATS SECTION */}
-        <section className="py-24 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#cd2653]/5 to-transparent" />
-
-          <div className="container mx-auto px-4 relative z-10">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <StatCard
-                value={400}
-                suffix="+"
-                label="Exhibitor Spaces"
-                icon={<MapPin className="w-6 h-6" />}
-                delay={0}
-              />
-              <StatCard
-                value={50000}
-                suffix="+"
-                label="Expected Visitors"
-                icon={<Users className="w-6 h-6" />}
-                delay={0.1}
-              />
-              <StatCard
-                value={20000}
-                suffix="m²"
-                label="Exhibition Space"
-                icon={<Zap className="w-6 h-6" />}
-                delay={0.2}
-              />
-              <StatCard
-                value={3}
-                label="Days of Exhibition"
-                icon={<Calendar className="w-6 h-6" />}
-                delay={0.3}
-              />
-            </div>
-          </div>
-        </section>
-
-        {/* FLOOR PLAN SECTION */}
-        <section id="floor-plan" className="py-24 relative">
-          <div className="container mx-auto px-4">
-            <ScrollReveal>
-              <div className="text-center mb-12">
-                <span className="text-[#cd2653] text-sm font-medium uppercase tracking-wider">Interactive</span>
-                <h2 className="text-4xl md:text-5xl font-bold mt-4 mb-6">Explore the Venue</h2>
-                <p className="text-gray-400 max-w-2xl mx-auto">
-                  Click on any booth to see details and add to your cart. Switch between 2D and 3D views for the best experience.
-                </p>
-              </div>
-            </ScrollReveal>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Floor plan - shows first on mobile */}
-              <ScrollReveal direction="up" delay={0.1} className="lg:col-span-6 lg:order-2 order-1">
-                <FloorPlan />
-              </ScrollReveal>
-
-              {/* Left sidebar - Filters */}
-              <ScrollReveal direction="left" delay={0.2} className="lg:col-span-3 lg:order-1 order-3 space-y-6">
-                <BoothFilters />
-              </ScrollReveal>
-
-              {/* Right sidebar - Details & Cart */}
-              <ScrollReveal direction="right" delay={0.3} className="lg:col-span-3 lg:order-3 order-2 space-y-6">
-                <BoothDetail />
-                <Cart />
-              </ScrollReveal>
-            </div>
-          </div>
-        </section>
-
-        {/* FEATURES SECTION */}
-        <section className="py-24 relative">
-          <div className="container mx-auto px-4">
-            <ScrollReveal>
-              <div className="text-center mb-16">
-                <span className="text-[#cd2653] text-sm font-medium uppercase tracking-wider">Why Choose Us</span>
-                <h2 className="text-4xl md:text-5xl font-bold mt-4 mb-6">Premium Experience</h2>
-              </div>
-            </ScrollReveal>
-
-            <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-8" staggerDelay={0.15}>
-              <StaggerItem>
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="relative group p-8 bg-gradient-to-br from-white/5 to-white/0 rounded-2xl border border-white/10 hover:border-[#cd2653]/30 transition-all duration-300"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#cd2653]/10 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="relative">
-                    <div className="w-14 h-14 rounded-2xl bg-[#cd2653]/10 flex items-center justify-center mb-6">
-                      <MapPin className="w-7 h-7 text-[#cd2653]" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-3">Prime Location</h3>
-                    <p className="text-gray-400">
-                      Youngsfield Military Base - Over 20,000m² of exhibition space with excellent accessibility and parking.
-                    </p>
-                  </div>
-                </motion.div>
-              </StaggerItem>
-
-              <StaggerItem>
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="relative group p-8 bg-gradient-to-br from-white/5 to-white/0 rounded-2xl border border-white/10 hover:border-blue-500/30 transition-all duration-300"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="relative">
-                    <div className="w-14 h-14 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-6">
-                      <Users className="w-7 h-7 text-blue-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-3">50,000+ Visitors</h3>
-                    <p className="text-gray-400">
-                      Connect with thousands of potential customers over the 3-day event. Maximum exposure guaranteed.
-                    </p>
-                  </div>
-                </motion.div>
-              </StaggerItem>
-
-              <StaggerItem>
-                <motion.div
-                  whileHover={{ y: -5 }}
-                  className="relative group p-8 bg-gradient-to-br from-white/5 to-white/0 rounded-2xl border border-white/10 hover:border-purple-500/30 transition-all duration-300"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <div className="relative">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-6">
-                      <Shield className="w-7 h-7 text-purple-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white mb-3">All-Inclusive</h3>
-                    <p className="text-gray-400">
-                      Tables, chairs, signage, power, and lighting included with every booth. Just bring your products.
-                    </p>
-                  </div>
-                </motion.div>
-              </StaggerItem>
-            </StaggerContainer>
-          </div>
-        </section>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-white/5 py-12 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-[#cd2653]/5 to-transparent" />
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+    <div className="min-h-screen bg-white text-neutral-900">
+      {/* Header */}
+      <header className="bg-white border-b border-neutral-200 sticky top-0 z-50">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/">
             <Logo size="md" showText={true} />
+          </Link>
+          <Link
+            href="/apply"
+            className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-[#cd2653] rounded-xl hover:bg-[#b82049] transition-colors"
+          >
+            Apply Now
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+      </header>
 
-            <div className="flex items-center gap-6 text-sm text-neutral-400">
-              <span>Youngsfield Military Base, Cape Town</span>
-              <span className="hidden md:inline">•</span>
-              <span>Coming 2026</span>
-            </div>
-
-            <p className="text-sm text-neutral-500">
-              © 2026 Young at Heart Festival. All rights reserved.
+      {/* Hero */}
+      <section className="relative py-20 md:py-28 overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: 'radial-gradient(circle at 1px 1px, #cd2653 1px, transparent 0)',
+          backgroundSize: '40px 40px',
+        }} />
+        <div className="container mx-auto px-4 text-center relative z-10">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <span className="inline-block px-4 py-1.5 bg-[#cd2653]/10 border border-[#cd2653]/20 rounded-full text-[#cd2653] text-sm font-medium mb-6">
+              Exhibitor Information
+            </span>
+            <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4">
+              Exhibit at Young at Heart
+              <span className="block text-[#cd2653]">Festival 2026</span>
+            </h1>
+            <p className="text-neutral-600 text-lg md:text-xl max-w-2xl mx-auto mb-8">
+              Join 350+ vendors at South Africa's largest lifestyle exhibition.
+              December 11-13, 2026 at Youngsfield Military Base, Cape Town.
             </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/apply"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 text-lg font-semibold text-white bg-[#cd2653] rounded-2xl hover:bg-[#b82049] transition-colors shadow-lg shadow-[#cd2653]/20"
+              >
+                Apply as Exhibitor
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <a
+                href="https://tickets.youngatheart.co.za/vendor-checkout/"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 text-lg font-semibold text-neutral-700 bg-neutral-100 rounded-2xl hover:bg-neutral-200 transition-colors"
+              >
+                Already Approved? Pay Here
+              </a>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Event stats */}
+      <section className="bg-neutral-50 border-y border-neutral-200 py-8">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            {[
+              { icon: Calendar, label: 'Dec 11-13, 2026', sub: '3 Day Event' },
+              { icon: MapPin, label: 'Youngsfield Military Base', sub: 'Cape Town' },
+              { icon: Users, label: '25,000+ Visitors', sub: 'Expected attendance' },
+              { icon: Building, label: '350+ Vendors', sub: 'Across 8 sectors' },
+            ].map((stat) => (
+              <div key={stat.label} className="flex flex-col items-center gap-2">
+                <stat.icon className="w-6 h-6 text-[#cd2653]" />
+                <p className="font-bold text-neutral-900">{stat.label}</p>
+                <p className="text-sm text-neutral-500">{stat.sub}</p>
+              </div>
+            ))}
           </div>
         </div>
+      </section>
+
+      {/* Booth Pricing */}
+      <section className="py-16 md:py-24">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">Booth Pricing</h2>
+            <p className="text-neutral-600 text-lg">All booths include furniture, power, signage, and Wi-Fi</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+            {BOOTH_TIERS.map((tier) => (
+              <div
+                key={tier.name}
+                className={`relative rounded-2xl border p-6 ${
+                  tier.popular
+                    ? 'border-[#cd2653] bg-[#cd2653]/5 shadow-lg shadow-[#cd2653]/10'
+                    : 'border-neutral-200 bg-white'
+                }`}
+              >
+                {tier.popular && (
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#cd2653] text-white text-xs font-bold rounded-full">
+                    MOST POPULAR
+                  </span>
+                )}
+                <h3 className="text-xl font-bold mb-1">{tier.name}</h3>
+                <p className="text-sm text-neutral-500 mb-4">{tier.size}</p>
+                <p className="text-3xl font-bold text-[#cd2653] mb-6">{tier.price}</p>
+                <ul className="space-y-2 mb-6">
+                  {tier.features.map((f) => (
+                    <li key={f} className="flex items-center gap-2 text-sm text-neutral-700">
+                      <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/apply"
+                  className={`block text-center py-3 rounded-xl font-semibold transition-colors ${
+                    tier.popular
+                      ? 'bg-[#cd2653] text-white hover:bg-[#b82049]'
+                      : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                  }`}
+                >
+                  Apply Now
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Sectors */}
+      <section className="py-16 md:py-24 bg-neutral-900 text-white">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">8 Industry Sectors</h2>
+            <p className="text-neutral-400 text-lg">Find your place among 350+ exhibitors</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
+            {SECTORS.map((s) => (
+              <div key={s.name} className="flex items-center gap-3 p-4 bg-white/5 rounded-xl border border-white/10">
+                <s.icon className="w-5 h-5 text-[#cd2653] flex-shrink-0" />
+                <div>
+                  <p className="font-medium text-sm">{s.name}</p>
+                  <p className="text-xs text-neutral-500">{s.count} vendors</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="py-16 md:py-24">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-3">How It Works</h2>
+          </div>
+          <div className="grid md:grid-cols-4 gap-8 max-w-4xl mx-auto">
+            {[
+              { step: '1', title: 'Apply', desc: 'Fill out the application form with your business details and preferred sector.' },
+              { step: '2', title: 'Approval', desc: 'Our team reviews your application within 3-5 business days.' },
+              { step: '3', title: 'Payment', desc: 'Once approved, select your booth tier and complete payment online.' },
+              { step: '4', title: 'Exhibit', desc: 'Set up your booth and connect with 25,000+ visitors over 3 days.' },
+            ].map((item) => (
+              <div key={item.step} className="text-center">
+                <div className="w-12 h-12 rounded-full bg-[#cd2653] text-white flex items-center justify-center font-bold text-lg mx-auto mb-4">
+                  {item.step}
+                </div>
+                <h3 className="font-bold mb-2">{item.title}</h3>
+                <p className="text-sm text-neutral-600">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-16 bg-[#cd2653] text-white text-center">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Exhibit?</h2>
+          <p className="text-white/80 text-lg mb-8 max-w-xl mx-auto">
+            Applications are open. Secure your booth at South Africa's biggest lifestyle exhibition.
+          </p>
+          <Link
+            href="/apply"
+            className="inline-flex items-center gap-2 px-8 py-4 text-lg font-semibold text-[#cd2653] bg-white rounded-2xl hover:bg-neutral-100 transition-colors"
+          >
+            Apply Now
+            <ArrowRight className="w-5 h-5" />
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-neutral-200 py-8 text-center">
+        <p className="text-sm text-neutral-500">
+          © 2026 Young at Heart Festival. All rights reserved. ·{' '}
+          <Link href="/" className="text-[#cd2653] hover:underline">Back to Home</Link>
+        </p>
       </footer>
     </div>
   )
