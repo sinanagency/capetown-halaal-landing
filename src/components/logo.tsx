@@ -11,7 +11,7 @@ interface LogoProps {
 
 const sizes = {
   sm: { icon: 40, text: 'text-sm', subtext: 'text-[8px]' },
-  md: { icon: 56, text: 'text-base', subtext: 'text-[10px]' },
+  md: { icon: 62, text: 'text-base', subtext: 'text-[10px]' },
   lg: { icon: 64, text: 'text-lg', subtext: 'text-xs' },
   xl: { icon: 80, text: 'text-2xl', subtext: 'text-sm' },
 }
