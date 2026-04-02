@@ -25,17 +25,16 @@ const BOOTH_TIERS = [
   { value: 'island', label: 'Island Booth (9x9m)', price: 'R85,000' },
 ]
 
-const CATEGORIES = [
-  'Food & Beverages',
-  'Fashion & Modest Wear',
-  'Cosmetics & Beauty',
-  'Health & Wellness',
-  'Home & Lifestyle',
-  'Islamic Finance',
-  'Travel & Tourism',
-  'Education & Books',
-  'Technology',
-  'Other',
+const SECTORS = [
+  { value: 'Food & Beverage', icon: '🍽️' },
+  { value: 'Fashion & Modest Wear', icon: '👗' },
+  { value: 'Beauty & Wellness', icon: '✨' },
+  { value: 'Health & Pharmacy', icon: '💊' },
+  { value: 'Travel & Tourism', icon: '✈️' },
+  { value: 'Home & Living', icon: '🏠' },
+  { value: 'Finance & Services', icon: '💼' },
+  { value: 'Business & Trade', icon: '🏢' },
+  { value: 'Other', icon: '📦' },
 ]
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error'
@@ -46,7 +45,7 @@ export default function ApplyPage() {
   const [formData, setFormData] = useState({
     business_name: '',
     business_description: '',
-    product_categories: [] as string[],
+    sector: '',
     website: '',
     instagram: '',
     facebook: '',
@@ -57,17 +56,8 @@ export default function ApplyPage() {
     special_requirements: '',
   })
 
-  const handleChange = (field: string, value: string | string[]) => {
+  const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const toggleCategory = (category: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      product_categories: prev.product_categories.includes(category)
-        ? prev.product_categories.filter((c) => c !== category)
-        : [...prev.product_categories, category],
-    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,11 +65,20 @@ export default function ApplyPage() {
     setFormState('submitting')
     setError('')
 
+    if (!formData.sector) {
+      setFormState('error')
+      setError('Please select a sector for your business')
+      return
+    }
+
     try {
       const res = await fetch('/api/applications', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          product_categories: [formData.sector],
+        }),
       })
 
       const data = await res.json()
@@ -206,22 +205,24 @@ export default function ApplyPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Product Categories
+                    Sector *
                   </label>
-                  <div className="flex flex-wrap gap-2">
-                    {CATEGORIES.map((category) => (
+                  <p className="text-xs text-neutral-500 mb-3">Select the sector that best describes your business</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {SECTORS.map((sector) => (
                       <button
-                        key={category}
+                        key={sector.value}
                         type="button"
-                        onClick={() => toggleCategory(category)}
+                        onClick={() => handleChange('sector', sector.value)}
                         className={cn(
-                          'px-3 py-1.5 text-sm rounded-full border transition-colors',
-                          formData.product_categories.includes(category)
-                            ? 'bg-[#cd2653] text-white border-[#cd2653]'
-                            : 'bg-white text-neutral-600 border-neutral-200 hover:border-neutral-300'
+                          'flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg border transition-all text-left',
+                          formData.sector === sector.value
+                            ? 'bg-[#cd2653] text-white border-[#cd2653] shadow-md shadow-[#cd2653]/20'
+                            : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-300'
                         )}
                       >
-                        {category}
+                        <span className="text-base">{sector.icon}</span>
+                        <span className="font-medium">{sector.value}</span>
                       </button>
                     ))}
                   </div>

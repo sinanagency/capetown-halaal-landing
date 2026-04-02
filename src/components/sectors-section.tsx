@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
+import Link from 'next/link'
 import { motion, useInView } from 'framer-motion'
 import {
   Utensils, ShoppingBag, Heart, Sparkles,
@@ -12,6 +13,7 @@ const sectors = [
   {
     icon: Utensils,
     title: 'Food & Beverage',
+    slug: 'food-beverage',
     description: 'Restaurants, catering, food products & ingredients',
     color: 'from-red-500 to-orange-500',
     bgGlow: 'rgba(239, 68, 68, 0.2)',
@@ -20,6 +22,7 @@ const sectors = [
   {
     icon: ShoppingBag,
     title: 'Fashion & Modest Wear',
+    slug: 'fashion-modest-wear',
     description: 'Clothing, accessories, hijabs & modest fashion',
     color: 'from-purple-500 to-pink-500',
     bgGlow: 'rgba(168, 85, 247, 0.2)',
@@ -28,6 +31,7 @@ const sectors = [
   {
     icon: Sparkles,
     title: 'Beauty & Wellness',
+    slug: 'beauty-wellness',
     description: 'Cosmetics, skincare & wellness products',
     color: 'from-pink-500 to-rose-500',
     bgGlow: 'rgba(236, 72, 153, 0.2)',
@@ -36,6 +40,7 @@ const sectors = [
   {
     icon: Heart,
     title: 'Health & Pharmacy',
+    slug: 'health-pharmacy',
     description: 'Supplements, medicine & health products',
     color: 'from-emerald-500 to-teal-500',
     bgGlow: 'rgba(16, 185, 129, 0.2)',
@@ -44,6 +49,7 @@ const sectors = [
   {
     icon: Plane,
     title: 'Travel & Tourism',
+    slug: 'travel-tourism',
     description: 'Travel agencies, destinations & experiences',
     color: 'from-blue-500 to-cyan-500',
     bgGlow: 'rgba(59, 130, 246, 0.2)',
@@ -52,6 +58,7 @@ const sectors = [
   {
     icon: Home,
     title: 'Home & Living',
+    slug: 'home-living',
     description: 'Furniture, decor & home essentials',
     color: 'from-amber-500 to-yellow-500',
     bgGlow: 'rgba(245, 158, 11, 0.2)',
@@ -60,6 +67,7 @@ const sectors = [
   {
     icon: Briefcase,
     title: 'Finance & Services',
+    slug: 'finance-services',
     description: 'Islamic banking, takaful & financial services',
     color: 'from-slate-500 to-zinc-500',
     bgGlow: 'rgba(100, 116, 139, 0.2)',
@@ -68,6 +76,7 @@ const sectors = [
   {
     icon: Building,
     title: 'Business & Trade',
+    slug: 'business-trade',
     description: 'B2B services, suppliers & trade opportunities',
     color: 'from-indigo-500 to-violet-500',
     bgGlow: 'rgba(99, 102, 241, 0.2)',
@@ -211,7 +220,9 @@ export function SectorsSection() {
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {sectors.map((sector, i) => (
-            <SectorCard key={sector.title} sector={sector} index={i} />
+            <Link key={sector.title} href={`/sectors/${sector.slug}`}>
+              <SectorCard sector={sector} index={i} />
+            </Link>
           ))}
         </div>
 
