@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'framer-motion'
@@ -367,7 +366,6 @@ function LoadingScreen() {
 }
 
 export default function HomePage() {
-  const router = useRouter()
   const [isLoaded, setIsLoaded] = useState(false)
   const [contactModalOpen, setContactModalOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -382,23 +380,12 @@ export default function HomePage() {
   }
 
   const navItems = [
-    { label: 'About', href: '#about', action: null },
-    { label: 'Vendors', href: '/apply', action: null },
-    { label: 'Sectors', href: '#sectors', action: null },
-    { label: 'Sponsors', href: '#sponsors', action: null },
-    { label: 'Contact', href: '#contact', action: 'openContact' },
+    { label: 'About', href: '#about' },
+    { label: 'Vendors', href: '/apply' },
+    { label: 'Sectors', href: '#sectors' },
+    { label: 'Sponsors', href: '#sponsors' },
+    { label: 'Contact', href: '#contact' },
   ]
-
-  const handleNavClick = (item: typeof navItems[0]) => {
-    setMobileMenuOpen(false)
-    if (item.action === 'openContact') {
-      setContactModalOpen(true)
-    } else if (item.href.startsWith('#')) {
-      document.querySelector(item.href)?.scrollIntoView({ behavior: 'smooth' })
-    } else {
-      router.push(item.href)
-    }
-  }
 
   return (
     <div className="min-h-screen bg-white text-neutral-900">
@@ -416,14 +403,25 @@ export default function HomePage() {
             {/* Desktop nav */}
             <div className="hidden lg:flex items-center gap-8">
               {navItems.map((item) => (
-                <button
-                  key={item.label}
-                  onClick={() => handleNavClick(item)}
-                  className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors relative group cursor-pointer"
-                >
-                  {item.label}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#cd2653] group-hover:w-full transition-all duration-300" />
-                </button>
+                item.href.startsWith('#') ? (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors relative group cursor-pointer"
+                  >
+                    {item.label}
+                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#cd2653] group-hover:w-full transition-all duration-300" />
+                  </a>
+                ) : (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className="text-sm text-neutral-600 hover:text-neutral-900 transition-colors relative group"
+                  >
+                    {item.label}
+                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#cd2653] group-hover:w-full transition-all duration-300" />
+                  </Link>
+                )
               ))}
             </div>
 
@@ -472,13 +470,25 @@ export default function HomePage() {
             >
               <div className="container mx-auto px-4 py-4 space-y-1">
                 {navItems.map((item) => (
-                  <button
-                    key={item.label}
-                    onClick={() => handleNavClick(item)}
-                    className="block w-full text-left px-4 py-3 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 rounded-xl transition-colors text-base font-medium"
-                  >
-                    {item.label}
-                  </button>
+                  item.href.startsWith('#') ? (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block w-full text-left px-4 py-3 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 rounded-xl transition-colors text-base font-medium"
+                    >
+                      {item.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block w-full text-left px-4 py-3 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-50 rounded-xl transition-colors text-base font-medium"
+                    >
+                      {item.label}
+                    </Link>
+                  )
                 ))}
                 <Link
                   href="/apply"
