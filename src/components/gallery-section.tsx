@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { motion, useInView, AnimatePresence } from 'framer-motion'
+import { motion, useInView, useMotionValue, useTransform, useSpring, AnimatePresence } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const GALLERY_IMAGES = [
@@ -18,22 +18,6 @@ const GALLERY_IMAGES = [
   { src: '/gallery/gallery-3230.jpg', alt: 'Festival grounds' },
   { src: '/gallery/gallery-wa1.jpg', alt: 'Event moments' },
   { src: '/gallery/gallery-3450.jpg', alt: 'Festival experience' },
-]
-
-// Masonry-like pattern for grid
-const SPAN_PATTERN = [
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-2', // tall
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-2', // tall
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
-  'col-span-1 row-span-1',
 ]
 
 function Lightbox({ images, currentIndex, onClose, onPrev, onNext }: {
@@ -57,21 +41,18 @@ function Lightbox({ images, currentIndex, onClose, onPrev, onNext }: {
       >
         <X className="w-5 h-5 text-white" />
       </button>
-
       <button
         onClick={(e) => { e.stopPropagation(); onPrev() }}
         className="absolute left-4 z-10 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
       >
         <ChevronLeft className="w-6 h-6 text-white" />
       </button>
-
       <button
         onClick={(e) => { e.stopPropagation(); onNext() }}
         className="absolute right-4 z-10 w-12 h-12 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
       >
         <ChevronRight className="w-6 h-6 text-white" />
       </button>
-
       <AnimatePresence mode="wait">
         <motion.div
           key={currentIndex}
@@ -91,7 +72,6 @@ function Lightbox({ images, currentIndex, onClose, onPrev, onNext }: {
           />
         </motion.div>
       </AnimatePresence>
-
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5">
         {images.map((_, i) => (
           <div
@@ -104,20 +84,130 @@ function Lightbox({ images, currentIndex, onClose, onPrev, onNext }: {
   )
 }
 
+function Card3D({ image, index, onClick }: { image: typeof GALLERY_IMAGES[0]; index: number; onClick: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+
+  const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [8, -8]), { stiffness: 300, damping: 30 })
+  const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-8, 8]), { stiffness: 300, damping: 30 })
+
+  const handleMouse = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = ref.current?.getBoundingClientRect()
+    if (!rect) return
+    x.set((e.clientX - rect.left) / rect.width - 0.5)
+    y.set((e.clientY - rect.top) / rect.height - 0.5)
+  }
+
+  const handleLeave = () => {
+    x.set(0)
+    y.set(0)
+  }
+
+  return (
+    <motion.div
+      ref={ref}
+      onMouseMove={handleMouse}
+      onMouseLeave={handleLeave}
+      onClick={onClick}
+      style={{
+        rotateX,
+        rotateY,
+        transformStyle: 'preserve-3d',
+      }}
+      className="relative cursor-pointer group"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 50, rotateX: 15 }}
+        whileInView={{ opacity: 1, y: 0, rotateX: 0 }}
+        viewport={{ once: true, margin: '-50px' }}
+        transition={{ duration: 0.7, delay: index * 0.06, ease: [0.215, 0.61, 0.355, 1] }}
+        className="relative overflow-hidden rounded-xl shadow-lg group-hover:shadow-2xl group-hover:shadow-[#cd2653]/10 transition-shadow duration-500"
+        style={{ transformStyle: 'preserve-3d' }}
+      >
+        <div className={`relative ${index % 3 === 0 ? 'aspect-[3/4]' : index % 3 === 1 ? 'aspect-square' : 'aspect-[4/3]'}`}>
+          <Image
+            src={image.src}
+            alt={image.alt}
+            fill
+            className="object-cover transition-transform duration-700 group-hover:scale-110"
+            sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+          />
+        </div>
+
+        {/* Shine effect on hover */}
+        <motion.div
+          className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+          style={{
+            background: 'linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.05) 50%, transparent 55%)',
+            transform: 'translateZ(1px)',
+          }}
+        />
+
+        {/* Bottom gradient on hover */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Auto-scrolling row for mobile
+function ScrollingRow({ images, direction, speed, onImageClick }: {
+  images: typeof GALLERY_IMAGES
+  direction: 'left' | 'right'
+  speed: number
+  onImageClick: (index: number) => void
+}) {
+  const doubled = [...images, ...images]
+
+  return (
+    <div className="overflow-hidden" style={{
+      maskImage: 'linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%)',
+      WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, black 5%, black 95%, transparent 100%)',
+    }}>
+      <motion.div
+        className="flex gap-3"
+        animate={{ x: direction === 'left' ? [0, -50 * images.length] : [-50 * images.length, 0] }}
+        transition={{ duration: speed, repeat: Infinity, ease: 'linear' }}
+        style={{ width: 'max-content' }}
+      >
+        {doubled.map((img, i) => (
+          <div
+            key={`${img.src}-${i}`}
+            className="flex-shrink-0 w-[200px] h-[260px] relative rounded-xl overflow-hidden cursor-pointer"
+            onClick={() => onImageClick(i % images.length)}
+          >
+            <Image
+              src={img.src}
+              alt={img.alt}
+              fill
+              className="object-cover"
+              sizes="200px"
+            />
+          </div>
+        ))}
+      </motion.div>
+    </div>
+  )
+}
+
 export function GallerySection() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
-  const ref = useRef<HTMLDivElement>(null)
-  const isInView = useInView(ref, { once: true, margin: '-100px' })
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const isInView = useInView(sectionRef, { once: true, margin: '-100px' })
 
   const openLightbox = (index: number) => setLightboxIndex(index)
   const closeLightbox = () => setLightboxIndex(null)
   const prevImage = () => setLightboxIndex((prev) => prev !== null ? (prev - 1 + GALLERY_IMAGES.length) % GALLERY_IMAGES.length : 0)
   const nextImage = () => setLightboxIndex((prev) => prev !== null ? (prev + 1) % GALLERY_IMAGES.length : 0)
 
+  const row1 = GALLERY_IMAGES.slice(0, 6)
+  const row2 = GALLERY_IMAGES.slice(6)
+
   return (
     <>
-      <section id="gallery" className="py-16 md:py-24 bg-white">
-        <div ref={ref} className="container mx-auto px-4">
+      <section id="gallery" className="py-16 md:py-24 bg-white overflow-hidden" style={{ perspective: '1200px' }}>
+        <div ref={sectionRef} className="container mx-auto px-4">
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -138,49 +228,22 @@ export function GallerySection() {
             </p>
           </motion.div>
 
-          {/* Desktop: masonry grid */}
-          <div className="hidden md:grid grid-cols-3 lg:grid-cols-4 gap-3 auto-rows-[180px]">
+          {/* Desktop: 3D tilt grid */}
+          <div className="hidden md:grid grid-cols-3 lg:grid-cols-4 gap-4" style={{ perspective: '1000px' }}>
             {GALLERY_IMAGES.map((image, i) => (
-              <motion.div
+              <Card3D
                 key={image.src}
-                initial={{ opacity: 0, y: 40 }}
-                animate={isInView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.6, delay: i * 0.05 }}
-                className={`${SPAN_PATTERN[i]} relative group cursor-pointer overflow-hidden rounded-xl`}
+                image={image}
+                index={i}
                 onClick={() => openLightbox(i)}
-              >
-                <Image
-                  src={image.src}
-                  alt={image.alt}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-110"
-                  sizes="(min-width: 1024px) 25vw, 33vw"
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-300" />
-              </motion.div>
+              />
             ))}
           </div>
 
-          {/* Mobile: 2-column grid */}
-          <div className="grid md:hidden grid-cols-2 gap-2">
-            {GALLERY_IMAGES.slice(0, 8).map((image, i) => (
-              <motion.div
-                key={image.src}
-                initial={{ opacity: 0, y: 30 }}
-                animate={isInView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.5, delay: i * 0.05 }}
-                className={`relative cursor-pointer overflow-hidden rounded-lg ${i === 0 || i === 5 ? 'aspect-[3/4]' : 'aspect-square'}`}
-                onClick={() => openLightbox(i)}
-              >
-                <Image
-                  src={image.src}
-                  alt={image.alt}
-                  fill
-                  className="object-cover"
-                  sizes="50vw"
-                />
-              </motion.div>
-            ))}
+          {/* Mobile: auto-scrolling dual rows */}
+          <div className="md:hidden space-y-3">
+            <ScrollingRow images={row1} direction="left" speed={30} onImageClick={openLightbox} />
+            <ScrollingRow images={row2} direction="right" speed={35} onImageClick={(i) => openLightbox(i + 6)} />
           </div>
         </div>
       </section>

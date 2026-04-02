@@ -1,14 +1,14 @@
 'use client'
 
 import { useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { motion, useScroll, useTransform } from 'framer-motion'
+// useRouter removed — CTAs use <Link> for proper href navigation
 import { ArrowRight, Calendar, MapPin, Users, Sparkles, Play, ChevronDown } from 'lucide-react'
 import { GradientText } from '@/components/ui/animated-text'
 import { SpotlightCard } from '@/components/ui/spotlight'
 
 export function HeroSection() {
-  const router = useRouter()
   const containerRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -106,11 +106,9 @@ export function HeroSection() {
             transition={{ delay: 1.4, duration: 0.6 }}
             className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 mb-10 md:mb-16 px-4"
           >
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => router.push('/apply')}
-              className="group relative flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-white overflow-hidden rounded-2xl cursor-pointer"
+            <Link
+              href="/apply"
+              className="group relative flex items-center justify-center gap-3 px-6 md:px-8 py-3.5 md:py-4 text-base md:text-lg font-semibold text-white overflow-hidden rounded-2xl hover:opacity-90 transition-opacity"
             >
               <div className="absolute inset-0 bg-gradient-to-r from-[#cd2653] to-[#bf3026]" />
               <div className="absolute inset-0 rounded-2xl shadow-[0_0_40px_rgba(205,38,83,0.4)]" />
@@ -118,7 +116,7 @@ export function HeroSection() {
                 Apply as Exhibitor
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </span>
-            </motion.button>
+            </Link>
 
             <motion.button
               whileHover={{ scale: 1.02 }}
