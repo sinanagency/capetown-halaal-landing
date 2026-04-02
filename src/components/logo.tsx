@@ -26,7 +26,7 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
         alt="Young at Heart"
         width={s.icon}
         height={s.icon}
-        className="flex-shrink-0 translate-y-[11%]"
+        className="flex-shrink-0 translate-y-[6%]"
         priority
       />
 

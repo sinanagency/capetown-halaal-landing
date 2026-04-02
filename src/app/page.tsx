@@ -373,7 +373,7 @@ export default function HomePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoaded(true), 1200)
+    const timer = setTimeout(() => setIsLoaded(true), 3000)
     return () => clearTimeout(timer)
   }, [])
 
