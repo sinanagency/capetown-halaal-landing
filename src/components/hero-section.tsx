@@ -23,7 +23,7 @@ export function HeroSection() {
     <section ref={containerRef} className="relative min-h-screen overflow-hidden bg-white">
       {/* Left photo — feathers into white center */}
       <motion.div
-        className="absolute inset-y-0 left-0 w-[45%] hidden md:block"
+        className="absolute inset-y-0 -left-[25%] w-[45%] hidden md:block"
         style={{ x: leftX }}
       >
         <Image
