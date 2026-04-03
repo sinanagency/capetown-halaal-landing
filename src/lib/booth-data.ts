@@ -1,214 +1,214 @@
-// Booth data for Young at Heart Festival 2026
-// Real SDP layout: 264 booths across 4 types
+// Booth data generator for Young at Heart Festival
+// 400 booths with varying sizes and prices (R2,500 - R8,000)
 // Venue: Youngsfield Military Base, Cape Town
 
-export type BoothType = 'FT' | 'FS' | 'TS' | 'BS'
+export type BoothSize = '3x2' | '3x3' | '4x4' | '6x6'
 
 export type BoothStatus = 'available' | 'reserved' | 'sold'
 
 export interface Booth {
   id: string
-  type: BoothType
-  label: string
-  status: BoothStatus
+  number: number
+  row: string
+  column: number
+  size: BoothSize
   price: number
   sqm: number
+  status: BoothStatus
   position: { x: number; z: number }
   dimensions: { width: number; depth: number }
   features: string[]
-  zone: string
-  color: string
-  col: number
-  row: number
+  zone: 'standard' | 'premium' | 'prime'
   reservedBy?: string
   reservedAt?: Date
 }
 
 export interface BoothTier {
-  type: BoothType
+  size: BoothSize
   label: string
   price: number
   sqm: number
   dimensions: { width: number; depth: number }
-  gridCells: { width: number; depth: number }
-  height3d: number
   features: string[]
-  zone: string
+  zone: 'standard' | 'premium' | 'prime'
   color: string
 }
 
-export const BOOTH_TIERS: Record<BoothType, BoothTier> = {
-  FT: {
-    type: 'FT',
-    label: 'Food Tent',
-    price: 8000,
-    sqm: 36,
-    dimensions: { width: 6, depth: 6 },
-    gridCells: { width: 3, depth: 3 },
-    height3d: 1.5,
-    features: [
-      'Large tent structure',
-      '4 tables, 8 chairs',
-      '6 power outlets',
-      'Dedicated lighting',
-      'Prime food court location',
-      'Water access',
-    ],
-    zone: 'Food Court',
-    color: '#f97316',
-  },
-  FS: {
-    type: 'FS',
-    label: 'Food Stall',
-    price: 4500,
-    sqm: 9,
-    dimensions: { width: 3, depth: 3 },
-    gridCells: { width: 3, depth: 3 },
-    height3d: 1.0,
-    features: [
-      'Standard stall frame',
-      '2 tables, 4 chairs',
-      '2 power outlets',
-      'Basic lighting',
-      'Food zone location',
-    ],
-    zone: 'Food Zone',
-    color: '#3b82f6',
-  },
-  TS: {
-    type: 'TS',
-    label: 'Trade Stall',
+export const BOOTH_TIERS: Record<BoothSize, BoothTier> = {
+  '3x2': {
+    size: '3x2',
+    label: 'Standard',
     price: 2500,
     sqm: 6,
     dimensions: { width: 3, depth: 2 },
-    gridCells: { width: 2, depth: 2 },
-    height3d: 0.7,
-    features: [
-      'Compact stall frame',
-      '1 table, 2 chairs',
-      '1 power outlet',
-      'Basic signage',
-    ],
-    zone: 'Trade Market',
-    color: '#22c55e',
+    features: ['Basic signage', '1 table', '2 chairs', 'Power outlet'],
+    zone: 'standard',
+    color: '#3b82f6' // blue
   },
-  BS: {
-    type: 'BS',
-    label: 'Bar Stand',
-    price: 5000,
+  '3x3': {
+    size: '3x3',
+    label: 'Medium',
+    price: 4000,
     sqm: 9,
     dimensions: { width: 3, depth: 3 },
-    gridCells: { width: 3, depth: 3 },
-    height3d: 0.9,
-    features: [
-      'Bar counter included',
-      'Display shelving',
-      '3 power outlets',
-      'Accent lighting',
-      'Main stage proximity',
-    ],
-    zone: 'Stage Area',
-    color: '#8b5cf6',
+    features: ['Standard signage', '2 tables', '4 chairs', '2 Power outlets', 'Lighting'],
+    zone: 'standard',
+    color: '#22c55e' // green
   },
-}
-
-// Raw JSON shape from /booths.json
-interface RawBoothData {
-  FT: [string, number, number][]
-  FS: [string, number, number][]
-  TS: [string, number, number][]
-  BS: [string, number, number][]
-}
-
-// Grid bounds from the SDP layout
-const GRID_MIN_COL = 22
-const GRID_MAX_COL = 120
-const GRID_MIN_ROW = 43
-const GRID_MAX_ROW = 118
-
-// Scale factor: maps grid units to world units for 3D
-const SCALE = 0.6
-
-function gridToWorld(col: number, row: number): { x: number; z: number } {
-  const centerCol = (GRID_MIN_COL + GRID_MAX_COL) / 2
-  const centerRow = (GRID_MIN_ROW + GRID_MAX_ROW) / 2
-  return {
-    x: (col - centerCol) * SCALE,
-    z: (row - centerRow) * SCALE,
+  '4x4': {
+    size: '4x4',
+    label: 'Large',
+    price: 6000,
+    sqm: 16,
+    dimensions: { width: 4, depth: 4 },
+    features: ['Premium signage', '3 tables', '6 chairs', '4 Power outlets', 'Spot lighting', 'Corner priority'],
+    zone: 'premium',
+    color: '#f59e0b' // amber
+  },
+  '6x6': {
+    size: '6x6',
+    label: 'Premium',
+    price: 8000,
+    sqm: 36,
+    dimensions: { width: 6, depth: 6 },
+    features: ['Large signage', '4 tables', '8 chairs', '6 Power outlets', 'Dedicated lighting', 'Prime location', 'Storage area'],
+    zone: 'prime',
+    color: '#ef4444' // red
   }
 }
 
-export function parseBoothData(raw: RawBoothData): Booth[] {
+// Grid configuration: 20 rows x 20 columns = 400 positions
+const ROWS = 20
+const COLS = 20
+const GRID_SPACING = 4 // meters between booth centers
+
+// Zone definitions - Prime locations near entrances and stage
+const PRIME_ZONES = [
+  { rowStart: 0, rowEnd: 2, colStart: 8, colEnd: 12 }, // Main entrance
+  { rowStart: 17, rowEnd: 19, colStart: 8, colEnd: 12 }, // Stage area
+]
+
+const PREMIUM_ZONES = [
+  { rowStart: 0, rowEnd: 3, colStart: 0, colEnd: 4 }, // Corner 1
+  { rowStart: 0, rowEnd: 3, colStart: 16, colEnd: 19 }, // Corner 2
+  { rowStart: 16, rowEnd: 19, colStart: 0, colEnd: 4 }, // Corner 3
+  { rowStart: 16, rowEnd: 19, colStart: 16, colEnd: 19 }, // Corner 4
+  { rowStart: 8, rowEnd: 12, colStart: 0, colEnd: 2 }, // Side entrance 1
+  { rowStart: 8, rowEnd: 12, colStart: 18, colEnd: 19 }, // Side entrance 2
+]
+
+function isInZone(row: number, col: number, zones: typeof PRIME_ZONES): boolean {
+  return zones.some(zone =>
+    row >= zone.rowStart && row <= zone.rowEnd &&
+    col >= zone.colStart && col <= zone.colEnd
+  )
+}
+
+function getBoothSize(row: number, col: number, random: number): BoothSize {
+  const isPrime = isInZone(row, col, PRIME_ZONES)
+  const isPremium = isInZone(row, col, PREMIUM_ZONES)
+
+  if (isPrime) {
+    return random > 0.5 ? '6x6' : '4x4'
+  }
+
+  if (isPremium) {
+    if (random > 0.6) return '4x4'
+    return '3x3'
+  }
+
+  // Standard zone distribution
+  if (random > 0.7) return '3x3'
+  return '3x2'
+}
+
+function getRowLetter(index: number): string {
+  return String.fromCharCode(65 + index) // A, B, C, etc.
+}
+
+// Seeded random for consistent booth generation
+function seededRandom(seed: number): () => number {
+  return function() {
+    seed = (seed * 9301 + 49297) % 233280
+    return seed / 233280
+  }
+}
+
+export function generateBooths(): Booth[] {
   const booths: Booth[] = []
+  const random = seededRandom(42) // Consistent seed
+  let boothNumber = 1
 
-  for (const typeKey of ['FT', 'FS', 'TS', 'BS'] as BoothType[]) {
-    const tier = BOOTH_TIERS[typeKey]
-    const entries = raw[typeKey] || []
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const r = random()
+      const size = getBoothSize(row, col, r)
+      const tier = BOOTH_TIERS[size]
 
-    for (const [id, col, row] of entries) {
-      const pos = gridToWorld(col, row)
-      booths.push({
-        id,
-        type: typeKey,
-        label: tier.label,
-        status: 'available',
+      // All booths start as available for the demo
+      const status: BoothStatus = 'available'
+
+      const booth: Booth = {
+        id: `booth-${row}-${col}`,
+        number: boothNumber++,
+        row: getRowLetter(row),
+        column: col + 1,
+        size,
         price: tier.price,
         sqm: tier.sqm,
-        position: pos,
+        status,
+        position: {
+          x: (col - COLS / 2) * GRID_SPACING,
+          z: (row - ROWS / 2) * GRID_SPACING
+        },
         dimensions: tier.dimensions,
         features: tier.features,
-        zone: tier.zone,
-        color: tier.color,
-        col,
-        row,
-      })
+        zone: tier.zone
+      }
+
+      booths.push(booth)
     }
   }
 
   return booths
 }
 
-// Fetch and parse booth data from the public JSON file
-export async function fetchBoothData(): Promise<Booth[]> {
-  const res = await fetch('/booths.json')
-  const raw: RawBoothData = await res.json()
-  return parseBoothData(raw)
-}
+// Pre-generated booths for the app
+export const BOOTHS = generateBooths()
 
 // Statistics
 export function getBoothStats(booths: Booth[]) {
-  const byType: Record<BoothType, { count: number; available: number; price: number }> = {} as Record<
-    BoothType,
-    { count: number; available: number; price: number }
-  >
+  const bySize: Record<BoothSize, { count: number; available: number; price: number }> = {} as Record<BoothSize, { count: number; available: number; price: number }>
+  const byZone: Record<string, { count: number; available: number }> = {}
 
-  const typeKeys: BoothType[] = ['FT', 'FS', 'TS', 'BS']
-  for (const t of typeKeys) {
-    const typeBooths = booths.filter((b) => b.type === t)
-    byType[t] = {
-      count: typeBooths.length,
-      available: typeBooths.filter((b) => b.status === 'available').length,
-      price: BOOTH_TIERS[t].price,
+  // Count by size
+  const sizeKeys = Object.keys(BOOTH_TIERS) as BoothSize[]
+  for (const size of sizeKeys) {
+    const sizeBooths = booths.filter(b => b.size === size)
+    bySize[size] = {
+      count: sizeBooths.length,
+      available: sizeBooths.filter(b => b.status === 'available').length,
+      price: BOOTH_TIERS[size].price
     }
   }
 
-  const zones = [...new Set(booths.map((b) => b.zone))]
-  const byZone: Record<string, { count: number; available: number }> = {}
+  // Count by zone
+  const zones = ['standard', 'premium', 'prime'] as const
   for (const zone of zones) {
-    const zoneBooths = booths.filter((b) => b.zone === zone)
+    const zoneBooths = booths.filter(b => b.zone === zone)
     byZone[zone] = {
       count: zoneBooths.length,
-      available: zoneBooths.filter((b) => b.status === 'available').length,
+      available: zoneBooths.filter(b => b.status === 'available').length
     }
   }
 
   return {
     total: booths.length,
-    available: booths.filter((b) => b.status === 'available').length,
-    reserved: booths.filter((b) => b.status === 'reserved').length,
-    sold: booths.filter((b) => b.status === 'sold').length,
-    byType,
-    byZone,
+    available: booths.filter(b => b.status === 'available').length,
+    reserved: booths.filter(b => b.status === 'reserved').length,
+    sold: booths.filter(b => b.status === 'sold').length,
+    bySize,
+    byZone
   }
 }
 
@@ -218,6 +218,6 @@ export function formatPrice(price: number): string {
     style: 'currency',
     currency: 'ZAR',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 0
   }).format(price)
 }

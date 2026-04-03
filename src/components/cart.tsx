@@ -57,7 +57,7 @@ export function Cart() {
         <ScrollArea className="max-h-[300px]">
           <AnimatePresence>
             {cart.map((booth) => {
-              const tier = BOOTH_TIERS[booth.type]
+              const tier = BOOTH_TIERS[booth.size]
               return (
                 <motion.div
                   key={booth.id}
@@ -70,7 +70,7 @@ export function Cart() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">
-                          Booth {booth.id}
+                          Booth {booth.row}{booth.column}
                         </span>
                         <Badge variant="outline" className="text-[10px]">
                           {tier.label}

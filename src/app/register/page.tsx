@@ -1,168 +1,204 @@
 'use client'
 
 import { useState } from 'react'
-import { createBrowserClient } from '@supabase/ssr'
-import { Loader2, CheckCircle, AlertCircle, Building2 } from 'lucide-react'
-import { Logo } from '@/components/logo'
-
-const SECTORS = [
-  'Food & Beverage', 'Fashion & Modest Wear', 'Beauty & Wellness', 'Health & Pharmacy',
-  'Travel & Tourism', 'Home & Living', 'Finance & Services', 'Business & Trade', 'Other',
-]
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import { useBoothStore } from '@/lib/store'
+import { registerUser, validateEmail, validatePhone } from '@/lib/auth'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { ArrowLeft, Loader2, Mail, Lock, User, Building, Phone, AlertCircle, Check } from 'lucide-react'
+import { LogoMark } from '@/components/logo'
 
 export default function RegisterPage() {
-  const [form, setForm] = useState({
-    email: '', password: '', confirm_password: '',
-    business_name: '', contact_name: '', phone: '', sector: '',
-  })
-  const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [error, setError] = useState('')
+  const router = useRouter()
+  const { register } = useBoothStore()
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    company: '',
+    phone: '',
+    password: '',
+    confirmPassword: ''
+  })
+
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }))
+    }
+  }
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {}
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required'
+    }
+
+    if (!validateEmail(formData.email)) {
+      newErrors.email = 'Valid email is required'
+    }
+
+    if (!formData.company.trim()) {
+      newErrors.company = 'Company name is required'
+    }
+
+    if (!validatePhone(formData.phone)) {
+      newErrors.phone = 'Valid phone number is required'
+    }
+
+    if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters'
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setState('loading')
-    setError('')
 
-    if (form.password !== form.confirm_password) {
-      setError('Passwords do not match')
-      setState('error')
-      return
-    }
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters')
-      setState('error')
-      return
-    }
+    if (!validate()) return
 
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-    })
+    setIsLoading(true)
 
-    if (authError) {
-      setError(authError.message)
-      setState('error')
-      return
-    }
-
-    if (data.user) {
-      const { error: profileError } = await supabase.from('vendor_profiles').insert({
-        id: data.user.id,
-        email: form.email,
-        business_name: form.business_name,
-        contact_name: form.contact_name,
-        phone: form.phone,
-        sector: form.sector,
+    try {
+      const result = await registerUser({
+        email: formData.email,
+        password: formData.password,
+        name: formData.name,
+        company: formData.company,
+        phone: formData.phone
       })
 
-      if (profileError) {
-        setError('Account created but profile setup failed. Please contact support.')
-        setState('error')
-        return
+      if (result.success && result.user) {
+        register(result.user)
+        router.push('/')
+      } else {
+        setErrors({ submit: result.error || 'Registration failed' })
       }
+    } catch {
+      setErrors({ submit: 'An error occurred. Please try again.' })
+    } finally {
+      setIsLoading(false)
     }
-
-    setState('success')
   }
 
-  if (state === 'success') {
-    return (
-      <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center">
-          <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-neutral-900 mb-2">Account Created</h1>
-          <p className="text-neutral-600 mb-6">Check your email to verify your account, then log in to access your exhibitor portal.</p>
-          <a href="/login" className="inline-block px-6 py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors">
-            Go to Login
-          </a>
-        </div>
-      </div>
-    )
-  }
+  const inputFields = [
+    { id: 'name', label: 'Full Name', icon: User, type: 'text', placeholder: 'John Doe' },
+    { id: 'email', label: 'Email', icon: Mail, type: 'email', placeholder: 'you@company.com' },
+    { id: 'company', label: 'Company Name', icon: Building, type: 'text', placeholder: 'Your Company Ltd' },
+    { id: 'phone', label: 'Phone Number', icon: Phone, type: 'tel', placeholder: '+27 12 345 6789' },
+    { id: 'password', label: 'Password', icon: Lock, type: 'password', placeholder: '••••••••' },
+    { id: 'confirmPassword', label: 'Confirm Password', icon: Lock, type: 'password', placeholder: '••••••••' }
+  ]
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <header className="bg-white border-b border-neutral-200">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/"><Logo size="md" showText={true} /></a>
-          <a href="/login" className="text-sm text-[#cd2653] font-medium hover:underline">Already have an account? Log in</a>
-        </div>
-      </header>
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
+      {/* Background pattern */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMjIiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAzMHYySDE0di0yaDIyek0zNCAyNnYtMkgxNnYyaDE4ek0zMCAyMnYtMkgxOHYyaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
 
-      <main className="container mx-auto px-4 py-12">
-        <div className="max-w-lg mx-auto">
-          <div className="text-center mb-8">
-            <Building2 className="w-12 h-12 text-[#cd2653] mx-auto mb-3" />
-            <h1 className="text-3xl font-bold text-neutral-900 mb-2">Exhibitor Registration</h1>
-            <p className="text-neutral-600">Create your account to apply for a booth at Young at Heart Festival 2026</p>
-          </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-md"
+      >
+        <Card className="bg-gray-900/50 border-white/10 backdrop-blur-xl">
+          <CardHeader className="space-y-1 text-center">
+            <Link
+              href="/"
+              className="inline-flex items-center text-sm text-gray-400 hover:text-white mb-4 transition-colors self-start"
+            >
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              Back to floor plan
+            </Link>
 
-          {state === 'error' && (
-            <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-6">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="bg-white rounded-xl border border-neutral-200 p-6 space-y-4">
-              <h2 className="font-semibold text-neutral-900">Business Details</h2>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Business Name *</label>
-                <input type="text" required value={form.business_name} onChange={e => setForm(f => ({...f, business_name: e.target.value}))}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="Your Business Name" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Contact Name *</label>
-                <input type="text" required value={form.contact_name} onChange={e => setForm(f => ({...f, contact_name: e.target.value}))}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="Your Full Name" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Phone</label>
-                <input type="tel" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="+27 12 345 6789" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Sector *</label>
-                <select required value={form.sector} onChange={e => setForm(f => ({...f, sector: e.target.value}))}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent bg-white">
-                  <option value="">Select your sector</option>
-                  {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
+            <div className="mx-auto mb-4">
+              <LogoMark size="xl" />
             </div>
 
-            <div className="bg-white rounded-xl border border-neutral-200 p-6 space-y-4">
-              <h2 className="font-semibold text-neutral-900">Account Details</h2>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Email *</label>
-                <input type="email" required value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="you@business.com" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Password *</label>
-                <input type="password" required value={form.password} onChange={e => setForm(f => ({...f, password: e.target.value}))}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="Min 6 characters" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1">Confirm Password *</label>
-                <input type="password" required value={form.confirm_password} onChange={e => setForm(f => ({...f, confirm_password: e.target.value}))}
-                  className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="Repeat password" />
-              </div>
-            </div>
+            <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+            <CardDescription>
+              Register to book your booth at Young at Heart Festival
+            </CardDescription>
+          </CardHeader>
 
-            <button type="submit" disabled={state === 'loading'}
-              className="w-full py-4 bg-[#cd2653] text-white font-semibold rounded-lg hover:bg-[#b82049] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-              {state === 'loading' ? <><Loader2 className="w-5 h-5 animate-spin" /> Creating Account...</> : 'Create Exhibitor Account'}
-            </button>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              {errors.submit && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.submit}
+                </motion.div>
+              )}
+
+              {inputFields.map((field) => (
+                <div key={field.id} className="space-y-2">
+                  <Label htmlFor={field.id}>{field.label}</Label>
+                  <div className="relative">
+                    <field.icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                    <Input
+                      id={field.id}
+                      type={field.type}
+                      placeholder={field.placeholder}
+                      value={formData[field.id as keyof typeof formData]}
+                      onChange={(e) => handleChange(field.id, e.target.value)}
+                      className={`pl-10 bg-white/5 border-white/10 ${errors[field.id] ? 'border-red-500' : ''}`}
+                      required
+                    />
+                    {formData[field.id as keyof typeof formData] && !errors[field.id] && (
+                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    )}
+                  </div>
+                  {errors[field.id] && (
+                    <p className="text-xs text-red-400">{errors[field.id]}</p>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+
+            <CardFooter className="flex flex-col gap-4">
+              <Button
+                type="submit"
+                className="w-full bg-[#cd2653] hover:bg-[#bf3026]"
+                disabled={isLoading}
+              >
+                {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Create Account
+              </Button>
+
+              <Separator className="bg-white/10" />
+
+              <p className="text-sm text-gray-400 text-center">
+                Already have an account?{' '}
+                <Link href="/login" className="text-[#cd2653] hover:text-[#bf3026] font-medium">
+                  Sign in
+                </Link>
+              </p>
+
+            </CardFooter>
           </form>
-        </div>
-      </main>
+        </Card>
+      </motion.div>
     </div>
   )
 }

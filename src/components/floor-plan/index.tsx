@@ -8,9 +8,9 @@ import { Box, Grid2X2, AlertTriangle } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
 // Dynamically import 3D component with SSR disabled (WebGL only works client-side)
-const FloorPlan3D = dynamic(() => import('./floor-plan-3d').then((mod) => ({ default: mod.FloorPlan3D })), {
+const FloorPlan3D = dynamic(() => import('./floor-plan-3d').then(mod => ({ default: mod.FloorPlan3D })), {
   ssr: false,
-  loading: () => <LoadingFallback />,
+  loading: () => <LoadingFallback />
 })
 
 // Check if WebGL is supported
@@ -81,15 +81,14 @@ function WebGLNotSupported() {
 }
 
 export function FloorPlan() {
-  const { viewMode, setViewMode, loadBooths } = useBoothStore()
+  const { viewMode, setViewMode } = useBoothStore()
   const [webglSupported, setWebglSupported] = useState<boolean | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
     setWebglSupported(isWebGLSupported())
-    loadBooths()
-  }, [loadBooths])
+  }, [])
 
   // Auto-switch to 2D if WebGL not supported
   useEffect(() => {
