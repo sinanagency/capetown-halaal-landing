@@ -107,8 +107,8 @@ export default function SiteMapPage() {
               </span>
             </h2>
             <p className="text-neutral-400 max-w-2xl mx-auto">
-              Explore our interactive site map featuring 200+ vendors across food, fashion, beauty, home decor, and more.
-              Click on any booth to see vendor details.
+              Explore our interactive site map featuring 264 booths across food tents, food stalls, trade stalls, and bar stands.
+              Click on any booth to see details and add it to your cart.
             </p>
           </motion.div>
 
@@ -120,10 +120,10 @@ export default function SiteMapPage() {
             className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
           >
             {[
-              { value: '200+', label: 'Vendors' },
-              { value: '50+', label: 'Food Stalls' },
-              { value: '9', label: 'Categories' },
-              { value: '20,000m²', label: 'Venue Size' },
+              { value: '264', label: 'Total Booths' },
+              { value: '50', label: 'Food Tents' },
+              { value: '100', label: 'Food Stalls' },
+              { value: '4', label: 'Booth Types' },
             ].map((stat, i) => (
               <div key={i} className="text-center p-4 bg-white/5 rounded-xl border border-white/10">
                 <p className="text-2xl md:text-3xl font-bold text-white">{stat.value}</p>

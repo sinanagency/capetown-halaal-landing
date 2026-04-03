@@ -301,14 +301,14 @@ export default function CheckoutPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {cart.map((booth) => {
-                    const tier = BOOTH_TIERS[booth.size]
+                    const tier = BOOTH_TIERS[booth.type]
                     return (
                       <div key={booth.id} className="flex items-center justify-between">
                         <div>
                           <p className="font-medium text-white">
-                            Booth {booth.row}{booth.column}
+                            Booth {booth.id}
                           </p>
-                          <p className="text-xs text-gray-500">{tier.label}</p>
+                          <p className="text-xs text-gray-500">{tier?.label}</p>
                         </div>
                         <span className="text-white">{formatPrice(booth.price)}</span>
                       </div>

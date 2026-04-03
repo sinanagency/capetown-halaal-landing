@@ -28,23 +28,23 @@ import { toast } from 'sonner'
 const MOCK_BOOKINGS = [
   {
     id: '1',
-    boothId: 'booth-5-10',
-    boothNumber: 'F11',
-    size: '3x3' as const,
-    price: 2800,
+    boothId: 'FT05',
+    boothNumber: 'FT05',
+    type: 'FT' as const,
+    price: 8000,
     status: 'confirmed',
-    bookedAt: new Date('2024-01-15'),
-    eventDate: new Date('2024-06-15')
+    bookedAt: new Date('2026-01-15'),
+    eventDate: new Date('2026-12-11')
   },
   {
     id: '2',
-    boothId: 'booth-8-8',
-    boothNumber: 'I9',
-    size: '4x4' as const,
-    price: 5200,
+    boothId: 'FS12',
+    boothNumber: 'FS12',
+    type: 'FS' as const,
+    price: 4500,
     status: 'pending',
-    bookedAt: new Date('2024-01-20'),
-    eventDate: new Date('2024-06-15')
+    bookedAt: new Date('2026-01-20'),
+    eventDate: new Date('2026-12-11')
   }
 ]
 
@@ -193,7 +193,7 @@ export default function DashboardPage() {
                   ) : (
                     <div className="space-y-4">
                       {MOCK_BOOKINGS.map((booking, index) => {
-                        const tier = BOOTH_TIERS[booking.size]
+                        const tier = BOOTH_TIERS[booking.type]
                         const status = statusConfig[booking.status as keyof typeof statusConfig]
                         const StatusIcon = status.icon
 

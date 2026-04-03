@@ -1,7 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useBoothStore } from '@/lib/store'
-import { BOOTH_TIERS, BoothSize, formatPrice, getBoothStats, BOOTHS } from '@/lib/booth-data'
+import { BOOTH_TIERS, BoothType, formatPrice, getBoothStats } from '@/lib/booth-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
@@ -11,33 +12,39 @@ import { cn } from '@/lib/utils'
 import { Filter, RotateCcw, MapPin, Ruler, DollarSign } from 'lucide-react'
 
 export function BoothFilters() {
-  const { filters, setFilters, resetFilters, booths } = useBoothStore()
+  const { filters, setFilters, resetFilters, booths, loadBooths } = useBoothStore()
+
+  useEffect(() => {
+    loadBooths()
+  }, [loadBooths])
+
   const stats = getBoothStats(booths)
 
-  const sizeOptions = Object.entries(BOOTH_TIERS).map(([key, tier]) => ({
-    value: key,
-    label: tier.label,
-    price: tier.price,
-    sqm: tier.sqm
+  const typeOptions: { value: BoothType; label: string; price: number; sqm: number; color: string }[] = (
+    ['FT', 'FS', 'TS', 'BS'] as BoothType[]
+  ).map((t) => ({
+    value: t,
+    label: BOOTH_TIERS[t].label,
+    price: BOOTH_TIERS[t].price,
+    sqm: BOOTH_TIERS[t].sqm,
+    color: BOOTH_TIERS[t].color,
   }))
 
   const zoneOptions = [
-    { value: 'standard', label: 'Standard', color: 'bg-blue-500' },
-    { value: 'premium', label: 'Premium', color: 'bg-purple-500' },
-    { value: 'prime', label: 'Prime', color: 'bg-red-500' }
+    { value: 'Food Court', color: '#f97316' },
+    { value: 'Food Zone', color: '#3b82f6' },
+    { value: 'Trade Market', color: '#22c55e' },
+    { value: 'Stage Area', color: '#8b5cf6' },
   ]
 
-  const toggleSize = (size: string) => {
-    const newSizes = filters.size.includes(size)
-      ? filters.size.filter(s => s !== size)
-      : [...filters.size, size]
-    setFilters({ size: newSizes })
+  const toggleType = (type: BoothType) => {
+    const current = filters.type || []
+    const newTypes = current.includes(type) ? current.filter((t) => t !== type) : [...current, type]
+    setFilters({ type: newTypes })
   }
 
   const toggleZone = (zone: string) => {
-    const newZones = filters.zone.includes(zone)
-      ? filters.zone.filter(z => z !== zone)
-      : [...filters.zone, zone]
+    const newZones = filters.zone.includes(zone) ? filters.zone.filter((z) => z !== zone) : [...filters.zone, zone]
     setFilters({ zone: newZones })
   }
 
@@ -49,12 +56,7 @@ export function BoothFilters() {
             <Filter className="w-4 h-4" />
             Filters
           </CardTitle>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={resetFilters}
-            className="h-8 px-2 text-xs"
-          >
+          <Button variant="ghost" size="sm" onClick={resetFilters} className="h-8 px-2 text-xs">
             <RotateCcw className="w-3 h-3 mr-1" />
             Reset
           </Button>
@@ -99,7 +101,7 @@ export function BoothFilters() {
             Zone
           </Label>
           <div className="flex flex-wrap gap-2">
-            {zoneOptions.map(zone => {
+            {zoneOptions.map((zone) => {
               const zoneStats = stats.byZone[zone.value]
               const isActive = filters.zone.includes(zone.value)
 
@@ -109,13 +111,11 @@ export function BoothFilters() {
                   onClick={() => toggleZone(zone.value)}
                   className={cn(
                     'flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-all',
-                    isActive
-                      ? 'bg-white/10 border-white/30'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    isActive ? 'bg-white/10 border-white/30' : 'bg-white/5 border-white/10 hover:bg-white/10'
                   )}
                 >
-                  <span className={cn('w-2 h-2 rounded-full', zone.color)} />
-                  <span className="text-sm">{zone.label}</span>
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: zone.color }} />
+                  <span className="text-sm">{zone.value}</span>
                   <Badge variant="secondary" className="text-[10px] h-5">
                     {zoneStats?.available || 0}
                   </Badge>
@@ -127,36 +127,35 @@ export function BoothFilters() {
 
         <Separator className="bg-white/10" />
 
-        {/* Size filter */}
+        {/* Type filter */}
         <div className="space-y-3">
           <Label className="text-sm text-gray-300 flex items-center gap-2">
             <Ruler className="w-4 h-4" />
-            Booth Size
+            Booth Type
           </Label>
           <div className="space-y-2">
-            {sizeOptions.map(size => {
-              const sizeStats = stats.bySize[size.value as BoothSize]
-              const isActive = filters.size.includes(size.value)
+            {typeOptions.map((opt) => {
+              const typeStats = stats.byType[opt.value]
+              const isActive = (filters.type || []).includes(opt.value)
 
               return (
                 <button
-                  key={size.value}
-                  onClick={() => toggleSize(size.value)}
+                  key={opt.value}
+                  onClick={() => toggleType(opt.value)}
                   className={cn(
                     'w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all',
-                    isActive
-                      ? 'bg-white/10 border-white/30'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    isActive ? 'bg-white/10 border-white/30' : 'bg-white/5 border-white/10 hover:bg-white/10'
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">{size.label}</span>
-                    <span className="text-xs text-gray-500">{size.sqm}m²</span>
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: opt.color }} />
+                    <span className="text-sm font-medium">{opt.label}</span>
+                    <span className="text-xs text-gray-500">{opt.sqm}m²</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-400">{formatPrice(size.price)}</span>
+                    <span className="text-sm text-gray-400">{formatPrice(opt.price)}</span>
                     <Badge variant="outline" className="text-[10px] h-5">
-                      {sizeStats?.available || 0}
+                      {typeStats?.available || 0}
                     </Badge>
                   </div>
                 </button>
@@ -177,12 +176,12 @@ export function BoothFilters() {
             <span className="text-sm text-gray-500">{formatPrice(filters.priceRange[0])}</span>
             <input
               type="range"
-              min={1600}
+              min={2500}
               max={8000}
-              step={200}
+              step={500}
               value={filters.priceRange[1]}
               onChange={(e) => setFilters({ priceRange: [filters.priceRange[0], Number(e.target.value)] })}
-              className="flex-1 accent-blue-500"
+              className="flex-1 accent-[#cd2653]"
             />
             <span className="text-sm text-gray-500">{formatPrice(filters.priceRange[1])}</span>
           </div>

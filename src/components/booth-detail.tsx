@@ -27,20 +27,14 @@ export function BoothDetail() {
     )
   }
 
-  const tier = BOOTH_TIERS[selectedBooth.size]
-  const isInCart = cart.some(b => b.id === selectedBooth.id)
+  const tier = BOOTH_TIERS[selectedBooth.type]
+  const isInCart = cart.some((b) => b.id === selectedBooth.id)
   const isAvailable = selectedBooth.status === 'available'
 
   const statusConfig = {
     available: { color: 'text-[#cd2653] bg-[#cd2653]/20 border-[#cd2653]/30', label: 'Available' },
     reserved: { color: 'text-amber-400 bg-amber-500/20 border-amber-500/30', label: 'Reserved' },
-    sold: { color: 'text-red-400 bg-red-500/20 border-red-500/30', label: 'Sold' }
-  }
-
-  const zoneConfig = {
-    standard: { color: 'bg-blue-500', label: 'Standard Zone' },
-    premium: { color: 'bg-purple-500', label: 'Premium Zone' },
-    prime: { color: 'bg-red-500', label: 'Prime Location' }
+    sold: { color: 'text-red-400 bg-red-500/20 border-red-500/30', label: 'Sold' },
   }
 
   return (
@@ -56,17 +50,10 @@ export function BoothDetail() {
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle className="text-xl font-bold">
-                  Booth {selectedBooth.row}{selectedBooth.column}
-                </CardTitle>
+                <CardTitle className="text-xl font-bold">Booth {selectedBooth.id}</CardTitle>
                 <p className="text-sm text-gray-400 mt-1">{tier.label}</p>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => selectBooth(null)}
-                className="h-8 w-8"
-              >
+              <Button variant="ghost" size="icon" onClick={() => selectBooth(null)} className="h-8 w-8">
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -79,8 +66,8 @@ export function BoothDetail() {
                 {statusConfig[selectedBooth.status].label}
               </Badge>
               <Badge variant="outline" className="gap-1">
-                <span className={cn('w-2 h-2 rounded-full', zoneConfig[selectedBooth.zone].color)} />
-                {zoneConfig[selectedBooth.zone].label}
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tier.color }} />
+                {selectedBooth.zone}
               </Badge>
             </div>
 
@@ -141,17 +128,17 @@ export function BoothDetail() {
                 </div>
               ) : (
                 <motion.div whileTap={{ scale: 0.95 }}>
-                <Button
-                  className="w-full bg-gradient-to-r from-[#cd2653] to-[#bf3026] hover:from-[#bf3026] hover:to-[#a82820] shadow-lg shadow-[#cd2653]/25"
-                  onClick={(e) => {
-                    addToCart(selectedBooth)
-                    fireSmallConfetti(e.clientX, e.clientY)
-                  }}
-                >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Add to Cart
-                </Button>
-              </motion.div>
+                  <Button
+                    className="w-full bg-gradient-to-r from-[#cd2653] to-[#bf3026] hover:from-[#bf3026] hover:to-[#a82820] shadow-lg shadow-[#cd2653]/25"
+                    onClick={(e) => {
+                      addToCart(selectedBooth)
+                      fireSmallConfetti(e.clientX, e.clientY)
+                    }}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Add to Cart
+                  </Button>
+                </motion.div>
               )
             ) : (
               <div className="flex items-center gap-2 text-amber-400 text-sm bg-amber-500/10 p-3 rounded-lg">

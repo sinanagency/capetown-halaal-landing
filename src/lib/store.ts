@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { Booth, BOOTHS } from './booth-data'
+import { Booth, BoothType, fetchBoothData } from './booth-data'
 
 export interface User {
   id: string
@@ -25,13 +25,14 @@ interface BoothStore {
 
   // Booth state
   booths: Booth[]
+  boothsLoaded: boolean
   selectedBooth: Booth | null
   hoveredBooth: Booth | null
   cart: Booth[]
 
   // Filters
   filters: {
-    size: string[]
+    type: BoothType[]
     zone: string[]
     priceRange: [number, number]
     showAvailableOnly: boolean
@@ -46,6 +47,7 @@ interface BoothStore {
   register: (user: User) => void
 
   // Booth actions
+  loadBooths: () => Promise<void>
   selectBooth: (booth: Booth | null) => void
   hoverBooth: (booth: Booth | null) => void
   addToCart: (booth: Booth) => void
@@ -66,10 +68,10 @@ interface BoothStore {
 }
 
 const defaultFilters = {
-  size: [],
-  zone: [],
-  priceRange: [1600, 8000] as [number, number],
-  showAvailableOnly: true
+  type: [] as BoothType[],
+  zone: [] as string[],
+  priceRange: [2500, 8000] as [number, number],
+  showAvailableOnly: true,
 }
 
 export const useBoothStore = create<BoothStore>()(
@@ -78,7 +80,8 @@ export const useBoothStore = create<BoothStore>()(
       // Initial state
       user: null,
       isAuthenticated: false,
-      booths: BOOTHS,
+      booths: [],
+      boothsLoaded: false,
       selectedBooth: null,
       hoveredBooth: null,
       cart: [],
@@ -91,40 +94,49 @@ export const useBoothStore = create<BoothStore>()(
       register: (user) => set({ user, isAuthenticated: true }),
 
       // Booth actions
+      loadBooths: async () => {
+        if (get().boothsLoaded) return
+        try {
+          const booths = await fetchBoothData()
+          set({ booths, boothsLoaded: true })
+        } catch (err) {
+          console.error('Failed to load booth data:', err)
+        }
+      },
+
       selectBooth: (booth) => set({ selectedBooth: booth }),
       hoverBooth: (booth) => set({ hoveredBooth: booth }),
 
       addToCart: (booth) => {
         const { cart, booths } = get()
-        if (cart.find(b => b.id === booth.id)) return
+        if (cart.find((b) => b.id === booth.id)) return
         if (booth.status !== 'available') return
 
-        // Update booth status in the booths array
-        const updatedBooths = booths.map(b =>
+        const updatedBooths = booths.map((b) =>
           b.id === booth.id ? { ...b, status: 'reserved' as const } : b
         )
 
         set({
           cart: [...cart, booth],
-          booths: updatedBooths
+          booths: updatedBooths,
         })
       },
 
       removeFromCart: (boothId) => {
         const { cart, booths } = get()
-        const updatedBooths = booths.map(b =>
+        const updatedBooths = booths.map((b) =>
           b.id === boothId ? { ...b, status: 'available' as const } : b
         )
         set({
-          cart: cart.filter(b => b.id !== boothId),
-          booths: updatedBooths
+          cart: cart.filter((b) => b.id !== boothId),
+          booths: updatedBooths,
         })
       },
 
       clearCart: () => {
         const { cart, booths } = get()
-        const cartIds = cart.map(b => b.id)
-        const updatedBooths = booths.map(b =>
+        const cartIds = cart.map((b) => b.id)
+        const updatedBooths = booths.map((b) =>
           cartIds.includes(b.id) ? { ...b, status: 'available' as const } : b
         )
         set({ cart: [], booths: updatedBooths })
@@ -132,7 +144,7 @@ export const useBoothStore = create<BoothStore>()(
 
       reserveBooth: (boothId) => {
         const { booths } = get()
-        const updatedBooths = booths.map(b =>
+        const updatedBooths = booths.map((b) =>
           b.id === boothId ? { ...b, status: 'reserved' as const } : b
         )
         set({ booths: updatedBooths })
@@ -152,27 +164,19 @@ export const useBoothStore = create<BoothStore>()(
       // Computed
       getFilteredBooths: () => {
         const { booths, filters } = get()
-        return booths.filter(booth => {
-          // Available only filter
+        return booths.filter((booth) => {
           if (filters.showAvailableOnly && booth.status !== 'available') {
             return false
           }
-
-          // Size filter
-          if (filters.size.length > 0 && !filters.size.includes(booth.size)) {
+          if (filters.type.length > 0 && !filters.type.includes(booth.type)) {
             return false
           }
-
-          // Zone filter
           if (filters.zone.length > 0 && !filters.zone.includes(booth.zone)) {
             return false
           }
-
-          // Price range filter
           if (booth.price < filters.priceRange[0] || booth.price > filters.priceRange[1]) {
             return false
           }
-
           return true
         })
       },
@@ -180,15 +184,15 @@ export const useBoothStore = create<BoothStore>()(
       getCartTotal: () => {
         const { cart } = get()
         return cart.reduce((sum, booth) => sum + booth.price, 0)
-      }
+      },
     }),
     {
       name: 'capetown-halaal-booth-store',
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
-        cart: state.cart
-      })
+        cart: state.cart,
+      }),
     }
   )
 )
