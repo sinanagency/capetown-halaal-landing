@@ -106,7 +106,7 @@ function SectorCard({ sector, index }: { sector: typeof sectors[0]; index: numbe
         style={{ background: sector.bgGlow }}
       />
 
-      <div className="relative p-6 bg-neutral-900/80 backdrop-blur-sm border border-white/5 rounded-2xl hover:border-white/10 transition-all duration-500 h-full">
+      <div className="relative p-6 bg-neutral-900/80 backdrop-blur-sm border border-white/5 rounded-2xl hover:border-white/10 transition-all duration-500 h-full min-h-[200px] flex flex-col">
         {/* Count badge */}
         <div className="absolute top-4 right-4">
           <span className="text-xs font-bold text-neutral-500">

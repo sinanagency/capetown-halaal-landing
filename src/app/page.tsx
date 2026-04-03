@@ -611,7 +611,14 @@ export default function HomePage() {
       <GlowingLine />
 
       {/* Features/Why Section */}
-      <section className="py-24">
+      <section className="py-24 relative overflow-hidden">
+        {/* Subtle background pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: 'radial-gradient(circle at 1px 1px, #cd2653 1px, transparent 0)',
+          backgroundSize: '32px 32px',
+        }} />
+        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-gradient-to-br from-[#cd2653]/5 to-transparent rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-gradient-to-tl from-[#f59e0b]/5 to-transparent rounded-full blur-3xl" />
         <div className="container mx-auto px-4">
           <SectionHeading
             badge="Why Attend"
