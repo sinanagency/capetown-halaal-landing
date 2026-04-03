@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   description: "Cape Town's premier lifestyle festival. 350+ vendors, 25,000+ visitors. December 11-13, 2026 at Youngsfield Military Base.",
   keywords: ["young at heart festival", "cape town festival", "lifestyle exhibition", "south africa", "vendor", "december 2026"],
   authors: [{ name: "Samreen Kumandan" }],
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     title: "Young at Heart Festival 2026 | Cape Town",
     description: "Cape Town's premier lifestyle festival. December 11-13, 2026.",
