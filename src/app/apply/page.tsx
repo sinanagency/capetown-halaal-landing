@@ -73,7 +73,7 @@ export default function ApplyPage() {
     // Step 3: Requirements
     hired_chairs: '0',
     hired_tables: '0',
-    electrical_appliances: [] as string[],
+    electrical_appliances: {} as Record<string, number>,
     appliance_details: '',
     uses_gas: '',
     // Step 4: Documents & Terms
@@ -81,36 +81,36 @@ export default function ApplyPage() {
     accepts_terms: false,
   })
 
-  const set = (field: string, value: string | boolean | string[]) => {
+  const set = (field: string, value: string | boolean | string[] | Record<string, number>) => {
     setForm(f => ({ ...f, [field]: value }))
   }
 
-  const toggleElectrical = (val: string) => {
+  const setApplianceQty = (val: string, qty: number) => {
     if (val === 'none') {
-      set('electrical_appliances', ['none'])
+      set('electrical_appliances', qty > 0 ? { none: 1 } : {})
       return
     }
-    const current = form.electrical_appliances.filter(v => v !== 'none')
-    if (current.includes(val)) {
-      set('electrical_appliances', current.filter(v => v !== val))
+    const current = { ...form.electrical_appliances }
+    delete current['none']
+    if (qty <= 0) {
+      delete current[val]
     } else {
-      set('electrical_appliances', [...current, val])
+      current[val] = qty
     }
+    set('electrical_appliances', current)
   }
 
   const selectedStall = STALL_OPTIONS.find(s => s.value === form.stall_type)
-  const chairsCost = Number(form.hired_chairs) * 50
-  const tablesCost = Number(form.hired_tables) * 100
-  const electricalCost = form.electrical_appliances.reduce((sum, v) => {
-    const opt = ELECTRICAL_OPTIONS.find(e => e.value === v)
-    return sum + (opt?.price || 0)
+  const electricalCost = Object.entries(form.electrical_appliances).reduce((sum, [key, qty]) => {
+    const opt = ELECTRICAL_OPTIONS.find(e => e.value === key)
+    return sum + (opt?.price || 0) * qty
   }, 0)
-  const totalEstimate = (selectedStall?.price || 0) + chairsCost + tablesCost + electricalCost
+  const totalEstimate = (selectedStall?.price || 0) + electricalCost
 
   const canProceed = () => {
     if (step === 1) return form.email && form.item_category && form.stall_brand_name && form.business_description && form.traded_before && form.contact_person && form.whatsapp_number && form.social_media_links
     if (step === 2) return form.stall_type
-    if (step === 3) return form.electrical_appliances.length > 0 && form.appliance_details && form.uses_gas
+    if (step === 3) return Object.keys(form.electrical_appliances).length > 0 && form.appliance_details && form.uses_gas
     if (step === 4) return form.accepts_cancellation && form.accepts_terms
     return false
   }
@@ -136,9 +136,10 @@ export default function ApplyPage() {
             social_media: form.social_media_links,
             stall_type: selectedStall?.label,
             stall_price: selectedStall?.price,
-            hired_chairs: form.hired_chairs,
-            hired_tables: form.hired_tables,
-            electrical_appliances: form.electrical_appliances,
+            electrical_appliances: Object.entries(form.electrical_appliances).map(([k, v]) => {
+              const opt = ELECTRICAL_OPTIONS.find(e => e.value === k)
+              return `${v}x ${opt?.label || k} (R${(opt?.price || 0) * v})`
+            }).join(', '),
             appliance_details: form.appliance_details,
             uses_gas: form.uses_gas,
             total_estimate: totalEstimate,
@@ -162,7 +163,7 @@ export default function ApplyPage() {
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-neutral-900 mb-2">Application Submitted</h1>
           <p className="text-neutral-600 mb-2">Thank you for applying to trade at Young at Heart Festival 2026.</p>
-          <p className="text-neutral-500 text-sm mb-6">Your application will be assessed by the selection committee. Only shortlisted candidates will be contacted. If successful, you will receive an invoice to secure your spot.</p>
+          <p className="text-neutral-500 text-sm mb-6">Your application will be assessed by the selection committee. If successful, you will receive login details to your exhibitor portal where you can select your booth, make payment, and sign the terms and conditions.</p>
           <p className="text-sm font-medium text-neutral-700 mb-6">Estimated Total: R{totalEstimate.toLocaleString()}</p>
           <a href="/" className="inline-block px-6 py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors">
             Return to Home
@@ -324,36 +325,41 @@ export default function ApplyPage() {
             <div className="space-y-6">
               <div className="bg-white rounded-xl border border-neutral-200 p-6 space-y-4">
                 <h2 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-[#cd2653]" /> Furniture & Equipment
+                  <Zap className="w-5 h-5 text-[#cd2653]" /> Electrical Requirements
                 </h2>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Hired Chairs (R50 each) *</label>
-                    <input type="number" min="0" value={form.hired_chairs} onChange={e => set('hired_chairs', e.target.value)}
-                      className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-neutral-700 mb-1">Hired Tables (R100 each) *</label>
-                    <input type="number" min="0" value={form.hired_tables} onChange={e => set('hired_tables', e.target.value)}
-                      className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" />
-                  </div>
-                </div>
+                <p className="text-xs text-neutral-500">1 table and 2 chairs are included with every stall. Select your electrical appliances and quantities below.</p>
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">Electrical Appliances *</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {ELECTRICAL_OPTIONS.map(opt => (
-                      <button key={opt.value} type="button" onClick={() => toggleElectrical(opt.value)}
-                        className={`text-left px-3 py-2.5 rounded-lg border text-sm transition-all ${
-                          form.electrical_appliances.includes(opt.value)
-                            ? 'bg-[#cd2653] text-white border-[#cd2653]'
-                            : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-300'
+
+                  {/* None option */}
+                  <button type="button" onClick={() => setApplianceQty('none', form.electrical_appliances['none'] ? 0 : 1)}
+                    className={`w-full text-left px-4 py-3 rounded-lg border text-sm font-medium mb-2 transition-all ${
+                      form.electrical_appliances['none'] ? 'bg-[#cd2653] text-white border-[#cd2653]' : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-300'
+                    }`}>None</button>
+
+                  <div className="space-y-2">
+                    {ELECTRICAL_OPTIONS.filter(o => o.value !== 'none').map(opt => {
+                      const qty = form.electrical_appliances[opt.value] || 0
+                      return (
+                        <div key={opt.value} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                          qty > 0 ? 'border-[#cd2653] bg-[#cd2653]/5' : 'border-neutral-200'
                         }`}>
-                        <span className="font-medium">{opt.label}</span>
-                        {opt.price > 0 && <span className="text-xs opacity-80 ml-1">R{opt.price}</span>}
-                      </button>
-                    ))}
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-neutral-900">{opt.label}</span>
+                            <span className="text-xs text-neutral-500 ml-2">R{opt.price}/ea</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {qty > 0 && <span className="text-xs font-medium text-[#cd2653]">R{(opt.price * qty).toLocaleString()}</span>}
+                            <button type="button" onClick={() => setApplianceQty(opt.value, Math.max(0, qty - 1))}
+                              className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 font-bold transition-colors">−</button>
+                            <span className="w-6 text-center text-sm font-bold">{qty}</span>
+                            <button type="button" onClick={() => setApplianceQty(opt.value, qty + 1)}
+                              className="w-8 h-8 rounded-lg bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-700 font-bold transition-colors">+</button>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -383,8 +389,7 @@ export default function ApplyPage() {
                   <h3 className="font-semibold mb-3">Estimated Total</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between"><span className="text-neutral-400">Stall</span><span>R{selectedStall.price.toLocaleString()}</span></div>
-                    {chairsCost > 0 && <div className="flex justify-between"><span className="text-neutral-400">Chairs ({form.hired_chairs})</span><span>R{chairsCost.toLocaleString()}</span></div>}
-                    {tablesCost > 0 && <div className="flex justify-between"><span className="text-neutral-400">Tables ({form.hired_tables})</span><span>R{tablesCost.toLocaleString()}</span></div>}
+                    <div className="flex justify-between"><span className="text-neutral-400">Included</span><span className="text-green-400">1 table + 2 chairs</span></div>
                     {electricalCost > 0 && <div className="flex justify-between"><span className="text-neutral-400">Electrical</span><span>R{electricalCost.toLocaleString()}</span></div>}
                     <div className="border-t border-white/20 pt-2 flex justify-between font-bold text-lg">
                       <span>Total</span><span className="text-[#f59e0b]">R{totalEstimate.toLocaleString()}</span>
@@ -416,7 +421,7 @@ export default function ApplyPage() {
                 </h2>
 
                 <div className="bg-neutral-50 rounded-lg p-4 max-h-60 overflow-y-auto text-xs text-neutral-600 leading-relaxed space-y-2">
-                  <p><strong>Cancellation Policy:</strong> 8+ weeks before = full refund. 6 weeks = 50% charge. 4 weeks = 100% charge.</p>
+                  <p><strong>Cancellation Policy:</strong> No refunds on cancellation within 8 weeks before the event date.</p>
                   <p><strong>Payment:</strong> Your space is only confirmed once paid. Failure to pay will rescind your acceptance.</p>
                   <p><strong>Setup:</strong> Thursday afternoon before the event. Mandatory for all vendors. Friday morning dry run is compulsory for vendors using electricity.</p>
                   <p><strong>Trading:</strong> You must be ready to trade by opening time. Be courteous to customers. Keep pricing affordable.</p>
@@ -431,7 +436,7 @@ export default function ApplyPage() {
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input type="checkbox" checked={form.accepts_cancellation} onChange={e => set('accepts_cancellation', e.target.checked)}
                     className="mt-1 w-4 h-4 rounded border-neutral-300 text-[#cd2653] focus:ring-[#cd2653]" />
-                  <span className="text-sm text-neutral-700">I understand the cancellation policy (8 weeks = full refund, 6 weeks = 50%, 4 weeks = 100% charge) *</span>
+                  <span className="text-sm text-neutral-700">I understand that cancellations within 8 weeks before the event are non-refundable *</span>
                 </label>
 
                 <label className="flex items-start gap-3 cursor-pointer">
