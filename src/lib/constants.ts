@@ -21,7 +21,7 @@ export const EVENT = {
 
 // Contact info
 export const CONTACT = {
-  email: 'capetownhalaal@gmail.com',
+  email: 'support@youngatheart.co.za',
   phone: '+27 65 943 5012',
   social: {
     facebook: 'https://www.facebook.com/globalcuisineco/',

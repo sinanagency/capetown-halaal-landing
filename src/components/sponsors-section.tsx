@@ -213,9 +213,9 @@ function EnquiryModal({
             </form>
 
             <div className="mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 text-sm text-neutral-400">
-              <a href="mailto:capetownhalaal@gmail.com" className="flex items-center gap-2 hover:text-white transition-colors">
+              <a href="mailto:support@youngatheart.co.za" className="flex items-center gap-2 hover:text-white transition-colors">
                 <Mail className="w-4 h-4" />
-                capetownhalaal@gmail.com
+                support@youngatheart.co.za
               </a>
               <a href="tel:+27659435012" className="flex items-center gap-2 hover:text-white transition-colors">
                 <Phone className="w-4 h-4" />
