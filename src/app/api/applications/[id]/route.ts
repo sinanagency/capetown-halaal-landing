@@ -121,14 +121,14 @@ export async function PATCH(
             from: FROM_EMAIL,
             to: data.email,
             subject: 'Update on Your Application - Young at Heart Festival',
-            text: `Hi ${data.contact_name},\n\nThank you for your interest in exhibiting at Young at Heart Festival 2026.\n\nAfter careful review, we regret to inform you that we are unable to approve your application for ${data.business_name} at this time.\n\nThis decision may be due to booth availability, category balance, or other factors. We encourage you to apply again for future events.\n\nIf you have questions, please contact us at exhibitors@cthalaal.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
+            text: `Hi ${data.contact_name},\n\nThank you for your interest in exhibiting at Young at Heart Festival 2026.\n\nAfter careful review, we regret to inform you that we are unable to approve your application for ${data.business_name} at this time.\n\nThis decision may be due to booth availability, category balance, or other factors. We encourage you to apply again for future events.\n\nIf you have questions, please contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
           })
         } else if (validated.status === 'info_requested') {
           await resend.emails.send({
             from: FROM_EMAIL,
             to: data.email,
             subject: 'Additional Information Needed - Young at Heart Festival',
-            text: `Hi ${data.contact_name},\n\nThank you for applying to exhibit at Young at Heart Festival 2026.\n\nWe need some additional information before we can process your application for ${data.business_name}.\n\nPlease reply to this email with the requested details, or contact us at exhibitors@cthalaal.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
+            text: `Hi ${data.contact_name},\n\nThank you for applying to exhibit at Young at Heart Festival 2026.\n\nWe need some additional information before we can process your application for ${data.business_name}.\n\nPlease reply to this email with the requested details, or contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
           })
         }
       } catch (emailError) {

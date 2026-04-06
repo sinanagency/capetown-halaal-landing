@@ -83,8 +83,8 @@ export function ApplicationApproved({
 
             <Text style={paragraph}>
               If you have any questions about the booking process, contact us at{' '}
-              <Link href="mailto:exhibitors@cthalaal.co.za" style={link}>
-                exhibitors@cthalaal.co.za
+              <Link href="mailto:support@youngatheart.co.za" style={link}>
+                support@youngatheart.co.za
               </Link>
             </Text>
 

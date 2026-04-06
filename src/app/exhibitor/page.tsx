@@ -270,7 +270,7 @@ export default function ExhibitorPortal() {
                   <div className="flex items-start gap-3">
                     <Mail className="w-4 h-4 text-[#cd2653] mt-0.5" />
                     <div>
-                      <p className="font-medium">vendors@cthalaal.co.za</p>
+                      <p className="font-medium">support@youngatheart.co.za</p>
                       <p className="text-neutral-500">For any questions</p>
                     </div>
                   </div>

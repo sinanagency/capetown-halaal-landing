@@ -14,5 +14,5 @@ export function getResend(): Resend | null {
 }
 
 // Email sender configuration
-export const FROM_EMAIL = 'Young at Heart Festival <noreply@cthalaal.co.za>'
-export const ADMIN_EMAIL = 'admin@cthalaal.co.za' // Samreen's email
+export const FROM_EMAIL = 'Young at Heart Festival <noreply@youngatheart.co.za>'
+export const ADMIN_EMAIL = 'support@youngatheart.co.za'

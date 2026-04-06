@@ -64,8 +64,8 @@ export function ApplicationConfirmation({
 
             <Text style={paragraph}>
               If you have any questions, feel free to reach out to us at{' '}
-              <Link href="mailto:exhibitors@cthalaal.co.za" style={link}>
-                exhibitors@cthalaal.co.za
+              <Link href="mailto:support@youngatheart.co.za" style={link}>
+                support@youngatheart.co.za
               </Link>
             </Text>
 
