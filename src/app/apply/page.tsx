@@ -110,7 +110,7 @@ export default function ApplyPage() {
   const canProceed = () => {
     if (step === 1) return form.email && form.item_category && form.stall_brand_name && form.business_description && form.traded_before && form.contact_person && form.whatsapp_number && form.social_media_links
     if (step === 2) return form.stall_type
-    if (step === 3) return Object.keys(form.electrical_appliances).length > 0 && form.appliance_details && form.uses_gas
+    if (step === 3) return Object.keys(form.electrical_appliances).length > 0 && form.uses_gas
     if (step === 4) return form.accepts_cancellation && form.accepts_terms
     return false
   }
@@ -364,10 +364,10 @@ export default function ApplyPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Full detailed list of appliances *</label>
-                  <p className="text-xs text-neutral-500 mb-2">E.g. 2 Double Fryers, 3 fridges, 2 Microwaves — MUST BE ACCURATE, WILL BE AUDITED</p>
-                  <textarea required value={form.appliance_details} onChange={e => set('appliance_details', e.target.value)} rows={3}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none" placeholder="List exact quantities of each appliance..." />
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Full detailed list of appliances</label>
+                  <p className="text-xs text-neutral-500 mb-2">E.g. 2 Double Fryers, 3 fridges, 2 Microwaves — MUST BE ACCURATE, WILL BE AUDITED. State "none" if not applicable.</p>
+                  <textarea value={form.appliance_details} onChange={e => set('appliance_details', e.target.value)} rows={3}
+                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none" placeholder="List exact quantities of each appliance, or 'none' if not applicable..." />
                 </div>
 
                 <div>
