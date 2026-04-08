@@ -23,6 +23,7 @@ import {
   Loader2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { track } from '@/components/analytics-tracker'
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -40,6 +41,13 @@ export default function CheckoutPage() {
     }
   }, [isAuthenticated, cart.length, router, isComplete])
 
+  // Track checkout start
+  useEffect(() => {
+    if (isAuthenticated && cart.length > 0) {
+      track('checkout_start', { metadata: { items: cart.length, total: getCartTotal() } })
+    }
+  }, [])
+
   const total = getCartTotal()
   const vat = total * 0.15
   const grandTotal = total + vat
@@ -52,6 +60,7 @@ export default function CheckoutPage() {
 
     setIsProcessing(false)
     setIsComplete(true)
+    track('checkout_complete', { metadata: { total: grandTotal, method: paymentMethod } })
 
     // Clear cart after successful payment
     setTimeout(() => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Loader2, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Upload, Building2, User, ShoppingBag, Zap, FileText } from 'lucide-react'
 import { track } from '@/components/analytics-tracker'
 import { Logo } from '@/components/logo'
@@ -81,6 +81,11 @@ export default function ApplyPage() {
     accepts_cancellation: false,
     accepts_terms: false,
   })
+
+  // Track step changes
+  useEffect(() => {
+    track('apply_step', { metadata: { step, step_name: STEPS[step - 1]?.title } })
+  }, [step])
 
   const set = (field: string, value: string | boolean | string[] | Record<string, number>) => {
     setForm(f => ({ ...f, [field]: value }))
