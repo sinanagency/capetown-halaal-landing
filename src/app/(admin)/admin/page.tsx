@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { VendorApplication } from '@/lib/supabase/types'
 import {
@@ -62,6 +63,7 @@ function StatCard({ label, value, icon, color, href }: {
 }
 
 export default function AdminDashboard() {
+  const router = useRouter()
   const [vendorStats, setVendorStats] = useState<Stats | null>(null)
   const [ticketStats, setTicketStats] = useState<TicketStats | null>(null)
   const [recentApps, setRecentApps] = useState<VendorApplication[]>([])
@@ -75,6 +77,12 @@ export default function AdminDashboard() {
           fetch('/api/admin/tickets'),
           fetch('/api/applications?status=pending'),
         ])
+
+        // Redirect to login if unauthorized
+        if (statsRes.status === 401 || appsRes.status === 401) {
+          router.push('/admin/login')
+          return
+        }
 
         if (statsRes.ok) {
           const data = await statsRes.json()
