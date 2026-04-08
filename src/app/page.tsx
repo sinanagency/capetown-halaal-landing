@@ -667,11 +667,12 @@ export default function HomePage() {
       <SponsorsSection />
 
       {/* Media Partner */}
-      <section className="py-12 bg-neutral-50 border-t border-neutral-200">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-xs font-semibold text-neutral-400 uppercase tracking-widest mb-6">Media Partner</p>
-          <a href="https://smilefm.co.za" target="_blank" rel="noopener noreferrer" className="inline-block hover:opacity-80 transition-opacity">
-            <Image src="/sponsors/smile-fm.png" alt="Smile FM" width={140} height={48} className="mx-auto" />
+      <section className="bg-[#2558a8] py-5">
+        <div className="container mx-auto px-4 flex items-center justify-center gap-4">
+          <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">Media Partner</p>
+          <span className="text-white/30">|</span>
+          <a href="https://smilefm.co.za" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 hover:opacity-90 transition-opacity">
+            <Image src="/sponsors/smile-fm.png" alt="Smile FM" width={100} height={34} className="brightness-0 invert" />
           </a>
         </div>
       </section>
