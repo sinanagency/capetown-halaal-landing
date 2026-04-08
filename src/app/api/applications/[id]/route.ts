@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
-import { getResend, FROM_EMAIL } from '@/lib/email/resend'
+import { sendEmail } from '@/lib/email/resend'
 import { ApplicationApproved } from '@/lib/email/templates/ApplicationApproved'
 import crypto from 'crypto'
 
@@ -107,15 +107,13 @@ export async function PATCH(
     }
 
     // Send status notification email
-    const resend = getResend()
-    if (resend && validated.status && data) {
+    if (validated.status && data) {
       try {
         if (validated.status === 'approved') {
-          // Generate OTP for vendor login
           const otp = generateOTP()
           const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
 
-          // Store OTP in database (try, don't fail if table doesn't exist yet)
+          // Store OTP (fails gracefully if table missing)
           try {
             const adminSb = createAdminClient()
             await adminSb.from('vendor_otps').insert({
@@ -125,11 +123,10 @@ export async function PATCH(
               expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
             })
           } catch (otpError) {
-            console.error('OTP storage error (table may not exist):', otpError)
+            console.error('OTP storage error:', otpError)
           }
 
-          await resend.emails.send({
-            from: FROM_EMAIL,
+          await sendEmail({
             to: data.email,
             subject: 'You\'re Approved! Welcome to Young at Heart Festival 2026',
             react: ApplicationApproved({
@@ -142,15 +139,13 @@ export async function PATCH(
             }),
           })
         } else if (validated.status === 'rejected') {
-          await resend.emails.send({
-            from: FROM_EMAIL,
+          await sendEmail({
             to: data.email,
             subject: 'Update on Your Application - Young at Heart Festival',
             text: `Hi ${data.contact_name},\n\nThank you for your interest in exhibiting at Young at Heart Festival 2026.\n\nAfter careful review, we regret to inform you that we are unable to approve your application for ${data.business_name} at this time.\n\nThis decision may be due to booth availability, category balance, or other factors. We encourage you to apply again for future events.\n\nIf you have questions, please contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
           })
         } else if (validated.status === 'info_requested') {
-          await resend.emails.send({
-            from: FROM_EMAIL,
+          await sendEmail({
             to: data.email,
             subject: 'Additional Information Needed - Young at Heart Festival',
             text: `Hi ${data.contact_name},\n\nThank you for applying to exhibit at Young at Heart Festival 2026.\n\nWe need some additional information before we can process your application for ${data.business_name}.\n\nPlease reply to this email with the requested details, or contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
@@ -158,7 +153,6 @@ export async function PATCH(
         }
       } catch (emailError) {
         console.error('Email send error:', emailError)
-        // Don't fail the request if email fails
       }
     }
 

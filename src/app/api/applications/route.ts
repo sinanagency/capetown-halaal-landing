@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
-import { getResend, FROM_EMAIL } from '@/lib/email/resend'
+import { sendEmail } from '@/lib/email/resend'
 import { ApplicationConfirmation } from '@/lib/email/templates/ApplicationConfirmation'
 
 // Validation schema for new applications
@@ -61,23 +61,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Send confirmation email
-    const resend = getResend()
-    if (resend) {
-      try {
-        await resend.emails.send({
-          from: FROM_EMAIL,
-          to: validated.email,
-          subject: 'Application Received - Young at Heart Festival 2026',
-          react: ApplicationConfirmation({
-            businessName: validated.business_name,
-            contactName: validated.contact_name,
-            email: validated.email,
-          }),
-        })
-      } catch (emailError) {
-        console.error('Email send error:', emailError)
-        // Don't fail the request if email fails
-      }
+    try {
+      await sendEmail({
+        to: validated.email,
+        subject: 'Application Received - Young at Heart Festival 2026',
+        react: ApplicationConfirmation({
+          businessName: validated.business_name,
+          contactName: validated.contact_name,
+          email: validated.email,
+        }),
+      })
+    } catch (emailError) {
+      console.error('Email send error:', emailError)
     }
 
     return NextResponse.json({ success: true, application: data })
