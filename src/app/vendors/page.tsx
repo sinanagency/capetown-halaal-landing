@@ -109,7 +109,7 @@ export default function VendorsPage() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#cd2653]/30 bg-[#cd2653]/10 px-4 py-2">
               <Store className="h-4 w-4 text-[#cd2653]" />
-              <span className="text-sm text-[#cd2653]">300+ Vendors Confirmed</span>
+              <span className="text-sm text-[#cd2653]">350+ Vendors Confirmed</span>
             </div>
             <h1 className="text-4xl font-bold text-white sm:text-5xl">
               Our{' '}
@@ -262,7 +262,7 @@ export default function VendorsPage() {
           >
             <h2 className="text-3xl font-bold text-white">Want to Be a Vendor?</h2>
             <p className="mx-auto mt-4 max-w-2xl text-neutral-300">
-              Join over 300 vendors at Cape Town's largest lifestyle festival. Book your booth today
+              Join over 350 vendors at Cape Town's largest lifestyle festival. Book your booth today
               and showcase your products to thousands of visitors.
             </p>
             <div className="mt-8">

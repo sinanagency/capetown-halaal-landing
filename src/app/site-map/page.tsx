@@ -107,7 +107,7 @@ export default function SiteMapPage() {
               </span>
             </h2>
             <p className="text-neutral-400 max-w-2xl mx-auto">
-              Explore our interactive site map featuring 200+ vendors across food, fashion, beauty, home decor, and more.
+              Explore our interactive site map featuring 350+ vendors across food, fashion, beauty, home decor, and more.
               Click on any booth to see vendor details.
             </p>
           </motion.div>

@@ -81,8 +81,10 @@ export async function getProducts(): Promise<WCProduct[]> {
 }
 
 export async function getTicketStats() {
-  const [orders, products] = await Promise.all([
+  const [orders, failedOrders, pendingOrders, products] = await Promise.all([
     getOrders({ status: 'completed' }),
+    getOrders({ status: 'failed' }),
+    getOrders({ status: 'pending,on-hold,cancelled' }),
     getProducts(),
   ])
 
@@ -122,5 +124,25 @@ export async function getTicketStats() {
     ticketBreakdown,
     salesByDate,
     recentOrders: orders.slice(0, 10),
+    failedOrders: failedOrders.map(o => ({
+      id: o.id,
+      status: o.status,
+      total: o.total,
+      date_created: o.date_created,
+      billing: o.billing,
+      line_items: o.line_items,
+      payment_method_title: o.payment_method_title,
+    })),
+    pendingOrders: pendingOrders.map(o => ({
+      id: o.id,
+      status: o.status,
+      total: o.total,
+      date_created: o.date_created,
+      billing: o.billing,
+      line_items: o.line_items,
+      payment_method_title: o.payment_method_title,
+    })),
+    failedCount: failedOrders.length,
+    pendingCount: pendingOrders.length,
   }
 }

@@ -75,7 +75,7 @@ export function ApplicationConfirmation({
               <Text style={eventTitle}>Event Details</Text>
               <Text style={eventDetail}>📅 December 11–13, 2026</Text>
               <Text style={eventDetail}>📍 Youngsfield Military Base, Cape Town</Text>
-              <Text style={eventDetail}>🎪 200+ Vendors · 25,000+ Visitors</Text>
+              <Text style={eventDetail}>🎪 350+ Vendors · 25,000+ Visitors</Text>
             </Section>
 
             <Text style={paragraph}>
