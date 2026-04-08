@@ -28,6 +28,21 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient()
 
+    // Check for duplicate email submission
+    const { data: existing } = await supabase
+      .from('vendor_applications')
+      .select('id, status')
+      .eq('email', validated.email)
+      .limit(1)
+      .single()
+
+    if (existing) {
+      return NextResponse.json(
+        { error: 'You have already submitted an application with this email address. Please contact support@youngatheart.co.za if you need to update your application.' },
+        { status: 409 }
+      )
+    }
+
     const { data, error } = await supabase
       .from('vendor_applications')
       .insert({
