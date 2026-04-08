@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Loader2, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Upload, Building2, User, ShoppingBag, Zap, FileText } from 'lucide-react'
+import { track } from '@/components/analytics-tracker'
 import { Logo } from '@/components/logo'
 
 const ITEM_CATEGORIES = [
@@ -118,6 +119,7 @@ export default function ApplyPage() {
   const handleSubmit = async () => {
     setFormState('submitting')
     setError('')
+    track('apply_submit', { metadata: { stall_type: form.stall_type, category: form.item_category } })
 
     try {
       const res = await fetch('/api/applications', {
@@ -150,6 +152,7 @@ export default function ApplyPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Submission failed')
       setFormState('success')
+      track('apply_success', { metadata: { business: form.stall_brand_name } })
     } catch (err) {
       setFormState('error')
       setError(err instanceof Error ? err.message : 'Something went wrong')

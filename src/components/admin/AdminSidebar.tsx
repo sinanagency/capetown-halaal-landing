@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe } from 'lucide-react'
+import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -11,6 +11,7 @@ const navigation = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Ticket Sales', href: '/admin/tickets', icon: Ticket },
   { name: 'Applications', href: '/admin/applications', icon: FileText },
+  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
 ]
 
 export function AdminSidebar() {
