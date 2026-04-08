@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import { getResend, FROM_EMAIL } from '@/lib/email/resend'
 import { ApplicationApproved } from '@/lib/email/templates/ApplicationApproved'
+import crypto from 'crypto'
+
+function generateOTP(): string {
+  return crypto.randomInt(100000, 999999).toString()
+}
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -105,15 +111,34 @@ export async function PATCH(
     if (resend && validated.status && data) {
       try {
         if (validated.status === 'approved') {
+          // Generate OTP for vendor login
+          const otp = generateOTP()
+          const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
+
+          // Store OTP in database (try, don't fail if table doesn't exist yet)
+          try {
+            const adminSb = createAdminClient()
+            await adminSb.from('vendor_otps').insert({
+              application_id: id,
+              email: data.email,
+              otp_hash: otpHash,
+              expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+            })
+          } catch (otpError) {
+            console.error('OTP storage error (table may not exist):', otpError)
+          }
+
           await resend.emails.send({
             from: FROM_EMAIL,
             to: data.email,
-            subject: 'Congratulations! Your Application Has Been Approved',
+            subject: 'You\'re Approved! Welcome to Young at Heart Festival 2026',
             react: ApplicationApproved({
               businessName: data.business_name,
               contactName: data.contact_name,
               boothTier: data.preferred_booth_tier || undefined,
               applicationId: id,
+              tempPassword: otp,
+              loginUrl: 'https://cthalaal.co.za/exhibitor',
             }),
           })
         } else if (validated.status === 'rejected') {

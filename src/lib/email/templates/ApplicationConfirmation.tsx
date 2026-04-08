@@ -13,72 +13,96 @@ import {
 interface ApplicationConfirmationProps {
   businessName: string
   contactName: string
+  email?: string
 }
 
 export function ApplicationConfirmation({
   businessName,
   contactName,
+  email,
 }: ApplicationConfirmationProps) {
   return (
     <Html>
       <Head />
-      <Preview>Application Received - Young at Heart Festival 2026</Preview>
+      <Preview>Application received — Young at Heart Festival 2026</Preview>
       <Body style={main}>
         <Container style={container}>
+          {/* Header */}
           <Section style={header}>
-            <Text style={logo}>Young at Heart Festival</Text>
+            <Text style={logo}>Young at Heart</Text>
+            <Text style={logoSub}>Festival 2026</Text>
           </Section>
 
+          {/* Content */}
           <Section style={content}>
-            <Text style={heading}>Application Received!</Text>
+            <Text style={heading}>Application Received</Text>
 
             <Text style={paragraph}>Hi {contactName},</Text>
 
             <Text style={paragraph}>
               Thank you for submitting your exhibitor application for <strong>{businessName}</strong>.
-              We're excited that you're interested in joining Young at Heart Festival 2026!
+              We're excited that you want to be part of Young at Heart Festival 2026!
             </Text>
 
-            <Text style={paragraph}>
-              <strong>What happens next?</strong>
-            </Text>
+            {email && (
+              <Section style={infoBox}>
+                <Text style={infoLabel}>Confirmation sent to</Text>
+                <Text style={infoValue}>{email}</Text>
+              </Section>
+            )}
 
-            <Text style={paragraph}>
-              Our team will review your application within 3-5 business days. We'll evaluate your
-              application based on product fit, booth availability, and category balance.
-            </Text>
+            <Text style={subheading}>What happens next?</Text>
 
-            <Text style={paragraph}>
-              You'll receive an email notification once we've made a decision about your application.
-            </Text>
+            <Section style={timeline}>
+              <Text style={timelineItem}>
+                <strong style={timelineDot}>1</strong>
+                Our team reviews your application (3–5 business days)
+              </Text>
+              <Text style={timelineItem}>
+                <strong style={timelineDot}>2</strong>
+                You'll receive an email with the decision
+              </Text>
+              <Text style={timelineItem}>
+                <strong style={timelineDot}>3</strong>
+                If approved, you'll get login details and payment instructions
+              </Text>
+            </Section>
 
             <Hr style={divider} />
 
-            <Text style={paragraph}>
-              <strong>Event Details:</strong>
-              <br />
-              December 11-13, 2026
-              <br />
-              Youngsfield Military Base, Cape Town
-            </Text>
+            {/* Event Info */}
+            <Section style={eventBox}>
+              <Text style={eventTitle}>Event Details</Text>
+              <Text style={eventDetail}>📅 December 11–13, 2026</Text>
+              <Text style={eventDetail}>📍 Youngsfield Military Base, Cape Town</Text>
+              <Text style={eventDetail}>🎪 200+ Vendors · 25,000+ Visitors</Text>
+            </Section>
 
             <Text style={paragraph}>
-              If you have any questions, feel free to reach out to us at{' '}
+              Questions? Reach out at{' '}
               <Link href="mailto:support@youngatheart.co.za" style={link}>
                 support@youngatheart.co.za
               </Link>
             </Text>
 
-            <Text style={paragraph}>
+            <Text style={signoff}>
               Best regards,
               <br />
-              <strong>The Young at Heart Festival Team</strong>
+              <strong>The Young at Heart Team</strong>
             </Text>
           </Section>
 
+          {/* Footer */}
           <Section style={footer}>
             <Text style={footerText}>
-              © 2026 Young at Heart Festival. All rights reserved.
+              © 2026 Young at Heart Festival · Cape Town, South Africa
+            </Text>
+            <Text style={footerLinks}>
+              <Link href="https://cthalaal.co.za" style={footerLink}>Website</Link>
+              {' · '}
+              <Link href="https://instagram.com/youngatheart_capetown" style={footerLink}>Instagram</Link>
+              {' · '}
+              <Link href="https://facebook.com/capetownhalaal" style={footerLink}>Facebook</Link>
             </Text>
           </Section>
         </Container>
@@ -87,70 +111,144 @@ export function ApplicationConfirmation({
   )
 }
 
-// Styles
 const main = {
-  backgroundColor: '#f6f9fc',
-  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  backgroundColor: '#f5f5f5',
+  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif',
 }
-
 const container = {
   backgroundColor: '#ffffff',
   margin: '0 auto',
-  padding: '20px 0',
-  marginBottom: '64px',
   maxWidth: '600px',
+  borderRadius: '12px',
+  overflow: 'hidden' as const,
+  marginTop: '40px',
+  marginBottom: '40px',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
 }
-
 const header = {
-  backgroundColor: '#cd2653',
-  padding: '24px',
+  backgroundColor: '#0a0a0a',
+  padding: '32px 40px',
   textAlign: 'center' as const,
 }
-
 const logo = {
   color: '#ffffff',
-  fontSize: '24px',
-  fontWeight: 'bold',
+  fontSize: '22px',
+  fontWeight: '700' as const,
   margin: '0',
+  letterSpacing: '-0.3px',
 }
-
-const content = {
-  padding: '40px',
+const logoSub = {
+  color: '#cd2653',
+  fontSize: '14px',
+  fontWeight: '600' as const,
+  margin: '4px 0 0',
+  letterSpacing: '1px',
+  textTransform: 'uppercase' as const,
 }
-
+const content = { padding: '40px' }
 const heading = {
-  fontSize: '28px',
-  fontWeight: 'bold',
-  color: '#1f2937',
-  marginBottom: '24px',
+  fontSize: '24px',
+  fontWeight: '700' as const,
+  color: '#0a0a0a',
+  marginBottom: '20px',
+  letterSpacing: '-0.3px',
 }
-
-const paragraph = {
+const subheading = {
   fontSize: '16px',
-  lineHeight: '26px',
-  color: '#374151',
+  fontWeight: '700' as const,
+  color: '#0a0a0a',
   marginBottom: '16px',
 }
-
-const link = {
-  color: '#cd2653',
-  textDecoration: 'underline',
+const paragraph = {
+  fontSize: '15px',
+  lineHeight: '24px',
+  color: '#525252',
+  marginBottom: '16px',
 }
-
-const divider = {
-  borderColor: '#e5e7eb',
-  margin: '24px 0',
+const link = { color: '#cd2653', textDecoration: 'underline' }
+const infoBox = {
+  backgroundColor: '#fafafa',
+  border: '1px solid #e5e5e5',
+  borderRadius: '8px',
+  padding: '16px',
+  marginBottom: '20px',
 }
-
-const footer = {
-  textAlign: 'center' as const,
-  padding: '24px',
+const infoLabel = {
+  fontSize: '11px',
+  fontWeight: '700' as const,
+  color: '#a3a3a3',
+  textTransform: 'uppercase' as const,
+  letterSpacing: '1px',
+  margin: '0 0 4px',
 }
-
-const footerText = {
-  fontSize: '14px',
-  color: '#9ca3af',
+const infoValue = {
+  fontSize: '15px',
+  fontWeight: '600' as const,
+  color: '#0a0a0a',
   margin: '0',
 }
+const timeline = { marginBottom: '24px' }
+const timelineItem = {
+  fontSize: '14px',
+  lineHeight: '22px',
+  color: '#525252',
+  marginBottom: '12px',
+  paddingLeft: '32px',
+}
+const timelineDot = {
+  display: 'inline-flex' as const,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+  width: '22px',
+  height: '22px',
+  borderRadius: '50%',
+  backgroundColor: '#0a0a0a',
+  color: '#ffffff',
+  fontSize: '12px',
+  fontWeight: '700' as const,
+  marginRight: '8px',
+  marginLeft: '-32px',
+}
+const eventBox = {
+  backgroundColor: '#fafafa',
+  borderRadius: '8px',
+  padding: '16px',
+  marginBottom: '24px',
+}
+const eventTitle = {
+  fontSize: '13px',
+  fontWeight: '700' as const,
+  color: '#0a0a0a',
+  marginBottom: '8px',
+}
+const eventDetail = {
+  fontSize: '14px',
+  color: '#525252',
+  marginBottom: '4px',
+  lineHeight: '22px',
+}
+const signoff = {
+  fontSize: '15px',
+  lineHeight: '24px',
+  color: '#525252',
+}
+const divider = { borderColor: '#e5e5e5', margin: '24px 0' }
+const footer = {
+  textAlign: 'center' as const,
+  padding: '24px 40px',
+  backgroundColor: '#fafafa',
+  borderTop: '1px solid #e5e5e5',
+}
+const footerText = {
+  fontSize: '12px',
+  color: '#a3a3a3',
+  margin: '0 0 8px',
+}
+const footerLinks = {
+  fontSize: '12px',
+  color: '#a3a3a3',
+  margin: '0',
+}
+const footerLink = { color: '#cd2653', textDecoration: 'none' }
 
 export default ApplicationConfirmation

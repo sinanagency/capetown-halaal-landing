@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
           react: ApplicationConfirmation({
             businessName: validated.business_name,
             contactName: validated.contact_name,
+            email: validated.email,
           }),
         })
       } catch (emailError) {
