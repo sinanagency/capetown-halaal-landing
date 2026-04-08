@@ -496,7 +496,7 @@ export default function HomePage() {
       {/* Marquee */}
       <div className="border-y border-neutral-200 bg-neutral-50">
         <TextMarquee
-          text="YOUNG AT HEART FESTIVAL 2026 ✦ DECEMBER 11-13 ✦ YOUNGSFIELD MILITARY BASE"
+          text="YOUNG AT HEART FESTIVAL 2026 ✦ IN PARTNERSHIP WITH SMILE FM"
           textClassName="text-neutral-300"
           separator="✦"
         />
