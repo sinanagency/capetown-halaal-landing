@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink } from 'lucide-react'
+import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -78,6 +78,19 @@ export function AdminSidebar() {
           </a>
         </div>
       </nav>
+
+      {/* Back to Site */}
+      <div className="px-3 pb-2">
+        <a
+          href="https://cthalaal.co.za"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium text-white bg-[#cd2653] hover:bg-[#b01f45] w-full transition-colors"
+        >
+          <Globe className="w-4.5 h-4.5" />
+          View Live Site
+        </a>
+      </div>
 
       {/* Logout */}
       <div className="p-3 border-t border-neutral-200">
