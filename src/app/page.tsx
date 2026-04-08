@@ -496,7 +496,7 @@ export default function HomePage() {
       {/* Marquee */}
       <div className="border-y border-neutral-200 bg-neutral-50">
         <TextMarquee
-          text="YOUNG AT HEART FESTIVAL 2026 ✦ IN ASSOCIATION WITH SMILE FM"
+          text="YOUNG AT HEART FESTIVAL 2026 ✦ DECEMBER 11-13 ✦ YOUNGSFIELD MILITARY BASE"
           textClassName="text-neutral-300"
           separator="✦"
         />
@@ -665,17 +665,6 @@ export default function HomePage() {
 
       {/* Sponsors Section */}
       <SponsorsSection />
-
-      {/* Media Partner */}
-      <section className="bg-[#2558a8] py-5">
-        <div className="container mx-auto px-4 flex items-center justify-center gap-4">
-          <p className="text-white/70 text-xs font-semibold uppercase tracking-widest">Media Partner</p>
-          <span className="text-white/30">|</span>
-          <a href="https://smilefm.co.za" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 hover:opacity-90 transition-opacity">
-            <Image src="/sponsors/smile-fm.png" alt="Smile FM" width={100} height={34} className="brightness-0 invert" />
-          </a>
-        </div>
-      </section>
 
       {/* CTA Section */}
       <section className="py-16 md:py-24 relative overflow-x-clip">
