@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 
 export const dynamic = 'force-dynamic'
@@ -9,7 +9,6 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode
 }) {
-  let isAuthenticated = false
   let isAdmin = false
 
   try {
@@ -17,26 +16,24 @@ export default async function AdminLayout({
     const { data: { user } } = await supabase.auth.getUser()
 
     if (user) {
-      isAuthenticated = true
-      const { data: adminUser } = await supabase
+      const admin = createAdminClient()
+      const { data: adminUser } = await admin
         .from('admin_users')
         .select()
         .eq('id', user.id)
         .single()
       if (adminUser) isAdmin = true
     }
-  } catch {
-    // Auth check failed, treat as unauthenticated
+  } catch (e) {
+    console.error('Admin layout auth error:', e)
   }
 
-  // If not authenticated or not admin, render children without sidebar
-  // (the login page will render, or redirect middleware handles it)
-  if (!isAuthenticated || !isAdmin) {
+  if (!isAdmin) {
     return <>{children}</>
   }
 
   return (
-    <div className="flex min-h-screen bg-neutral-50">
+    <div className="flex min-h-screen bg-[#f8f8f8]">
       <AdminSidebar />
       <main className="flex-1 overflow-auto">
         {children}

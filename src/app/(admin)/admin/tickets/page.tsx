@@ -60,22 +60,33 @@ type TabType = 'completed' | 'failed' | 'pending'
 export default function TicketsPage() {
   const [data, setData] = useState<TicketData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('completed')
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/admin/tickets')
-        if (res.ok) setData(await res.json())
-      } catch (e) {
-        console.error('Failed to load tickets:', e)
-      } finally {
-        setLoading(false)
+  const load = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/tickets')
+      if (res.status === 401) {
+        window.location.href = '/admin/login'
+        return
       }
+      if (!res.ok) {
+        setError(`Server returned ${res.status}`)
+        return
+      }
+      setData(await res.json())
+    } catch (e) {
+      console.error('Failed to load tickets:', e)
+      setError('Network error. Try refreshing.')
+    } finally {
+      setLoading(false)
     }
-    load()
-  }, [])
+  }
+
+  useEffect(() => { load() }, [])
 
   if (loading) {
     return (
@@ -87,8 +98,14 @@ export default function TicketsPage() {
 
   if (!data) {
     return (
-      <div className="p-8 text-center text-neutral-500">
-        Failed to load ticket data. Check WooCommerce API credentials.
+      <div className="p-8 flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-neutral-500">{error || 'Failed to load ticket data.'}</p>
+        <button
+          onClick={load}
+          className="px-4 py-2 bg-[#cd2653] text-white rounded-lg text-sm font-medium hover:bg-[#b01f45] transition-colors"
+        >
+          Retry
+        </button>
       </div>
     )
   }
