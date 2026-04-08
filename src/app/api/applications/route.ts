@@ -100,8 +100,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check if user is admin
-    const { data: adminUser } = await supabase
+    // Check if user is admin (use admin client to bypass RLS on admin_users)
+    const admin = createAdminClient()
+    const { data: adminUser } = await admin
       .from('admin_users')
       .select()
       .eq('id', user.id)
@@ -116,8 +117,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const search = searchParams.get('search')
 
-    // Build query
-    let query = supabase
+    // Build query (use admin client to bypass RLS)
+    let query = admin
       .from('vendor_applications')
       .select('*')
       .order('created_at', { ascending: false })

@@ -31,8 +31,9 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check admin
-    const { data: adminUser } = await supabase
+    // Check admin (use admin client to bypass RLS)
+    const admin = createAdminClient()
+    const { data: adminUser } = await admin
       .from('admin_users')
       .select()
       .eq('id', user.id)
@@ -42,7 +43,7 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('vendor_applications')
       .select('*')
       .eq('id', id)
@@ -77,8 +78,9 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check admin
-    const { data: adminUser } = await supabase
+    // Check admin (use admin client to bypass RLS)
+    const admin = createAdminClient()
+    const { data: adminUser } = await admin
       .from('admin_users')
       .select()
       .eq('id', user.id)
@@ -94,7 +96,7 @@ export async function PATCH(
       updateData.reviewed_at = new Date().toISOString()
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('vendor_applications')
       .update(updateData)
       .eq('id', id)

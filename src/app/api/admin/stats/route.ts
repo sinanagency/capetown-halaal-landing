@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET() {
   try {
@@ -12,7 +13,8 @@ export async function GET() {
     }
 
     // Check admin
-    const { data: adminUser } = await supabase
+    const admin = createAdminClient()
+    const { data: adminUser } = await admin
       .from('admin_users')
       .select()
       .eq('id', user.id)
@@ -22,8 +24,8 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get counts by status
-    const { data: applications } = await supabase
+    // Get counts by status (use admin client to bypass RLS)
+    const { data: applications } = await admin
       .from('vendor_applications')
       .select('status')
 
@@ -39,7 +41,7 @@ export async function GET() {
     const weekAgo = new Date()
     weekAgo.setDate(weekAgo.getDate() - 7)
 
-    const { data: recentApps } = await supabase
+    const { data: recentApps } = await admin
       .from('vendor_applications')
       .select('created_at')
       .gte('created_at', weekAgo.toISOString())
