@@ -9,7 +9,7 @@ interface Message {
   content: string
 }
 
-const WELCOME = "Hi! I'm the Young at Heart Festival assistant. Ask me anything about the event, tickets, vendors, or venue."
+const WELCOME = "Hey! I'm your festival concierge. Ask me about tickets, where to stay, how to get there, what to eat, or anything to plan your perfect weekend at Young at Heart 2026."
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false)
@@ -149,7 +149,7 @@ export function ChatWidget() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-                  placeholder="Ask about the festival..."
+                  placeholder="Plan your weekend with us..."
                   className="flex-1 px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-[#cd2653] focus:ring-1 focus:ring-[#cd2653]/20 transition-colors"
                   disabled={sending}
                 />
@@ -163,7 +163,7 @@ export function ChatWidget() {
                 </button>
               </div>
               <p className="text-[10px] text-neutral-400 text-center mt-2">
-                Powered by AI · support@youngatheart.co.za
+                Plan your weekend · support@youngatheart.co.za
               </p>
             </div>
           </motion.div>
