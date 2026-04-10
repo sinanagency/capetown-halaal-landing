@@ -23,9 +23,17 @@ interface TicketData {
   pendingCount: number
 }
 
+interface CapturedEmail {
+  email: string
+  name: string
+  business: string
+  captured_at: string
+}
+
 interface AnalyticsData {
   vendorFunnel: Array<{ step: string; count: number }>
   eventCounts: Record<string, number>
+  capturedEmails: CapturedEmail[]
 }
 
 function formatDate(d: string) {
@@ -246,6 +254,34 @@ export default function FollowUpPage() {
           <div className="px-6 py-10 text-center text-neutral-400 text-sm">No pending orders.</div>
         )}
       </div>
+
+      {/* Captured Emails — Abandoned Applications */}
+      {(analyticsData?.capturedEmails?.length || 0) > 0 && (
+        <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-neutral-100 bg-purple-50/50">
+            <div className="flex items-center gap-2">
+              <Mail className="w-4 h-4 text-purple-600" />
+              <h2 className="font-semibold text-neutral-900">Captured Emails — Started But Didn't Submit</h2>
+            </div>
+            <p className="text-xs text-neutral-500 mt-1">These people entered their email on the apply form but abandoned. They've been sent a follow-up email automatically.</p>
+          </div>
+          <div className="divide-y divide-neutral-50">
+            {analyticsData!.capturedEmails.map((cap, i) => (
+              <div key={i} className="px-6 py-3 flex items-center justify-between">
+                <div>
+                  <a href={`mailto:${cap.email}`} className="text-sm font-medium text-[#cd2653] hover:underline">{cap.email}</a>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    {cap.name && <span>{cap.name}</span>}
+                    {cap.name && cap.business && <span> · </span>}
+                    {cap.business && <span>{cap.business}</span>}
+                  </p>
+                </div>
+                <span className="text-xs text-neutral-400">{formatDate(cap.captured_at)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Vendor Application Funnel */}
       <div className="bg-white rounded-xl border border-neutral-200 p-6">

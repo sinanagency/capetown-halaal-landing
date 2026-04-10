@@ -134,6 +134,16 @@ export async function GET() {
       eventCounts[e.event_type] = (eventCounts[e.event_type] || 0) + 1
     }
 
+    // ---- CAPTURED EMAILS (abandoned applications) ----
+    const capturedEmails = allEvents
+      .filter(e => e.event_type === 'apply_email_captured' && e.metadata?.email)
+      .map(e => ({
+        email: e.metadata.email,
+        name: e.metadata.name || '',
+        business: e.metadata.business || '',
+        captured_at: e.created_at,
+      }))
+
     // ---- UTM ----
     const utmSources: Record<string, number> = {}
     for (const v of allViews) {
@@ -160,6 +170,7 @@ export async function GET() {
       vendorFunnel,
       eventCounts,
       utmSources,
+      capturedEmails,
     })
   } catch (error) {
     console.error('Analytics error:', error)

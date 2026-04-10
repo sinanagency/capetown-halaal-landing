@@ -231,6 +231,18 @@ export default function ApplyPage() {
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Email *</label>
                   <input type="email" required value={form.email} onChange={e => set('email', e.target.value)}
+                    onBlur={e => {
+                      const email = e.target.value.trim()
+                      if (email && email.includes('@')) {
+                        track('apply_email_captured', { metadata: { email, name: form.contact_person || '', business: form.stall_brand_name || '' } })
+                        fetch('/api/analytics/capture-email', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email, name: form.contact_person, business: form.stall_brand_name }),
+                          keepalive: true,
+                        }).catch(() => {})
+                      }
+                    }}
                     className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="you@business.com" />
                 </div>
 
