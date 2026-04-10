@@ -84,6 +84,8 @@ export default function AdminDashboard() {
   const [ticketStats, setTicketStats] = useState<TicketStats | null>(null)
   const [recentApps, setRecentApps] = useState<VendorApplication[]>([])
   const [recentCount, setRecentCount] = useState(0)
+  const [estimatedRevenue, setEstimatedRevenue] = useState(0)
+  const [categoryBreakdown, setCategoryBreakdown] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -104,6 +106,8 @@ export default function AdminDashboard() {
           const data = await statsRes.json()
           setVendorStats(data.stats)
           setRecentCount(data.recentCount || 0)
+          setEstimatedRevenue(data.estimatedRevenue || 0)
+          setCategoryBreakdown(data.categoryBreakdown || {})
         }
         if (ticketRes.ok) {
           const data = await ticketRes.json()
@@ -225,7 +229,7 @@ export default function AdminDashboard() {
             </div>
           </div>
           <p className="text-2xl font-bold text-neutral-900 tracking-tight">{vendorStats?.total || 0}</p>
-          <p className="text-xs text-neutral-400 mt-1">{recentCount} this week</p>
+          <p className="text-xs text-neutral-400 mt-1">Est. {formatCurrency(estimatedRevenue)} revenue</p>
         </Link>
 
         <Link href="/admin/applications?status=pending" className="bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 hover:shadow-sm transition-all group">
@@ -436,6 +440,23 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Vendor Categories */}
+      {Object.keys(categoryBreakdown).length > 0 && (
+        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <h2 className="font-semibold text-neutral-900 mb-4">Vendor Categories</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {Object.entries(categoryBreakdown)
+              .sort(([, a], [, b]) => b - a)
+              .map(([cat, count]) => (
+                <div key={cat} className="bg-neutral-50 rounded-lg px-4 py-3 text-center">
+                  <p className="text-lg font-bold text-neutral-900">{count}</p>
+                  <p className="text-xs text-neutral-500">{cat}</p>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Bottom Row: Recent Orders + Pending Apps */}
       <div className="grid lg:grid-cols-2 gap-6">
