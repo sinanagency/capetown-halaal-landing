@@ -64,12 +64,8 @@ youngatheart.co.za`,
       console.error('Capture email send error:', emailError)
     }
 
-    // Also notify Samreen via CC (send separate email to admin)
-    try {
-      await sendEmail({
-        to: 'capetownhalaal@gmail.com',
-        subject: `[Lead] ${business || email} started but didn't complete vendor application`,
-        text: `A potential vendor started the application but didn't finish.
+    // Notify admin team
+    const adminText = `A potential vendor started the application but didn't finish.
 
 Email: ${email}
 Name: ${name || 'Not provided'}
@@ -78,8 +74,21 @@ Business: ${business || 'Not provided'}
 They've been sent a follow-up email automatically.
 
 View all applications: https://cthalaal.co.za/admin/applications
-Follow up page: https://cthalaal.co.za/admin/follow-up`,
-      })
+Follow up page: https://cthalaal.co.za/admin/follow-up`
+
+    try {
+      await Promise.all([
+        sendEmail({
+          to: 'capetownhalaal@gmail.com',
+          subject: `[Lead] ${business || email} started but didn't complete vendor application`,
+          text: adminText,
+        }),
+        sendEmail({
+          to: 'info@sinan.agency',
+          subject: `[Lead] ${business || email} started but didn't complete vendor application`,
+          text: adminText,
+        }),
+      ])
     } catch (adminEmailError) {
       console.error('Admin notification error:', adminEmailError)
     }
