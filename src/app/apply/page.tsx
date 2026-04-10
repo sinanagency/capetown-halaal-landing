@@ -171,8 +171,11 @@ export default function ApplyPage() {
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-neutral-900 mb-2">Application Submitted</h1>
           <p className="text-neutral-600 mb-2">Thank you for applying to trade at Young at Heart Festival 2026.</p>
-          <p className="text-neutral-500 text-sm mb-6">Your application will be assessed by the selection committee. If successful, you will receive login details to your exhibitor portal where you can select your booth, make payment, and sign the terms and conditions.</p>
-          <p className="text-sm font-medium text-neutral-700 mb-6">Estimated Total: R{totalEstimate.toLocaleString()}</p>
+          <p className="text-neutral-500 text-sm mb-4">Your application will be assessed by the selection committee. If successful, you will receive login details to your exhibitor portal where you can select your booth, make payment, and sign the terms and conditions.</p>
+          <p className="text-sm font-medium text-neutral-700 mb-4">Estimated Total: R{totalEstimate.toLocaleString()}</p>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
+            <p className="text-xs text-amber-800">A confirmation email has been sent to your inbox. If you don't see it, please check your spam or junk folder and mark it as "not spam".</p>
+          </div>
           <a href="/" className="inline-block px-6 py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors">
             Return to Home
           </a>

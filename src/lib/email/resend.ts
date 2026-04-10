@@ -54,10 +54,15 @@ export async function sendEmail({
     try {
       await transporter.sendMail({
         from: FROM_EMAIL,
+        replyTo: 'support@youngatheart.co.za',
         to,
         subject,
         html,
         text: text || undefined,
+        headers: {
+          'X-Mailer': 'Young at Heart Festival',
+          'List-Unsubscribe': '<mailto:support@youngatheart.co.za?subject=unsubscribe>',
+        },
       })
       console.log(`Email sent via SMTP to ${to}: ${subject}`)
       return
