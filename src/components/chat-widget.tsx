@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageCircle, X, Send, Loader2 } from 'lucide-react'
 
@@ -9,12 +10,15 @@ interface Message {
   content: string
 }
 
-const WELCOME = "Hey! I'm your festival concierge. Ask me about tickets, where to stay, how to get there, what to eat, or anything to plan your perfect weekend at Young at Heart 2026."
+const WELCOME_PUBLIC = "Hey! I'm your festival concierge. Ask me about tickets, where to stay, how to get there, what to eat, or anything to plan your perfect weekend at Young at Heart 2026."
+const WELCOME_ADMIN = "Hi! I'm your admin assistant. Ask me about vendor applications, ticket sales, analytics, or anything about managing the festival."
 
 export function ChatWidget() {
+  const pathname = usePathname()
+  const isAdmin = pathname.startsWith('/admin')
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: WELCOME },
+    { role: 'assistant', content: isAdmin ? WELCOME_ADMIN : WELCOME_PUBLIC },
   ])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -47,7 +51,7 @@ export function ChatWidget() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updated }),
+        body: JSON.stringify({ messages: updated, context: isAdmin ? 'admin' : 'public' }),
       })
 
       if (!res.ok) {
