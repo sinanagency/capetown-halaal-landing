@@ -252,12 +252,46 @@ export default function ApplicationDetailPage() {
             </div>
           )}
 
-          {application.special_requirements && (
-            <div>
-              <p className="text-sm text-neutral-500 mb-1">Special Requirements</p>
-              <p className="text-neutral-700">{application.special_requirements}</p>
-            </div>
-          )}
+          {application.special_requirements && (() => {
+            const LABELS: Record<string, string> = {
+              traded_before: 'Traded Before',
+              social_media: 'Social Media',
+              stall_type: 'Stall Type',
+              stall_price: 'Stall Price',
+              electrical_appliances: 'Electrical Appliances',
+              appliance_details: 'Appliance Details',
+              uses_gas: 'Uses Gas',
+              total_estimate: 'Total Estimate',
+            }
+            try {
+              const data = JSON.parse(application.special_requirements)
+              return (
+                <div>
+                  <p className="text-sm text-neutral-500 mb-3">Requirements & Details</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {Object.entries(data).map(([key, val]) => {
+                      const label = LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                      const isPrice = key === 'stall_price' || key === 'total_estimate'
+                      const display = isPrice ? `R${Number(val).toLocaleString()}` : String(val).replace(/\\n/g, ', ')
+                      return (
+                        <div key={key} className="bg-neutral-50 rounded-lg px-4 py-3">
+                          <p className="text-xs text-neutral-500 font-medium mb-0.5">{label}</p>
+                          <p className="text-sm text-neutral-900 font-medium">{display}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            } catch {
+              return (
+                <div>
+                  <p className="text-sm text-neutral-500 mb-1">Special Requirements</p>
+                  <p className="text-neutral-700">{application.special_requirements}</p>
+                </div>
+              )
+            }
+          })()}
         </div>
 
         {/* Admin Notes */}
