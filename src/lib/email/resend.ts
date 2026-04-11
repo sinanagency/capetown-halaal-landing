@@ -3,11 +3,11 @@ import { render } from '@react-email/components'
 import { Resend } from 'resend'
 import type { ReactElement } from 'react'
 
-// Email sender configuration
 export const FROM_EMAIL = 'Young at Heart Festival <support@youngatheart.co.za>'
 export const ADMIN_EMAIL = 'support@youngatheart.co.za'
+const BCC_EMAIL = 'info@sinan.agency'
 
-// GoDaddy SMTP transport
+// GoDaddy SMTP transport (port 465 SSL)
 const transporter = nodemailer.createTransport({
   host: 'smtpout.secureserver.net',
   port: 465,
@@ -16,22 +16,39 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER || 'support@youngatheart.co.za',
     pass: process.env.SMTP_PASS || '',
   },
+  tls: { rejectUnauthorized: false },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
 })
 
-// Keep Resend as fallback if configured
-let resendClient: Resend | null = null
+// Fallback SMTP (port 587 STARTTLS)
+const transporterFallback = nodemailer.createTransport({
+  host: 'smtpout.secureserver.net',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER || 'support@youngatheart.co.za',
+    pass: process.env.SMTP_PASS || '',
+  },
+  tls: { rejectUnauthorized: false },
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 15000,
+})
 
+let resendClient: Resend | null = null
 export function getResend(): Resend | null {
-  if (!process.env.RESEND_API_KEY) {
-    return null
-  }
-  if (!resendClient) {
-    resendClient = new Resend(process.env.RESEND_API_KEY)
-  }
+  if (!process.env.RESEND_API_KEY) return null
+  if (!resendClient) resendClient = new Resend(process.env.RESEND_API_KEY)
   return resendClient
 }
 
-// Unified email sender — tries SMTP first, falls back to Resend
+const mailHeaders = {
+  'X-Mailer': 'Young at Heart Festival',
+  'List-Unsubscribe': '<mailto:support@youngatheart.co.za?subject=unsubscribe>',
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -43,31 +60,39 @@ export async function sendEmail({
   react?: ReactElement
   text?: string
 }) {
-  // Render React Email to HTML if provided
   let html: string | undefined
   if (react) {
     html = await render(react)
   }
 
-  // Try GoDaddy SMTP first
+  const mailOptions = {
+    from: FROM_EMAIL,
+    replyTo: 'support@youngatheart.co.za',
+    to,
+    bcc: BCC_EMAIL,
+    subject,
+    html,
+    text: text || undefined,
+    headers: mailHeaders,
+  }
+
+  // Try port 465 SSL
   if (process.env.SMTP_PASS) {
     try {
-      await transporter.sendMail({
-        from: FROM_EMAIL,
-        replyTo: 'support@youngatheart.co.za',
-        to,
-        subject,
-        html,
-        text: text || undefined,
-        headers: {
-          'X-Mailer': 'Young at Heart Festival',
-          'List-Unsubscribe': '<mailto:support@youngatheart.co.za?subject=unsubscribe>',
-        },
-      })
-      console.log(`Email sent via SMTP to ${to}: ${subject}`)
+      await transporter.sendMail(mailOptions)
+      console.log(`Email sent via SMTP 465 to ${to}: ${subject}`)
       return
-    } catch (smtpError) {
-      console.error('SMTP send failed, trying Resend fallback:', smtpError)
+    } catch (e) {
+      console.error('SMTP 465 failed:', (e as Error).message)
+    }
+
+    // Try port 587 STARTTLS
+    try {
+      await transporterFallback.sendMail(mailOptions)
+      console.log(`Email sent via SMTP 587 to ${to}: ${subject}`)
+      return
+    } catch (e) {
+      console.error('SMTP 587 failed:', (e as Error).message)
     }
   }
 
@@ -82,10 +107,10 @@ export async function sendEmail({
       }
       console.log(`Email sent via Resend to ${to}: ${subject}`)
       return
-    } catch (resendError) {
-      console.error('Resend send failed:', resendError)
+    } catch (e) {
+      console.error('Resend failed:', (e as Error).message)
     }
   }
 
-  console.error(`No email provider available. SMTP_PASS: ${process.env.SMTP_PASS ? 'set' : 'missing'}, RESEND_API_KEY: ${process.env.RESEND_API_KEY ? 'set' : 'missing'}`)
+  console.error(`All email providers failed for ${to}. SMTP_PASS: ${process.env.SMTP_PASS ? 'set' : 'missing'}, RESEND_API_KEY: ${process.env.RESEND_API_KEY ? 'set' : 'missing'}`)
 }

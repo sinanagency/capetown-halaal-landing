@@ -56,15 +56,15 @@ export function ApplicationConfirmation({
             <Section style={timeline}>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>1</strong>
-                Our team reviews your application (3–5 business days)
+                Our team is reviewing your application
               </Text>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>2</strong>
-                You'll receive an email with the decision
+                Once approved, you'll receive an email notification
               </Text>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>3</strong>
-                If approved, you'll get login details and payment instructions
+                You'll get login details and payment instructions
               </Text>
             </Section>
 
