@@ -28,7 +28,8 @@ export async function GET() {
       return NextResponse.json(stats)
     } catch (wcError) {
       console.error('WooCommerce fetch error:', wcError)
-      // Return partial data so dashboard doesn't completely break
+      console.error('WC_KEY present:', !!process.env.WC_CONSUMER_KEY)
+      console.error('WC_SECRET present:', !!process.env.WC_CONSUMER_SECRET)
       return NextResponse.json({
         totalRevenue: 0,
         totalTickets: 0,
@@ -40,7 +41,7 @@ export async function GET() {
         pendingOrders: [],
         failedCount: 0,
         pendingCount: 0,
-        error: 'WooCommerce API temporarily unavailable',
+        error: String(wcError),
       })
     }
   } catch (error) {
