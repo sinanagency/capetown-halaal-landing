@@ -53,7 +53,7 @@ async function wcFetch<T>(endpoint: string, params: Record<string, string> = {})
   }
 
   const res = await fetch(url.toString(), {
-    next: { revalidate: 60 },
+    cache: 'no-store',
   })
 
   if (!res.ok) {
