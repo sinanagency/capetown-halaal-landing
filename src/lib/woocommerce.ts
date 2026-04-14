@@ -87,10 +87,12 @@ export async function getProducts(): Promise<WCProduct[]> {
 }
 
 export async function getTicketStats() {
+  // Only fetch 2026 event orders (filters out last year's festival)
+  const after = '2026-01-01T00:00:00'
   const [orders, failedOrders, pendingOrders, products] = await Promise.all([
-    getOrders({ status: 'completed' }),
-    getOrders({ status: 'failed' }),
-    getOrders({ status: 'pending,on-hold,cancelled' }),
+    getOrders({ status: 'completed', after }),
+    getOrders({ status: 'failed', after }),
+    getOrders({ status: 'pending,on-hold,cancelled', after }),
     getProducts(),
   ])
 
