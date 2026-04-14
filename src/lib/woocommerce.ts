@@ -45,6 +45,10 @@ export interface WCProduct {
 }
 
 async function wcFetch<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+  if (!WC_KEY || !WC_SECRET) {
+    throw new Error('WooCommerce credentials missing. Set WC_CONSUMER_KEY and WC_CONSUMER_SECRET.')
+  }
+
   const url = new URL(`${WC_BASE}${endpoint}`)
   url.searchParams.set('consumer_key', WC_KEY)
   url.searchParams.set('consumer_secret', WC_SECRET)
@@ -57,7 +61,9 @@ async function wcFetch<T>(endpoint: string, params: Record<string, string> = {})
   })
 
   if (!res.ok) {
-    throw new Error(`WooCommerce API error: ${res.status}`)
+    const body = await res.text().catch(() => 'no body')
+    console.error(`WooCommerce API error: ${res.status} ${endpoint}`, body)
+    throw new Error(`WooCommerce API error: ${res.status} on ${endpoint}`)
   }
 
   return res.json()

@@ -73,6 +73,15 @@ export default function TicketsPage() {
         window.location.href = '/admin/login'
         return
       }
+      if (res.status === 403) {
+        window.location.href = '/admin/login?error=not_admin'
+        return
+      }
+      if (res.status === 502) {
+        const body = await res.json().catch(() => ({}))
+        setError(body.error || 'Ticket store unavailable. The WooCommerce API may be down.')
+        return
+      }
       if (!res.ok) {
         setError(`Server returned ${res.status}`)
         return

@@ -32,19 +32,10 @@ export async function GET() {
       console.error('WooCommerce fetch error:', wcError)
       console.error('WC_KEY present:', !!process.env.WC_CONSUMER_KEY)
       console.error('WC_SECRET present:', !!process.env.WC_CONSUMER_SECRET)
-      return NextResponse.json({
-        totalRevenue: 0,
-        totalTickets: 0,
-        totalOrders: 0,
-        ticketBreakdown: {},
-        salesByDate: {},
-        recentOrders: [],
-        failedOrders: [],
-        pendingOrders: [],
-        failedCount: 0,
-        pendingCount: 0,
-        error: String(wcError),
-      })
+      return NextResponse.json(
+        { error: `Ticket store unavailable: ${String(wcError)}` },
+        { status: 502 }
+      )
     }
   } catch (error) {
     console.error('Tickets stats error:', error)
