@@ -816,8 +816,8 @@ export default function HomePage() {
             <p className="text-neutral-500 text-sm">
               © 2026 Young at Heart Festival. All rights reserved.
             </p>
-            <a href="https://zanii.agency" target="_blank" rel="noopener noreferrer" className="text-neutral-400 hover:text-neutral-600 text-sm transition-colors">
-              Built by <span className="font-medium">Zanii</span>
+            <a href="https://zanii.agency" target="_blank" rel="noopener noreferrer" className="text-neutral-500 hover:text-neutral-700 text-sm tracking-wide transition-colors">
+              Built by <span className="font-semibold">zanii</span><span className="text-[#2563eb]">.</span>
             </a>
           </div>
         </div>
