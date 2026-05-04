@@ -56,7 +56,7 @@ export const theme = {
 // Event Information
 export const eventInfo = {
   name: 'Young at Heart Festival',
-  tagline: "South Africa's Largest Lifestyle Exhibition",
+  tagline: "South African Lifestyle Exhibition",
   year: 2026,
   dates: 'December 11-13, 2026',
   duration: '3 Days',

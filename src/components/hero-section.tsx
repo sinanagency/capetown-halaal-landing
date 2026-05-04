@@ -141,7 +141,7 @@ export function HeroSection() {
               transition={{ delay: 1.2, duration: 0.6 }}
               className="text-base sm:text-lg md:text-2xl text-neutral-700 max-w-2xl mx-auto leading-relaxed px-2"
             >
-              South Africa's largest lifestyle exhibition.
+              In association with Smile 90.4 FM.
               <span className="text-neutral-900 font-semibold"> 350+ vendors</span>,
               <span className="text-neutral-900 font-semibold"> 25,000+ visitors</span>,
               <span className="text-neutral-900 font-semibold"> 3 unforgettable days</span>.

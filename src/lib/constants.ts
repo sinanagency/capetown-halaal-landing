@@ -2,7 +2,7 @@
 export const EVENT = {
   name: 'Young at Heart Festival 2026',
   shortName: 'Young at Heart',
-  tagline: 'South Africa\'s Largest Lifestyle Exhibition',
+  tagline: 'South African Lifestyle Exhibition',
   dates: {
     start: new Date('2026-12-11'),
     end: new Date('2026-12-13'),

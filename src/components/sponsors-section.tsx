@@ -2,32 +2,50 @@
 
 import { useRef, useState } from 'react'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
+import Image from 'next/image'
 import { Crown, Star, Award, ExternalLink, X, Mail, Phone, Send, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-const sponsorTiers = [
+type SponsorTier = {
+  name: string
+  price: string
+  icon: typeof Crown
+  color: string
+  glow: string
+  featured: boolean
+  benefits: string[]
+  available: number
+  isPartner?: boolean
+  partnerLogo?: string
+  partnerSubtitle?: string
+}
+
+const sponsorTiers: SponsorTier[] = [
   {
-    name: 'Platinum Sponsor',
-    price: 'R150,000',
+    name: 'Smile 90.4 FM',
+    price: 'Official Media Partner',
     icon: Crown,
-    color: 'from-slate-300 to-slate-500',
-    glow: 'rgba(203, 213, 225, 0.3)',
+    color: 'from-[#1AA3E8] to-[#0E7BB8]',
+    glow: 'rgba(26, 163, 232, 0.35)',
     featured: true,
     benefits: [
+      'Platinum-tier placement',
       'Naming placement under festival name',
       '10 digital ads (6 months pre-event + during event)',
       '3 on-site banners',
       '6m × 3m premium booth',
       'VIP access for 10 guests',
-      'Logo on all printed materials',
       'Main stage brand mentions'
     ],
-    available: 2
+    available: 0,
+    isPartner: true,
+    partnerLogo: '/partners/smile-logo-color.png',
+    partnerSubtitle: 'Officially partnered with Young at Heart Festival 2026'
   },
   {
     name: 'Gold Sponsor',
-    price: 'R100,000',
+    price: 'R250,000',
     icon: Award,
     color: 'from-amber-400 to-yellow-600',
     glow: 'rgba(251, 191, 36, 0.3)',
@@ -229,7 +247,7 @@ function EnquiryModal({
   )
 }
 
-function SponsorCard({ tier, index, onEnquire }: { tier: typeof sponsorTiers[0]; index: number; onEnquire: () => void }) {
+function SponsorCard({ tier, index, onEnquire }: { tier: SponsorTier; index: number; onEnquire: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: '-50px' })
   const Icon = tier.icon
@@ -253,23 +271,28 @@ function SponsorCard({ tier, index, onEnquire }: { tier: typeof sponsorTiers[0];
       />
 
       {/* Featured border glow */}
-      {tier.featured && (
+      {tier.featured && !tier.isPartner && (
         <div className="absolute -inset-[1px] bg-gradient-to-r from-slate-300 via-white to-slate-300 rounded-3xl opacity-50 blur-sm" />
+      )}
+      {tier.isPartner && (
+        <div className="absolute -inset-[1px] bg-gradient-to-r from-[#1AA3E8] via-[#F4C518] to-[#1AA3E8] rounded-3xl opacity-60 blur-sm" />
       )}
 
       <div className={cn(
         "relative h-full p-8 bg-neutral-900/80 backdrop-blur-sm border rounded-3xl hover:border-white/20 transition-all duration-500 flex flex-col",
         tier.featured ? "border-white/20" : "border-white/10"
       )}>
-        {/* Available badge */}
-        <div className="absolute top-4 right-4">
-          <span className="text-xs font-medium text-neutral-500 bg-neutral-800 px-2 py-1 rounded-full">
-            {tier.available} spots left
-          </span>
-        </div>
+        {/* Available badge — hidden for partner card */}
+        {!tier.isPartner && (
+          <div className="absolute top-4 right-4">
+            <span className="text-xs font-medium text-neutral-500 bg-neutral-800 px-2 py-1 rounded-full">
+              {tier.available} spots left
+            </span>
+          </div>
+        )}
 
         {/* Featured label */}
-        {tier.featured && (
+        {tier.featured && !tier.isPartner && (
           <div className="absolute -top-3 left-8">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-slate-200 to-white text-neutral-900 text-xs font-bold rounded-full shadow-lg">
               <Sparkles className="w-3 h-3" />
@@ -277,52 +300,97 @@ function SponsorCard({ tier, index, onEnquire }: { tier: typeof sponsorTiers[0];
             </span>
           </div>
         )}
+        {tier.isPartner && (
+          <div className="absolute -top-3 left-8">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-[#1AA3E8] to-[#0E7BB8] text-white text-xs font-bold rounded-full shadow-lg">
+              <Sparkles className="w-3 h-3" />
+              OFFICIAL MEDIA PARTNER
+            </span>
+          </div>
+        )}
 
-        {/* Icon */}
-        <motion.div
-          whileHover={{ scale: 1.1, rotate: 5 }}
-          className={cn(
-            'w-16 h-16 rounded-2xl flex items-center justify-center mb-6',
-            'bg-gradient-to-br shadow-xl',
-            tier.color
-          )}
-        >
-          <Icon className="w-8 h-8 text-white" />
-        </motion.div>
+        {/* Icon or Partner Logo */}
+        {tier.isPartner && tier.partnerLogo ? (
+          <div className="bg-white rounded-2xl p-3 mb-6 w-fit shadow-xl">
+            <div className="relative h-12 w-32">
+              <Image
+                src={tier.partnerLogo}
+                alt={tier.name}
+                fill
+                className="object-contain"
+              />
+            </div>
+          </div>
+        ) : (
+          <motion.div
+            whileHover={{ scale: 1.1, rotate: 5 }}
+            className={cn(
+              'w-16 h-16 rounded-2xl flex items-center justify-center mb-6',
+              'bg-gradient-to-br shadow-xl',
+              tier.color
+            )}
+          >
+            <Icon className="w-8 h-8 text-white" />
+          </motion.div>
+        )}
 
         {/* Content */}
         <h3 className="text-2xl font-bold text-white mb-2">{tier.name}</h3>
-        <p className={cn(
-          'text-3xl font-bold mb-6 bg-gradient-to-r bg-clip-text text-transparent',
-          tier.color
-        )}>
-          {tier.price}
-        </p>
+        {tier.isPartner ? (
+          <p className="text-base font-semibold text-[#F4C518] mb-2">
+            {tier.price}
+          </p>
+        ) : (
+          <p className={cn(
+            'text-3xl font-bold mb-6 bg-gradient-to-r bg-clip-text text-transparent',
+            tier.color
+          )}>
+            {tier.price}
+          </p>
+        )}
+        {tier.isPartner && tier.partnerSubtitle && (
+          <p className="text-sm text-neutral-400 mb-6">{tier.partnerSubtitle}</p>
+        )}
 
         {/* Benefits */}
         <ul className="space-y-3 flex-1">
           {tier.benefits.map((benefit, i) => (
             <li key={i} className="flex items-start gap-3">
-              <Sparkles className="w-4 h-4 text-[#cd2653] mt-1 flex-shrink-0" />
+              <Sparkles className={cn(
+                'w-4 h-4 mt-1 flex-shrink-0',
+                tier.isPartner ? 'text-[#1AA3E8]' : 'text-[#cd2653]'
+              )} />
               <span className="text-sm text-neutral-400">{benefit}</span>
             </li>
           ))}
         </ul>
 
-        {/* CTA — always at bottom */}
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={onEnquire}
-          className={cn(
-            "w-full py-3 rounded-xl font-medium text-white transition-all mt-8",
-            tier.featured
-              ? "bg-gradient-to-r from-[#cd2653] to-[#bf3026] shadow-lg shadow-[#cd2653]/20"
-              : "bg-white/5 hover:bg-white/10 border border-white/10"
-          )}
-        >
-          Enquire Now
-        </motion.button>
+        {/* CTA — link out for partner, enquire for sponsors */}
+        {tier.isPartner ? (
+          <a
+            href="https://www.smile904.fm"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full mt-8 py-3 rounded-xl font-medium text-white text-center transition-all bg-gradient-to-r from-[#1AA3E8] to-[#0E7BB8] shadow-lg shadow-[#1AA3E8]/20 hover:opacity-90 flex items-center justify-center gap-2"
+          >
+            Visit Smile 90.4 FM
+            <ExternalLink className="w-4 h-4" />
+          </a>
+        ) : (
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={onEnquire}
+            className={cn(
+              "w-full py-3 rounded-xl font-medium text-white transition-all mt-8",
+              tier.featured
+                ? "bg-gradient-to-r from-[#cd2653] to-[#bf3026] shadow-lg shadow-[#cd2653]/20"
+                : "bg-white/5 hover:bg-white/10 border border-white/10"
+            )}
+          >
+            Enquire Now
+          </motion.button>
+        )}
       </div>
     </motion.div>
   )

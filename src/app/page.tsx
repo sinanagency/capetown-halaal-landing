@@ -22,6 +22,7 @@ import { CountdownSection } from '@/components/countdown-section'
 import { VideoSection } from '@/components/video-section'
 import { SponsorsSection } from '@/components/sponsors-section'
 import { GallerySection } from '@/components/gallery-section'
+import { SmileFMBanner } from '@/components/smile-fm-banner'
 import { GlowingLine } from '@/components/ui/floating-particles'
 import { toast } from 'sonner'
 
@@ -493,10 +494,13 @@ export default function HomePage() {
       {/* Hero Section */}
       <HeroSection />
 
+      {/* Smile FM Official Media Partner Banner */}
+      <SmileFMBanner />
+
       {/* Marquee */}
       <div className="border-y border-neutral-200 bg-neutral-50">
         <TextMarquee
-          text="YOUNG AT HEART FESTIVAL 2026 ✦ IN PARTNERSHIP WITH SMILE FM"
+          text="YOUNG AT HEART FESTIVAL 2026 ✦ IN PARTNERSHIP WITH SMILE 90.4 FM"
           textClassName="text-neutral-300"
           separator="✦"
         />
@@ -518,7 +522,7 @@ export default function HomePage() {
                 About the Festival
               </span>
               <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-neutral-900 mb-6 leading-tight">
-                South Africa's Largest
+                A South African
                 <span className="block">
                   <GradientText from="#cd2653" to="#f59e0b">Lifestyle</GradientText>
                 </span>
@@ -722,7 +726,7 @@ export default function HomePage() {
             <div>
               <Logo size="lg" showText={true} className="mb-6" />
               <p className="text-neutral-600 text-sm mb-6">
-                South Africa's largest lifestyle exhibition. December 11-13, 2026 at Youngsfield Military Base, Cape Town.
+                A South African lifestyle exhibition. December 11-13, 2026 at Youngsfield Military Base, Cape Town.
               </p>
               <div className="flex gap-3">
                 {[

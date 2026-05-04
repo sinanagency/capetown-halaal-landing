@@ -5,7 +5,7 @@ const SYSTEM_PROMPT = `You are the Young at Heart Festival concierge. You help v
 
 FESTIVAL INFO:
 - Event: Young at Heart Festival 2026
-- Tagline: South Africa's Largest Lifestyle Exhibition
+- Tagline: South African Lifestyle Exhibition (in association with Smile 90.4 FM)
 - Dates: December 11-13, 2026 (Thursday to Saturday)
 - Venue: Youngsfield Military Base, Wetton Road, Claremont, Cape Town
 - Expected: 350+ vendors, 25,000+ visitors over 3 days

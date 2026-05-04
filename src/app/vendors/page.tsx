@@ -262,7 +262,7 @@ export default function VendorsPage() {
           >
             <h2 className="text-3xl font-bold text-white">Want to Be a Vendor?</h2>
             <p className="mx-auto mt-4 max-w-2xl text-neutral-300">
-              Join over 350 vendors at Cape Town's largest lifestyle festival. Book your booth today
+              Join over 350 vendors at Cape Town's premier lifestyle festival. Book your booth today
               and showcase your products to thousands of visitors.
             </p>
             <div className="mt-8">
