@@ -494,14 +494,12 @@ export default function HomePage() {
       {/* Hero Section */}
       <HeroSection />
 
-      {/* Smile FM Official Media Partner Banner */}
-      <SmileFMBanner />
-
-      {/* Marquee */}
-      <div className="border-y border-neutral-200 bg-neutral-50">
+      {/* Marquee — Smile FM brand colors (blue text + yellow accents) */}
+      <div className="border-y-2 border-[#F4C518] bg-white">
         <TextMarquee
           text="YOUNG AT HEART FESTIVAL 2026 ✦ IN PARTNERSHIP WITH SMILE 90.4 FM"
-          textClassName="text-neutral-300"
+          textClassName="text-[#1AA3E8]"
+          separatorClassName="text-[#F4C518]"
           separator="✦"
         />
       </div>
@@ -669,6 +667,9 @@ export default function HomePage() {
 
       {/* Sponsors Section */}
       <SponsorsSection />
+
+      {/* Smile FM Official Media Partner Banner — closes the sponsors block */}
+      <SmileFMBanner />
 
       {/* CTA Section */}
       <section className="py-16 md:py-24 relative overflow-x-clip">

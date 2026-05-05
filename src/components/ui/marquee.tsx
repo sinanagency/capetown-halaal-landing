@@ -42,12 +42,14 @@ export function TextMarquee({
   text,
   className = '',
   textClassName = '',
+  separatorClassName = '',
   duration = 20,
   separator = '•'
 }: {
   text: string
   className?: string
   textClassName?: string
+  separatorClassName?: string
   duration?: number
   separator?: string
 }) {
@@ -69,7 +71,7 @@ export function TextMarquee({
             <span className={cn('text-4xl md:text-6xl font-bold whitespace-nowrap', textClassName)}>
               {item}
             </span>
-            <span className="text-4xl md:text-6xl text-neutral-700">{separator}</span>
+            <span className={cn('text-4xl md:text-6xl text-neutral-700', separatorClassName)}>{separator}</span>
           </span>
         ))}
       </motion.div>
