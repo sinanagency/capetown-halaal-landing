@@ -56,17 +56,25 @@ export function ApplicationConfirmation({
             <Section style={timeline}>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>1</strong>
-                Our team is reviewing your application
+                Our team is reviewing your application. No further action is needed from you for now.
               </Text>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>2</strong>
-                Once approved, you'll receive an email notification
+                From 1 June 2026, every applicant receives a personal email with the outcome — whether approved or not.
               </Text>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>3</strong>
-                You'll get login details and payment instructions
+                If approved, that email includes your login details and payment instructions.
               </Text>
             </Section>
+
+            <Text style={paragraph}>
+              Please check your spam or junk folder for emails from{' '}
+              <Link href="mailto:support@youngatheart.co.za" style={link}>
+                support@youngatheart.co.za
+              </Link>{' '}
+              and mark us as a safe sender, so your outcome email lands properly around 1 June.
+            </Text>
 
             <Hr style={divider} />
 
