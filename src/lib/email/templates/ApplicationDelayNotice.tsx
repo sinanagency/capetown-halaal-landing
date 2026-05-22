@@ -10,97 +10,104 @@ import {
   Preview,
 } from '@react-email/components'
 
-interface ApplicationConfirmationProps {
+interface ApplicationDelayNoticeProps {
+  firstName: string
   businessName: string
-  contactName: string
-  email?: string
 }
 
-export function ApplicationConfirmation({
+export function ApplicationDelayNotice({
+  firstName,
   businessName,
-  contactName,
-  email,
-}: ApplicationConfirmationProps) {
+}: ApplicationDelayNoticeProps) {
   return (
     <Html>
       <Head />
-      <Preview>Application received — Young at Heart Festival 2026</Preview>
+      <Preview>An update on your Young at Heart Festival 2026 application</Preview>
       <Body style={main}>
         <Container style={container}>
-          {/* Header */}
           <Section style={header}>
             <Text style={logo}>Young at Heart</Text>
             <Text style={logoSub}>Festival 2026</Text>
           </Section>
 
-          {/* Content */}
           <Section style={content}>
-            <Text style={heading}>Application Received</Text>
+            <Text style={heading}>A quick update on your application</Text>
 
-            <Text style={paragraph}>Hi {contactName},</Text>
+            <Text style={paragraph}>Hi {firstName},</Text>
 
             <Text style={paragraph}>
-              Thank you for submitting your exhibitor application for <strong>{businessName}</strong>.
-              We're excited that you want to be part of Young at Heart Festival 2026!
+              Thank you for your patience, and for applying to trade at
+              Young at Heart Festival 2026 with <strong>{businessName}</strong>.
             </Text>
 
-            {email && (
-              <Section style={infoBox}>
-                <Text style={infoLabel}>Confirmation sent to</Text>
-                <Text style={infoValue}>{email}</Text>
-              </Section>
-            )}
+            <Text style={paragraph}>
+              We have received an overwhelming number of vendor applications
+              this year, far beyond what we anticipated. Because of this, our
+              selection committee is taking extra time to review each
+              application carefully, fairly, and in full.
+            </Text>
 
-            <Text style={subheading}>What happens next?</Text>
+            <Text style={subheading}>What this means for you</Text>
 
             <Section style={timeline}>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>1</strong>
-                Our team is reviewing your application. No further action is needed from you for now.
+                Your application is in the queue, and it will be reviewed.
               </Text>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>2</strong>
-                From 1 June 2026, every applicant receives a personal email with the outcome — whether approved or not.
+                Decisions are being rolled out in waves over the coming weeks.
               </Text>
               <Text style={timelineItem}>
                 <strong style={timelineDot}>3</strong>
-                If approved, that email includes your login details and payment instructions.
+                Every applicant will receive a personal email with the outcome,
+                whether approved or not.
               </Text>
             </Section>
 
             <Text style={paragraph}>
-              Please check your spam or junk folder for emails from{' '}
-              <Link href="mailto:support@youngatheart.co.za" style={link}>
-                support@youngatheart.co.za
-              </Link>{' '}
-              and mark us as a safe sender, so your outcome email lands properly around 1 June.
+              No action is needed from you right now. If your business details
+              or contact information have changed, simply reply to this email
+              and we will update our records.
             </Text>
 
             <Hr style={divider} />
 
-            {/* Event Info */}
             <Section style={eventBox}>
               <Text style={eventTitle}>Event Details</Text>
-              <Text style={eventDetail}>📅 December 11–13, 2026</Text>
+              <Text style={eventDetail}>📅 December 11 to 13, 2026</Text>
               <Text style={eventDetail}>📍 Youngsfield Military Base, Cape Town</Text>
               <Text style={eventDetail}>🎪 350+ Vendors · 25,000+ Visitors</Text>
             </Section>
 
             <Text style={paragraph}>
+              If you do not see future emails from us, please check your spam
+              or junk folder, and mark{' '}
+              <Link href="mailto:support@youngatheart.co.za" style={link}>
+                support@youngatheart.co.za
+              </Link>{' '}
+              as a safe sender.
+            </Text>
+
+            <Text style={paragraph}>
               Questions? Reach out at{' '}
               <Link href="mailto:support@youngatheart.co.za" style={link}>
                 support@youngatheart.co.za
-              </Link>
+              </Link>{' '}
+              or call 065 943 5012.
             </Text>
 
             <Text style={signoff}>
-              Best regards,
+              Thank you again for your patience, and for wanting to be part of
+              Young at Heart Festival 2026.
               <br />
-              <strong>The Young at Heart Team</strong>
+              <br />
+              Warm regards,
+              <br />
+              <strong>The Young at Heart Festival Team</strong>
             </Text>
           </Section>
 
-          {/* Footer */}
           <Section style={footer}>
             <Text style={footerText}>
               © 2026 Young at Heart Festival · Cape Town, South Africa
@@ -174,27 +181,6 @@ const paragraph = {
   marginBottom: '16px',
 }
 const link = { color: '#cd2653', textDecoration: 'underline' }
-const infoBox = {
-  backgroundColor: '#fafafa',
-  border: '1px solid #e5e5e5',
-  borderRadius: '8px',
-  padding: '16px',
-  marginBottom: '20px',
-}
-const infoLabel = {
-  fontSize: '11px',
-  fontWeight: '700' as const,
-  color: '#a3a3a3',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '1px',
-  margin: '0 0 4px',
-}
-const infoValue = {
-  fontSize: '15px',
-  fontWeight: '600' as const,
-  color: '#0a0a0a',
-  margin: '0',
-}
 const timeline = { marginBottom: '24px' }
 const timelineItem = {
   fontSize: '14px',
@@ -259,4 +245,4 @@ const footerLinks = {
 }
 const footerLink = { color: '#cd2653', textDecoration: 'none' }
 
-export default ApplicationConfirmation
+export default ApplicationDelayNotice

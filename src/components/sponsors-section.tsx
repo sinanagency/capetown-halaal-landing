@@ -311,7 +311,7 @@ function SponsorCard({ tier, index, onEnquire }: { tier: SponsorTier; index: num
 
         {/* Icon or Partner Logo */}
         {tier.isPartner && tier.partnerLogo ? (
-          <div className="bg-white rounded-2xl p-3 mb-6 w-fit shadow-xl">
+          <div className="bg-white rounded-2xl p-3 mb-6 w-fit mx-auto shadow-xl">
             <div className="relative h-12 w-32">
               <Image
                 src={tier.partnerLogo}
