@@ -8,7 +8,7 @@ import {
   Calendar, MapPin, Users, Building2, ArrowRight, ArrowUpRight,
   Utensils, ShoppingBag, Sparkles, Globe, Award, Clock,
   ChevronRight, Instagram, Facebook, Youtube,
-  Mail, Phone, Star, Ticket, Store, Play, ChevronDown, Zap, X, Send
+  Mail, Phone, Star, Ticket, Store, Play, ChevronDown, Zap, X, Send, LogIn
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/logo'
 import { HeroSection } from '@/components/hero-section'
@@ -414,6 +414,14 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <a
+                href="/exhibitor.html"
+                className="hidden sm:flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:text-[#cd2653] border border-neutral-200 hover:border-[#cd2653]/40 rounded-xl transition-colors"
+              >
+                <LogIn className="w-4 h-4" />
+                <span className="hidden md:inline">Exhibitor Portal</span>
+                <span className="md:hidden">Portal</span>
+              </a>
               <a
                 href="/apply"
                 className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl shadow-lg shadow-[#cd2653]/20 hover:opacity-90 transition-opacity"

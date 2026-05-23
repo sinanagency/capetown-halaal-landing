@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { User, LogOut, LayoutDashboard, MapPin } from 'lucide-react'
+import { User, LogOut, LayoutDashboard, MapPin, LogIn } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/logo'
 
@@ -64,6 +64,15 @@ export function Navbar() {
               Exhibitors
             </Button>
           </Link>
+          <a href="/exhibitor.html">
+            <Button
+              variant="ghost"
+              className="gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100"
+            >
+              <LogIn className="w-4 h-4" />
+              Exhibitor Portal
+            </Button>
+          </a>
           {isAuthenticated && (
             <Link href="/dashboard">
               <Button
@@ -82,6 +91,12 @@ export function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+          <a href="/exhibitor.html" className="hidden sm:block md:hidden lg:block">
+            <Button size="sm" variant="outline" className="border-neutral-200 text-neutral-700 gap-1.5">
+              <LogIn className="w-4 h-4" />
+              Portal
+            </Button>
+          </a>
           {/* User menu */}
           {isAuthenticated ? (
             <DropdownMenu>

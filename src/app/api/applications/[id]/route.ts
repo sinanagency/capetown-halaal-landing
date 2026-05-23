@@ -108,6 +108,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
     }
 
+    // On approval, reserve the booth and defer payment to September.
+    // Best-effort: payment_status/payment_due_date ship in migration v5.
+    // If the migration isn't applied yet, this no-ops instead of breaking approval.
+    if (validated.status === 'approved') {
+      const { error: payErr } = await admin
+        .from('vendor_applications')
+        .update({ payment_status: 'deferred', payment_due_date: '2026-09-01' })
+        .eq('id', id)
+      if (payErr) console.error('Payment defaults skipped (migration v5 pending?):', payErr.message)
+    }
+
     // Send status notification email
     if (validated.status && data) {
       try {
@@ -138,6 +149,7 @@ export async function PATCH(
               applicationId: id,
               tempPassword: otp,
               loginUrl: 'https://cthalaal.co.za/exhibitor',
+              paymentDueDate: '1 September 2026',
             }),
           })
         } else if (validated.status === 'rejected') {

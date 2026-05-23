@@ -19,6 +19,7 @@ interface ApplicationApprovedProps {
   applicationId?: string
   tempPassword?: string
   loginUrl?: string
+  paymentDueDate?: string
 }
 
 export function ApplicationApproved({
@@ -28,6 +29,7 @@ export function ApplicationApproved({
   applicationId,
   tempPassword,
   loginUrl = 'https://cthalaal.co.za/exhibitor',
+  paymentDueDate,
 }: ApplicationApprovedProps) {
   return (
     <Html>
