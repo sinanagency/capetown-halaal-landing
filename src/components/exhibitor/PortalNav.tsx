@@ -13,7 +13,7 @@ const SECTIONS = [
   { href: '/exhibitor/portal', label: 'Overview', icon: LayoutGrid, live: true },
   { href: '/exhibitor/portal/stand', label: 'My Stand', icon: MapPin, live: true },
   { href: '/exhibitor/portal/payments', label: 'Payments', icon: CreditCard, live: false },
-  { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck, live: false },
+  { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck, live: true },
   { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users, live: false },
   { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone, live: false },
   { href: '/exhibitor/portal/profile', label: 'Profile', icon: Store, live: false },
