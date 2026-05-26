@@ -4,11 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email/resend'
 import { ApplicationApproved } from '@/lib/email/templates/ApplicationApproved'
-import crypto from 'crypto'
-
-function generateOTP(): string {
-  return crypto.randomInt(100000, 999999).toString()
-}
+import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -127,20 +123,25 @@ export async function PATCH(
       try {
         let res: { ok: boolean; error?: string } | undefined
         if (validated.status === 'approved') {
-          const otp = generateOTP()
-          const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
-
-          // Store OTP (fails gracefully if table missing)
+          // Create (or reset) the vendor's real portal account + temp password.
+          let tempPassword = ''
           try {
-            const adminSb = createAdminClient()
-            await adminSb.from('vendor_otps').insert({
-              application_id: id,
+            const prov = await provisionExhibitorAccount({
               email: data.email,
-              otp_hash: otpHash,
-              expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+              applicationId: id,
+              businessName: data.business_name,
             })
-          } catch (otpError) {
-            console.error('OTP storage error:', otpError)
+            tempPassword = prov.tempPassword
+            // best-effort link (auth_user_id column ships in migration v7)
+            if (prov.userId) {
+              const { error: linkErr } = await createAdminClient()
+                .from('vendor_applications')
+                .update({ auth_user_id: prov.userId })
+                .eq('id', id)
+              if (linkErr) console.error('auth_user_id link skipped (migration v7 pending?):', linkErr.message)
+            }
+          } catch (e) {
+            console.error('[approve] account provisioning failed:', (e as Error).message)
           }
 
           res = await sendEmail({
@@ -151,8 +152,8 @@ export async function PATCH(
               contactName: data.contact_name,
               boothTier: data.preferred_booth_tier || undefined,
               applicationId: id,
-              tempPassword: otp,
-              loginUrl: 'https://cthalaal.co.za/exhibitor',
+              tempPassword,
+              loginUrl: 'https://cthalaal.co.za/exhibitor/login',
               paymentDueDate: '1 September 2026',
             }),
           })
