@@ -49,6 +49,7 @@ export interface PortalState {
   staff?: StaffMember[]
   profile?: VendorProfile
   support?: SupportMessage[]
+  passAllowance?: number        // gate passes this vendor is entitled to (set by organisers)
   stage?: 'approved' | 'invoiced' | 'paid' | 'docs' | 'show_ready'
 }
 

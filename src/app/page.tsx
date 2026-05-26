@@ -415,7 +415,7 @@ export default function HomePage() {
 
             <div className="flex items-center gap-3">
               <a
-                href="/exhibitor.html"
+                href="/exhibitor/login"
                 className="hidden sm:flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-neutral-700 hover:text-[#cd2653] border border-neutral-200 hover:border-[#cd2653]/40 rounded-xl transition-colors"
               >
                 <LogIn className="w-4 h-4" />

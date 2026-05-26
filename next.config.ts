@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    // Legacy static portal page is gone — send any old link to the real login.
+    return [
+      { source: '/exhibitor.html', destination: '/exhibitor/login', permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

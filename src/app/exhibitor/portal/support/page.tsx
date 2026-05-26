@@ -12,9 +12,9 @@ export default async function SupportPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[#cd2653] font-semibold">Support</p>
-        <h1 className="font-serif text-3xl text-neutral-900 mt-1">Talk to the organisers</h1>
-        <p className="text-neutral-500 text-sm mt-1">Messages are tracked here. We reply in this thread and by email.</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-[#cd2653] font-semibold">Inbox</p>
+        <h1 className="font-serif text-3xl text-neutral-900 mt-1">Ask the organisers anything</h1>
+        <p className="text-neutral-500 text-sm mt-1">Questions about your stall, payment, load-in or documents. Every message is tracked here and we reply in this thread.</p>
       </div>
       <SupportThread initial={state.support || []} />
       <p className="text-xs text-neutral-400 flex items-center gap-1.5 justify-center"><Mail className="w-3 h-3" /> Urgent? Email support@youngatheart.co.za</p>

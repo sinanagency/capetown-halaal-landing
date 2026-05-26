@@ -64,7 +64,7 @@ export function Navbar() {
               Exhibitors
             </Button>
           </Link>
-          <a href="/exhibitor.html">
+          <a href="/exhibitor/login">
             <Button
               variant="ghost"
               className="gap-2 text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100"
@@ -91,7 +91,7 @@ export function Navbar() {
 
         {/* Right side */}
         <div className="flex items-center gap-3">
-          <a href="/exhibitor.html" className="hidden sm:block md:hidden lg:block">
+          <a href="/exhibitor/login" className="hidden sm:block md:hidden lg:block">
             <Button size="sm" variant="outline" className="border-neutral-200 text-neutral-700 gap-1.5">
               <LogIn className="w-4 h-4" />
               Portal
