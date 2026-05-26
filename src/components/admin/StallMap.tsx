@@ -18,7 +18,7 @@ interface Props {
   stalls: MapStall[]
   grid: { cols: number; rows: number }
   zones: { label: string; col: number; row: number; w: number; h: number }[]
-  mode?: 'admin' | 'exhibitor'
+  mode?: 'admin' | 'exhibitor' | 'vendor'
   selected?: string | null
   onSelect?: (code: string) => void
   mineCode?: string | null
@@ -40,6 +40,8 @@ export default function StallMap({ stalls, grid, zones, mode = 'admin', selected
       if (neighbours.has(s.code)) return TYPE_META[s.type].color
       return '#eef0f2'
     }
+    // vendor + admin both show full occupancy; vendor also highlights "mine"
+    if (mode === 'vendor' && s.code === mineCode) return '#cd2653'
     if (selected === s.code) return '#cd2653'
     if (s.status === 'allocated') return STATUS_FILL.allocated
     if (s.status === 'held') return STATUS_FILL.held
@@ -51,6 +53,7 @@ export default function StallMap({ stalls, grid, zones, mode = 'admin', selected
       if (neighbours.has(s.code)) return '#94a3b8'
       return '#dfe3e7'
     }
+    if (mode === 'vendor' && s.code === mineCode) return '#7c1d3a'
     if (selected === s.code) return '#7c1d3a'
     return TYPE_META[s.type].color
   }
@@ -75,7 +78,7 @@ export default function StallMap({ stalls, grid, zones, mode = 'admin', selected
         {/* stalls */}
         {stalls.map((s) => {
           const interactive = mode === 'admin' && !!onSelect
-          const isMine = mode === 'exhibitor' && s.code === mineCode
+          const isMine = (mode === 'exhibitor' || mode === 'vendor') && s.code === mineCode
           return (
             <rect
               key={s.code}
@@ -98,8 +101,8 @@ export default function StallMap({ stalls, grid, zones, mode = 'admin', selected
           )
         })}
 
-        {/* exhibitor "you are here" pin */}
-        {mode === 'exhibitor' && mineCode && (() => {
+        {/* "you are here" pin (exhibitor + vendor views) */}
+        {(mode === 'exhibitor' || mode === 'vendor') && mineCode && (() => {
           const me = stalls.find((s) => s.code === mineCode)
           if (!me) return null
           return (

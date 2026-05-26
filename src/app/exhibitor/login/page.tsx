@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/logo'
@@ -28,16 +29,21 @@ export default function ExhibitorLogin() {
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-white">
-      {/* editorial left rail */}
-      <div className="hidden lg:flex flex-col justify-between p-12 bg-[#1a1416] text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.15]" style={{ background: 'radial-gradient(60% 50% at 20% 0%, #cd2653 0%, transparent 60%), radial-gradient(50% 50% at 100% 100%, #cd2653 0%, transparent 55%)' }} />
-        <Logo size="md" showText className="relative" />
-        <div className="relative">
-          <p className="text-xs uppercase tracking-[0.25em] text-[#cd2653] font-semibold mb-4">Exhibitor Portal</p>
-          <h1 className="font-serif text-4xl leading-tight">Everything you need to run your stall, in one place.</h1>
-          <p className="text-white/60 mt-4 max-w-sm text-sm leading-relaxed">Your stand, payments, documents, staff passes and festival updates. 11–13 December 2026, Youngsfield Military Base.</p>
+      {/* editorial left rail — real festival photo behind a dark scrim */}
+      <div className="hidden lg:flex flex-col justify-between p-12 text-white relative overflow-hidden">
+        <Image src="/about/festival-crowd.jpg" alt="" fill priority sizes="50vw" className="object-cover object-center" />
+        {/* scrims: flat dim + bottom-weighted gradient + crimson brand glow — keeps every line readable */}
+        <div className="absolute inset-0 bg-[#140a0c]/78" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#140a0c]/95 via-[#140a0c]/45 to-[#140a0c]/85" />
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(55% 45% at 12% 4%, rgba(205,38,83,0.38) 0%, transparent 60%)' }} />
+
+        <Logo size="md" showText light className="relative z-10" />
+        <div className="relative z-10">
+          <p className="text-xs uppercase tracking-[0.25em] text-[#ff7a9c] font-semibold mb-4">Exhibitor Portal</p>
+          <h1 className="font-serif text-4xl leading-tight drop-shadow-sm">Everything you need to run your stall, in one place.</h1>
+          <p className="text-white/75 mt-4 max-w-sm text-sm leading-relaxed">Your stand, payments, documents, staff passes and festival updates. 11–13 December 2026, Youngsfield Military Base.</p>
         </div>
-        <p className="relative text-white/40 text-xs">Young at Heart Festival · Cape Town Halaal</p>
+        <p className="relative z-10 text-white/60 text-xs">Young at Heart Festival · Cape Town Halaal</p>
       </div>
 
       {/* form */}

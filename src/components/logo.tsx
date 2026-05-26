@@ -7,6 +7,7 @@ interface LogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   showText?: boolean
   className?: string
+  light?: boolean
 }
 
 const sizes = {
@@ -16,7 +17,7 @@ const sizes = {
   xl: { icon: 80, text: 'text-2xl', subtext: 'text-sm' },
 }
 
-export function Logo({ size = 'md', showText = true, className }: LogoProps) {
+export function Logo({ size = 'md', showText = true, className, light = false }: LogoProps) {
   const s = sizes[size]
 
   return (
@@ -32,8 +33,8 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
 
       {showText && (
         <div className="leading-tight">
-          <p className={cn('font-bold text-neutral-900', s.text)}>Young at Heart</p>
-          <p className={cn('text-neutral-500', s.subtext)}>Festival 2026</p>
+          <p className={cn('font-bold', light ? 'text-white' : 'text-neutral-900', s.text)}>Young at Heart</p>
+          <p className={cn(light ? 'text-white/70' : 'text-neutral-500', s.subtext)}>Festival 2026</p>
         </div>
       )}
     </div>

@@ -12,7 +12,9 @@ export default async function PortalLayout({ children }: { children: React.React
   const businessName = (ctx.application?.business_name as string) || ctx.email
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen relative">
+      {/* warm editorial backdrop (Nisria-style ambient, kept light for CTH) */}
+      <div className="fixed inset-0 -z-10" style={{ background: 'radial-gradient(50% 38% at 100% 0%, rgba(205,38,83,0.07), transparent 60%), radial-gradient(45% 35% at 0% 8%, rgba(205,38,83,0.04), transparent 55%), linear-gradient(180deg, #fbfafa, #f4f2f3)' }} />
       <PortalNav businessName={businessName} />
       <main className="container mx-auto px-4 py-8">{children}</main>
     </div>
