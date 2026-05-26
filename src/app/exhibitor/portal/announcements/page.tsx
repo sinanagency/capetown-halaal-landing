@@ -1,5 +1,5 @@
+import Image from 'next/image'
 import { listAnnouncements } from '@/lib/announcements'
-import { LogoMark } from '@/components/logo'
 import { Megaphone, Pin } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
@@ -35,8 +35,8 @@ export default async function AnnouncementsPage() {
               {/* timeline connector */}
               {i < items.length - 1 && <div className="absolute left-[19px] top-11 bottom-0 w-px bg-neutral-200" />}
               {/* avatar */}
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200 overflow-hidden flex items-center justify-center shrink-0 z-10 ring-4 ring-[#fbfafa]">
-                <LogoMark size="sm" />
+              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200 flex items-center justify-center shrink-0 z-10 ring-4 ring-[#fbfafa]">
+                <Image src="/logo.png" alt="Young at Heart" width={28} height={28} className="object-contain" />
               </div>
               {/* post */}
               <div className={`flex-1 bg-white border rounded-2xl p-4 ${a.pinned ? 'border-[#cd2653]/30' : 'border-neutral-200'}`}>

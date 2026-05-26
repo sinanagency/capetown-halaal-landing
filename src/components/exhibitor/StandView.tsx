@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, Navigation, Clock } from 'lucide-react'
+import { Loader2, Navigation, Clock, MessageSquare, ArrowRight } from 'lucide-react'
 import StallMap, { type MapStall } from '@/components/admin/StallMap'
 
 interface MapData {
@@ -81,6 +81,18 @@ export default function StandView() {
         <StallMap stalls={data.stalls} grid={data.grid} zones={data.zones} mode="vendor" mineCode={data.mine} />
         <Legend />
       </div>
+
+      {/* request a stall change */}
+      <a href="/exhibitor/portal/support" className="flex items-center justify-between gap-3 bg-white border border-neutral-200 rounded-2xl p-5 hover:border-[#cd2653]/40 group">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#cd2653]/10 text-[#cd2653] flex items-center justify-center shrink-0"><MessageSquare className="w-5 h-5" /></div>
+          <div>
+            <p className="font-semibold text-neutral-900">Want a different spot?</p>
+            <p className="text-sm text-neutral-500">Message the organisers to request a stall change or raise a placement concern.</p>
+          </div>
+        </div>
+        <ArrowRight className="w-5 h-5 text-neutral-300 group-hover:text-[#cd2653] shrink-0" />
+      </a>
     </div>
   )
 }

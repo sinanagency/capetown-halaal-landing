@@ -28,7 +28,7 @@ export function ApplicationApproved({
   boothTier,
   applicationId,
   tempPassword,
-  loginUrl = 'https://cthalaal.co.za/exhibitor',
+  loginUrl = 'https://cthalaal.co.za/exhibitor/login',
   paymentDueDate,
 }: ApplicationApprovedProps) {
   return (
