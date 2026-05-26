@@ -1,0 +1,31 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { listAnnouncements, addAnnouncement } from '@/lib/announcements'
+
+async function isAuthorized(request: NextRequest): Promise<boolean> {
+  const secret = new URL(request.url).searchParams.get('secret')
+  const cronSecret = (process.env.CRON_SECRET || '').trim()
+  if (secret && cronSecret && secret === cronSecret) return true
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return false
+    const admin = createAdminClient()
+    const { data } = await admin.from('admin_users').select().eq('id', user.id).single()
+    return !!data
+  } catch { return false }
+}
+
+export async function GET() {
+  return NextResponse.json({ announcements: await listAnnouncements() })
+}
+
+// POST { title, body, pinned } — admin posts a festival-wide announcement.
+export async function POST(request: NextRequest) {
+  if (!(await isAuthorized(request))) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const body = await request.json().catch(() => ({}))
+  if (!body.title || !body.body) return NextResponse.json({ error: 'title and body required' }, { status: 400 })
+  const item = await addAnnouncement({ title: String(body.title), body: String(body.body), pinned: !!body.pinned, created_by: 'organisers' })
+  return NextResponse.json({ success: true, announcement: item })
+}

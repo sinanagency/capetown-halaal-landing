@@ -23,6 +23,18 @@ export interface StaffMember {
   added_at: string
 }
 
+export interface MenuItem { name: string; price?: string; desc?: string }
+
+export interface VendorProfile {
+  tagline?: string
+  description?: string
+  logo_path?: string       // object path in the public vendor-assets bucket
+  website?: string
+  instagram?: string
+  facebook?: string
+  menu?: MenuItem[]
+}
+
 export interface PortalState {
   v: number
   payment?: {
@@ -35,7 +47,16 @@ export interface PortalState {
   }
   docs?: DocRecord[]
   staff?: StaffMember[]
+  profile?: VendorProfile
+  support?: SupportMessage[]
   stage?: 'approved' | 'invoiced' | 'paid' | 'docs' | 'show_ready'
+}
+
+export interface SupportMessage {
+  id: string
+  from: 'vendor' | 'admin'
+  body: string
+  at: string
 }
 
 export function parsePortalState(adminNotes?: string | null): PortalState {

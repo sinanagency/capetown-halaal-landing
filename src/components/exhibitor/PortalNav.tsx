@@ -15,10 +15,10 @@ const SECTIONS = [
   { href: '/exhibitor/portal/payments', label: 'Payments', icon: CreditCard, live: false },
   { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck, live: true },
   { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users, live: true },
-  { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone, live: false },
-  { href: '/exhibitor/portal/profile', label: 'Profile', icon: Store, live: false },
-  { href: '/exhibitor/portal/support', label: 'Support', icon: LifeBuoy, live: false },
-  { href: '/exhibitor/portal/resources', label: 'Resources', icon: BookOpen, live: false },
+  { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone, live: true },
+  { href: '/exhibitor/portal/profile', label: 'Profile', icon: Store, live: true },
+  { href: '/exhibitor/portal/support', label: 'Support', icon: LifeBuoy, live: true },
+  { href: '/exhibitor/portal/resources', label: 'Resources', icon: BookOpen, live: true },
 ]
 
 export default function PortalNav({ businessName }: { businessName: string }) {
