@@ -15,6 +15,14 @@ export interface DocRecord {
   note?: string
 }
 
+export interface StaffMember {
+  id: string
+  name: string
+  id_number: string
+  vehicle_reg: string
+  added_at: string
+}
+
 export interface PortalState {
   v: number
   payment?: {
@@ -26,6 +34,7 @@ export interface PortalState {
     proof_path?: string
   }
   docs?: DocRecord[]
+  staff?: StaffMember[]
   stage?: 'approved' | 'invoiced' | 'paid' | 'docs' | 'show_ready'
 }
 
