@@ -41,7 +41,7 @@ export default function ExhibitorPortal() {
       <header className="bg-white border-b border-neutral-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <a href="/"><Logo size="md" showText={true} /></a>
-          <span className="text-sm text-neutral-500 hidden sm:block">Exhibitor Portal</span>
+          <a href="/exhibitor/login" className="text-sm font-semibold text-[#cd2653] hover:text-[#b01f45] flex items-center gap-1">Sign in to your portal →</a>
         </div>
       </header>
 
@@ -53,6 +53,7 @@ export default function ExhibitorPortal() {
                 <div className="w-12 h-12 rounded-xl bg-[#cd2653]/10 text-[#cd2653] flex items-center justify-center mx-auto mb-3"><Store className="w-6 h-6" /></div>
                 <h1 className="text-2xl font-bold text-neutral-900">Find your stall</h1>
                 <p className="text-neutral-500 text-sm mt-1">Enter the email you applied with to see where you are on the festival map and who your neighbours are.</p>
+                <p className="text-neutral-400 text-xs mt-2">Approved exhibitor? <a href="/exhibitor/login" className="text-[#cd2653] font-semibold">Sign in to your portal</a> for payments, documents and passes.</p>
               </div>
               <form onSubmit={lookup} className="bg-white border border-neutral-200 rounded-xl p-5">
                 <label className="text-xs font-semibold text-neutral-600">Application email</label>
