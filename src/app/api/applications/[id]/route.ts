@@ -119,9 +119,13 @@ export async function PATCH(
       if (payErr) console.error('Payment defaults skipped (migration v5 pending?):', payErr.message)
     }
 
-    // Send status notification email
+    // Send status notification email. Capture the result so the admin UI can
+    // tell the operator whether the applicant was actually notified.
+    let emailSent = false
+    let emailError: string | undefined
     if (validated.status && data) {
       try {
+        let res: { ok: boolean; error?: string } | undefined
         if (validated.status === 'approved') {
           const otp = generateOTP()
           const otpHash = crypto.createHash('sha256').update(otp).digest('hex')
@@ -139,7 +143,7 @@ export async function PATCH(
             console.error('OTP storage error:', otpError)
           }
 
-          await sendEmail({
+          res = await sendEmail({
             to: data.email,
             subject: 'You\'re Approved! Welcome to Young at Heart Festival 2026',
             react: ApplicationApproved({
@@ -153,24 +157,32 @@ export async function PATCH(
             }),
           })
         } else if (validated.status === 'rejected') {
-          await sendEmail({
+          res = await sendEmail({
             to: data.email,
             subject: 'Update on Your Application - Young at Heart Festival',
             text: `Hi ${data.contact_name},\n\nThank you for your interest in exhibiting at Young at Heart Festival 2026.\n\nAfter careful review, we regret to inform you that we are unable to approve your application for ${data.business_name} at this time.\n\nThis decision may be due to booth availability, category balance, or other factors. We encourage you to apply again for future events.\n\nIf you have questions, please contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
           })
         } else if (validated.status === 'info_requested') {
-          await sendEmail({
+          res = await sendEmail({
             to: data.email,
             subject: 'Additional Information Needed - Young at Heart Festival',
             text: `Hi ${data.contact_name},\n\nThank you for applying to exhibit at Young at Heart Festival 2026.\n\nWe need some additional information before we can process your application for ${data.business_name}.\n\nPlease reply to this email with the requested details, or contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
           })
         }
-      } catch (emailError) {
-        console.error('Email send error:', emailError)
+        if (res) {
+          emailSent = res.ok
+          emailError = res.error
+          if (!res.ok) {
+            console.error(`[applications/${id}] ${validated.status} email FAILED for ${data.email}: ${res.error}`)
+          }
+        }
+      } catch (e) {
+        emailError = (e as Error).message
+        console.error('[applications] status email threw:', e)
       }
     }
 
-    return NextResponse.json({ success: true, application: data })
+    return NextResponse.json({ success: true, application: data, emailSent, emailError })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

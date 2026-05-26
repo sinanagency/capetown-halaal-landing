@@ -58,9 +58,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Send confirmation email
+    // Send confirmation email. We never block the applicant on email, but we
+    // no longer pretend it worked — the result is logged loudly and returned.
+    let emailSent = false
     try {
-      await sendEmail({
+      const res = await sendEmail({
         to: validated.email,
         subject: 'Application Received - Young at Heart Festival 2026',
         react: ApplicationConfirmation({
@@ -69,11 +71,15 @@ export async function POST(request: NextRequest) {
           email: validated.email,
         }),
       })
+      emailSent = res.ok
+      if (!res.ok) {
+        console.error(`[applications] confirmation email FAILED for ${validated.email}: ${res.error}`)
+      }
     } catch (emailError) {
-      console.error('Email send error:', emailError)
+      console.error('[applications] confirmation email threw:', emailError)
     }
 
-    return NextResponse.json({ success: true, application: data })
+    return NextResponse.json({ success: true, application: data, emailSent })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
