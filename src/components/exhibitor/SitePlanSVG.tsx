@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-export interface Rect { x: number; y: number; w: number; h: number; fill: string }
-export interface Stall extends Rect { code: string; type: string }
-export interface Txt { t: string; x: number; y: number; size: number; fill: string }
-export interface PlanVec { w: number; h: number; bg: Rect[]; stalls: Stall[]; texts: Txt[] }
+export interface Stall { code: string; type: string; x: number; y: number; w: number; h: number }
+export interface PlanVec { w: number; h: number; image?: string; stalls: Stall[] }
 
 type Mode = 'pin' | 'interactive' | 'guided'
 const TYPE_LABEL: Record<string, string> = { FS: 'Full Space', TS: 'Table Space', FT: 'Food Truck', BS: 'Bedouin Space' }
+const IMG = '/site-plan.webp' // the real organiser artwork (100% identical), 792x612 page space
 
 export default function SitePlanSVG({ plan, mode, mineCode }: { plan: PlanVec; mode: Mode; mineCode: string | null }) {
   const [scale, setScale] = useState(1)
@@ -17,6 +16,7 @@ export default function SitePlanSVG({ plan, mode, mineCode }: { plan: PlanVec; m
   const [hover, setHover] = useState<Stall | null>(null)
   const [sel, setSel] = useState<Stall | null>(null)
   const drag = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null)
+  const W = plan.w, H = plan.h
 
   const mine = mineCode ? plan.stalls.find((s) => s.code.toUpperCase() === mineCode.toUpperCase()) : null
   const neighbours = mine
@@ -26,16 +26,13 @@ export default function SitePlanSVG({ plan, mode, mineCode }: { plan: PlanVec; m
     : []
   const nb = new Set(neighbours.map((n) => n.code))
 
-  // guided: zoom to mine on mount
   useEffect(() => {
     if (mode !== 'guided' || !mine) { setScale(1); setTx(0); setTy(0); return }
-    const z = 3
-    setScale(z)
-    setTx(plan.w / 2 - (mine.x + mine.w / 2) * z)
-    setTy(plan.h / 2 - (mine.y + mine.h / 2) * z)
-  }, [mode, mine, plan.w, plan.h])
+    const z = 3.4
+    setScale(z); setTx(W / 2 - (mine.x + mine.w / 2) * z); setTy(H / 2 - (mine.y + mine.h / 2) * z)
+  }, [mode, mine, W, H])
 
-  const clamp = (z: number) => Math.min(8, Math.max(1, z))
+  const clamp = (z: number) => Math.min(9, Math.max(1, z))
   function onWheel(e: React.WheelEvent) { e.preventDefault(); setScale((s) => clamp(s - e.deltaY * 0.0016 * s)) }
   function onDown(e: React.MouseEvent) { drag.current = { x: e.clientX, y: e.clientY, tx, ty, moved: false } }
   const onMove = useCallback((e: MouseEvent) => {
@@ -59,25 +56,30 @@ export default function SitePlanSVG({ plan, mode, mineCode }: { plan: PlanVec; m
         ))}
       </div>
 
-      <svg viewBox={`0 0 ${plan.w} ${plan.h}`} onWheel={onWheel} onMouseDown={onDown}
-        className="w-full rounded-2xl border border-neutral-200 cursor-grab active:cursor-grabbing"
-        style={{ background: '#00af50', aspectRatio: `${plan.w} / ${plan.h}` }}>
+      <svg viewBox={`0 0 ${W} ${H}`} onWheel={onWheel} onMouseDown={onDown}
+        className="w-full rounded-2xl border border-neutral-200 cursor-grab active:cursor-grabbing block"
+        style={{ aspectRatio: `${W} / ${H}`, background: '#0c6b2e' }}>
         <g transform={`translate(${tx} ${ty}) scale(${scale})`}>
-          {/* background shapes — exact PDF geometry/colours */}
-          {plan.bg.map((r, i) => <rect key={`b${i}`} x={r.x} y={r.y} width={r.w} height={r.h} fill={r.fill} />)}
+          {/* the REAL artwork — 100% identical to the PDF */}
+          <image href={plan.image || IMG} x={0} y={0} width={W} height={H} preserveAspectRatio="xMidYMid slice" />
 
-          {/* stalls — every cell at its real size/location, individually clickable */}
+          {/* guided: dim everything except mine + neighbours */}
+          {mode === 'guided' && mine && <rect x={0} y={0} width={W} height={H} fill="#06120a" opacity={0.55} />}
+
+          {/* clickable stall cells overlaid at exact coordinates */}
           {plan.stalls.map((s) => {
             const isMine = mine && s.code === mine.code
             const isNb = mode === 'guided' && nb.has(s.code)
-            const dim = mode === 'guided' && !isMine && !isNb
-            const fill = isMine ? '#cd2653' : s.fill
+            const hot = hover?.code === s.code || sel?.code === s.code
+            let fill = 'transparent', op = 1
+            if (isMine) { fill = '#cd2653'; op = 0.55 }
+            else if (mode === 'interactive' && hot) { fill = '#cd2653'; op = 0.35 }
+            else if (mode === 'guided' && isNb) { fill = '#ffffff'; op = 0.001 } // keep visible (un-dimmed by sitting over scrim hole)
             return (
               <rect key={s.code} x={s.x} y={s.y} width={s.w} height={s.h}
-                fill={fill} fillOpacity={dim ? 0.25 : 1}
-                stroke={isMine ? '#7c1d3a' : hover?.code === s.code || sel?.code === s.code ? '#1a1416' : '#ffffff'}
-                strokeWidth={isMine || hover?.code === s.code ? 0.6 : 0.18}
-                style={{ cursor: interactive ? 'pointer' : 'inherit', transition: 'fill-opacity .2s' }}
+                fill={fill} fillOpacity={op}
+                stroke={isMine ? '#fff' : hot ? '#cd2653' : 'transparent'} strokeWidth={isMine ? 0.5 : 0.4}
+                style={{ cursor: interactive ? 'pointer' : 'inherit' }}
                 onMouseEnter={interactive ? () => setHover(s) : undefined}
                 onMouseLeave={interactive ? () => setHover(null) : undefined}
                 onClick={interactive ? () => { if (!drag.current?.moved) setSel(s) } : undefined}>
@@ -86,52 +88,42 @@ export default function SitePlanSVG({ plan, mode, mineCode }: { plan: PlanVec; m
             )
           })}
 
-          {/* zone / dimension labels — exact positions */}
-          {plan.texts.map((t, i) => (
-            <text key={`t${i}`} x={t.x} y={t.y} fontSize={t.size} fill={t.fill}
-              fontWeight={t.size > 7 ? 700 : 400} style={{ pointerEvents: 'none' }}>{t.t}</text>
+          {/* guided: re-show neighbour cells above the scrim with labels */}
+          {mode === 'guided' && neighbours.map((s) => (
+            <g key={`n${s.code}`} style={{ pointerEvents: 'none' }}>
+              <rect x={s.x} y={s.y} width={s.w} height={s.h} fill="#fff" fillOpacity={0.15} stroke="#fff" strokeWidth={0.3} />
+              <text x={s.x + s.w / 2} y={s.y - 1} fontSize={2.8} fontWeight={700} fill="#fff" textAnchor="middle">{s.code}</text>
+            </g>
           ))}
 
           {/* you-are-here marker */}
           {mine && (
             <g style={{ pointerEvents: 'none' }}>
-              <circle cx={mine.x + mine.w / 2} cy={mine.y + mine.h / 2} r={Math.max(mine.w, mine.h) * 0.9} fill="none" stroke="#cd2653" strokeWidth={0.5}>
-                <animate attributeName="r" values={`${Math.max(mine.w, mine.h) * 0.7};${Math.max(mine.w, mine.h) * 1.8}`} dur="1.5s" repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.9;0" dur="1.5s" repeatCount="indefinite" />
+              <circle cx={mine.x + mine.w / 2} cy={mine.y + mine.h / 2} r={Math.max(mine.w, mine.h) * 0.9} fill="none" stroke="#cd2653" strokeWidth={0.7}>
+                <animate attributeName="r" values={`${Math.max(mine.w, mine.h) * 0.7};${Math.max(mine.w, mine.h) * 2}`} dur="1.5s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="1;0" dur="1.5s" repeatCount="indefinite" />
               </circle>
-              <text x={mine.x + mine.w / 2} y={mine.y - 2} fontSize={3.4} fontWeight={800} fill="#cd2653" textAnchor="middle">YOU ARE HERE</text>
+              <rect x={mine.x + mine.w / 2 - 11} y={mine.y - 6.5} width={22} height={4.6} rx={1} fill="#cd2653" />
+              <text x={mine.x + mine.w / 2} y={mine.y - 3.2} fontSize={3} fontWeight={800} fill="#fff" textAnchor="middle">YOU ARE HERE</text>
             </g>
           )}
         </g>
       </svg>
 
-      {/* hover chip (interactive) */}
       {interactive && hover && (
         <div className="absolute bottom-3 left-3 z-30 bg-white/95 shadow rounded-lg px-3 py-1.5 text-sm pointer-events-none">
           <span className="font-bold text-neutral-900">{hover.code}</span>
           <span className="ml-2 text-xs text-neutral-500">{TYPE_LABEL[hover.type]}</span>
         </div>
       )}
-
-      {/* selected detail (interactive) */}
       {interactive && sel && (
         <div className="absolute bottom-3 right-3 z-30 bg-white shadow-lg border border-neutral-200 rounded-xl px-4 py-3 text-sm">
           <div className="flex items-center justify-between gap-6">
-            <div>
-              <p className="font-bold text-neutral-900">{sel.code}</p>
-              <p className="text-xs text-neutral-500">{TYPE_LABEL[sel.type]}</p>
-            </div>
+            <div><p className="font-bold text-neutral-900">{sel.code}</p><p className="text-xs text-neutral-500">{TYPE_LABEL[sel.type]}</p></div>
             <button onClick={() => setSel(null)} className="text-neutral-400 hover:text-neutral-700 text-lg leading-none">×</button>
           </div>
         </div>
       )}
-
-      {/* legend */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-xs text-neutral-500">
-        {[['#ffbf00', 'Full Space'], ['#dd11ed', 'Table Space'], ['#00afef', 'Food Truck'], ['#ffff00', 'Bedouin Space'], ['#cd2653', 'Your stall']].map(([c, l]) => (
-          <span key={l} className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border border-black/10" style={{ background: c }} />{l}</span>
-        ))}
-      </div>
     </div>
   )
 }
