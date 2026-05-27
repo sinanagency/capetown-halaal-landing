@@ -10,9 +10,9 @@ const VERSIONS = [
   { id: 'guided' as const, name: 'Version 3 — Guided wayfinding', blurb: 'Auto-zooms to your stall, dims the rest, and labels your nearest neighbours. Best for "where am I".' },
 ]
 
-export default function MapVersions({ mineCode }: { mineCode: string | null }) {
+export default function MapVersions({ mineCode, initial = 'pin' }: { mineCode: string | null; initial?: 'pin' | 'interactive' | 'guided' }) {
   const [plan, setPlan] = useState<SitePlan | null>(null)
-  const [mode, setMode] = useState<'pin' | 'interactive' | 'guided'>('pin')
+  const [mode, setMode] = useState<'pin' | 'interactive' | 'guided'>(initial)
 
   useEffect(() => {
     fetch('/site-plan-stalls.json').then((r) => r.json()).then(setPlan).catch(() => {})
