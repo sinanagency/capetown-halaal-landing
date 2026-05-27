@@ -13,8 +13,8 @@ export default async function MapDemo({ searchParams }: { searchParams: Promise<
       <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-[#cd2653] font-semibold">Site plan · demo</p>
-          <h1 className="font-serif text-3xl text-neutral-900 mt-1">Festival floor plan, 3 ways</h1>
-          <p className="text-neutral-500 text-sm mt-1">The real organiser site plan, rendered identically. Demo stall: FS1.</p>
+          <h1 className="font-serif text-3xl text-neutral-900 mt-1">Festival floor plan</h1>
+          <p className="text-neutral-500 text-sm mt-1">Clean interactive map rebuilt from the organiser plan. Demo stall: FS1.</p>
         </div>
         <MapVersions mineCode="FS1" initial={initial} />
       </div>
