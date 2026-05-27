@@ -42,17 +42,34 @@ export default function StaffManager({
   }
 
   function printList() {
-    const rows = staff.map((m, i) => `<tr><td>${i + 1}</td><td>${esc(m.name)}</td><td>${esc(m.id_number) || '—'}</td><td>${esc(m.vehicle_reg) || '—'}</td></tr>`).join('')
-    const html = `<!doctype html><html><head><title>Gate list — ${esc(cleanBiz)}</title>
-      <style>body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1a1416;padding:40px;max-width:760px;margin:auto}
-      h1{font-size:22px;margin:0 0 2px}.sub{color:#6b7280;font-size:13px;margin:0 0 20px}
-      .meta{display:flex;gap:28px;margin:0 0 22px;font-size:13px}.meta b{display:block;color:#6b7280;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
-      table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #eee}
-      th{background:#faf7f8;color:#6b7280;text-transform:uppercase;font-size:10px;letter-spacing:.05em}.note{margin-top:18px;font-size:11px;color:#9ca3af}</style></head><body>
-      <h1>Gate access list</h1><p class="sub">Young at Heart Festival 2026 · Youngsfield Military Base · 11–13 December 2026</p>
-      <div class="meta"><div><b>Business</b>${esc(cleanBiz)}</div><div><b>Stall</b>${esc(stall || 'TBC')}</div><div><b>Pass allowance</b>${allowance}</div><div><b>Registered</b>${used}</div></div>
-      <table><thead><tr><th>#</th><th>Name</th><th>ID number</th><th>Vehicle reg</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="color:#9ca3af">No team members yet</td></tr>'}</tbody></table>
-      <p class="note">Present this list at the gate. Final gate passes are confirmed by the organisers based on your stall allowance.</p></body></html>`
+    const rows = staff.map((m, i) => `<tr><td class="n">${i + 1}</td><td class="nm">${esc(m.name)}</td><td>${esc(m.id_number) || '—'}</td><td>${esc(m.vehicle_reg) || '—'}</td></tr>`).join('')
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gate list — ${esc(cleanBiz)}</title>${PRINT_HEAD}
+<style>
+@page{size:A4;margin:18mm 16mm}
+body{font-family:'Inter',-apple-system,sans-serif;color:#1a1416;margin:0}
+.sheet{max-width:720px;margin:0 auto}
+.lh{display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:2px solid #cd2653}
+.lh img{width:46px;height:46px;object-fit:contain}
+.lh .ttl{font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:600;letter-spacing:-.01em;line-height:1.05;color:#1a1416}
+.lh .eb{font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;color:#cd2653;margin-bottom:3px}
+.sub{color:#8a8a8a;font-size:12px;margin:14px 0 18px}
+.meta{display:flex;gap:34px;margin:0 0 20px}
+.meta b{display:block;color:#9ca3af;font-weight:600;font-size:9.5px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px}
+.meta span{font-size:15px;font-weight:600;color:#1a1416}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:#cd2653;color:#fff;text-align:left;padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+thead th:first-child{border-radius:8px 0 0 8px}thead th:last-child{border-radius:0 8px 8px 0}
+tbody td{padding:11px 12px;border-bottom:1px solid #efe7ea}
+tbody tr:nth-child(even){background:#faf6f7}
+td.n{color:#b9b9b9;width:28px}td.nm{font-weight:600}
+.note{margin-top:20px;font-size:10.5px;color:#9ca3af;line-height:1.6}
+</style></head><body><div class="sheet">
+  <div class="lh"><img src="${LOGO}" alt=""><div><div class="eb">Exhibitor Gate Access</div><div class="ttl">Young at Heart Festival 2026</div></div></div>
+  <p class="sub">Youngsfield Military Base, Cape Town · 11–13 December 2026</p>
+  <div class="meta"><div><b>Business</b><span>${esc(cleanBiz)}</span></div><div><b>Stall</b><span>${esc(stall || 'TBC')}</span></div><div><b>Pass allowance</b><span>${allowance}</span></div><div><b>Registered</b><span>${used}</span></div></div>
+  <table><thead><tr><th>#</th><th>Name</th><th>ID number</th><th>Vehicle registration</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="color:#9ca3af;padding:16px 12px">No team members added yet</td></tr>'}</tbody></table>
+  <p class="note">Present this list at the gate. Final gate passes are confirmed by the organisers based on your stall package.</p>
+</div>${PRINT_TRIGGER}</body></html>`
     openPrint(html)
   }
 
@@ -63,24 +80,31 @@ export default function StaffManager({
       const QR = (await import('qrcode')).default
       const cards = await Promise.all(staff.map(async (m) => {
         const payload = `YHF2026|${stall || 'NA'}|${m.id}|${m.name}`
-        const qr = await QR.toDataURL(payload, { margin: 1, width: 240 })
+        const qr = await QR.toDataURL(payload, { margin: 0, width: 320 })
         return `<div class="badge">
-          <div class="bhead">YOUNG AT HEART 2026 · EXHIBITOR PASS</div>
+          <div class="bh"><img src="${LOGO}" alt=""><div><div class="bh-t">Young at Heart Festival</div><div class="bh-y">2026 · Exhibitor Pass</div></div></div>
           <div class="bname">${esc(m.name)}</div>
-          <div class="bbiz">${esc(cleanBiz)}</div>
-          <img src="${qr}" class="qr" alt="QR"/>
-          <div class="bmeta">Stall ${esc(stall || 'TBC')}${m.id_number ? ' · ID ' + esc(m.id_number) : ''}</div>
-          ${m.vehicle_reg ? `<div class="bveh">Vehicle ${esc(m.vehicle_reg)}</div>` : ''}
+          <div class="bbiz">${esc(cleanBiz)} · Stall ${esc(stall || 'TBC')}</div>
+          <img src="${qr}" class="qr" alt="gate QR"/>
+          <div class="bmeta">${m.id_number ? 'ID ' + esc(m.id_number) : '&nbsp;'}${m.vehicle_reg ? ' &nbsp;·&nbsp; ' + esc(m.vehicle_reg) : ''}</div>
+          <div class="bfoot">Scan at the gate · 11–13 Dec 2026 · Youngsfield</div>
         </div>`
       }))
-      const html = `<!doctype html><html><head><title>Staff badges — ${esc(cleanBiz)}</title><style>
-        @page{margin:10mm} body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;margin:0;padding:14px;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-        .badge{border:2px solid #cd2653;border-radius:16px;padding:20px;text-align:center;break-inside:avoid}
-        .bhead{font-size:9px;letter-spacing:.14em;color:#cd2653;font-weight:800}
-        .bname{font-size:19px;font-weight:800;margin-top:12px;color:#1a1416}
-        .bbiz{font-size:12px;color:#6b7280;margin-bottom:10px}
-        .qr{width:160px;height:160px}
-        .bmeta{font-size:11px;color:#6b7280;margin-top:8px}.bveh{font-size:11px;color:#9ca3af;margin-top:2px}</style></head><body>${cards.join('')}</body></html>`
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Staff badges — ${esc(cleanBiz)}</title>${PRINT_HEAD}
+<style>
+@page{size:A4;margin:12mm}
+body{font-family:'Inter',-apple-system,sans-serif;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:12mm;align-content:start}
+.badge{border:1.5px solid #cd2653;border-radius:16px;padding:22px 18px 16px;text-align:center;break-inside:avoid;page-break-inside:avoid;display:flex;flex-direction:column;align-items:center}
+.bh{display:flex;align-items:center;gap:9px;width:100%;justify-content:center;border-bottom:1px solid #f0e3e7;padding-bottom:12px;margin-bottom:14px}
+.bh img{width:34px;height:34px;object-fit:contain}
+.bh-t{font-family:'Fraunces',Georgia,serif;font-size:14px;font-weight:600;color:#1a1416;line-height:1}
+.bh-y{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#cd2653;margin-top:3px}
+.bname{font-family:'Fraunces',Georgia,serif;font-size:23px;font-weight:600;color:#1a1416;line-height:1.1;letter-spacing:-.01em}
+.bbiz{font-size:11.5px;color:#8a8a8a;margin:4px 0 14px}
+.qr{width:150px;height:150px;border:1px solid #f0e3e7;border-radius:10px;padding:6px}
+.bmeta{font-size:11px;color:#555;margin-top:12px;font-weight:500}
+.bfoot{font-size:9px;color:#b3b3b3;margin-top:10px;letter-spacing:.02em}
+</style></head><body>${cards.join('')}${PRINT_TRIGGER}</body></html>`
       openPrint(html)
     } finally { setBadging(false) }
   }
@@ -171,11 +195,16 @@ export default function StaffManager({
   )
 }
 
+const LOGO = 'https://cthalaal.co.za/logo.png'
+const PRINT_HEAD = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">`
+// Self-print once fonts + the logo image have loaded (data-URL QR codes are instant).
+const PRINT_TRIGGER = `<script>(function(){function go(){setTimeout(function(){window.focus();window.print();},400)}if(document.readyState==='complete'){go()}else{window.addEventListener('load',go)}})();</script>`
+
 function openPrint(html: string) {
-  const w = window.open('', '_blank', 'width=860,height=920')
+  const w = window.open('', '_blank', 'width=900,height=1000')
   if (!w) return
   w.document.write(html); w.document.close(); w.focus()
-  setTimeout(() => w.print(), 400)
+  // the document self-triggers print on load (PRINT_TRIGGER) so fonts/logo are ready
 }
 
 function esc(s: string) {
