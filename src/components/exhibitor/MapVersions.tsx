@@ -2,27 +2,23 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
-import SitePlanMap, { type SitePlan } from '@/components/exhibitor/SitePlanMap'
+import SitePlanSVG, { type PlanVec } from '@/components/exhibitor/SitePlanSVG'
 
 const VERSIONS = [
-  { id: 'pin' as const, name: 'Version 1 — Minimal pin', blurb: 'The full official plan, with a single pulsing marker on your stall. Pan and zoom freely.' },
-  { id: 'interactive' as const, name: 'Version 2 — Interactive directory', blurb: 'Every stall is hoverable. Yours is highlighted in crimson. Hover any space to see its code and type.' },
-  { id: 'guided' as const, name: 'Version 3 — Guided wayfinding', blurb: 'Auto-zooms to your stall, dims the rest, and labels your nearest neighbours. Best for "where am I".' },
+  { id: 'pin' as const, name: 'Version 1 — Minimal', blurb: 'The full plan with a single pulsing marker on your stall. Pan and zoom freely.' },
+  { id: 'interactive' as const, name: 'Version 2 — Interactive', blurb: 'Every stall is a clickable cell. Hover for code + type, click to select. Yours is crimson.' },
+  { id: 'guided' as const, name: 'Version 3 — Guided', blurb: 'Auto-zooms to your stall, dims the rest, labels your nearest neighbours.' },
 ]
 
 export default function MapVersions({ mineCode, initial = 'pin' }: { mineCode: string | null; initial?: 'pin' | 'interactive' | 'guided' }) {
-  const [plan, setPlan] = useState<SitePlan | null>(null)
+  const [plan, setPlan] = useState<PlanVec | null>(null)
   const [mode, setMode] = useState<'pin' | 'interactive' | 'guided'>(initial)
 
-  useEffect(() => {
-    fetch('/site-plan-stalls.json').then((r) => r.json()).then(setPlan).catch(() => {})
-  }, [])
-
+  useEffect(() => { fetch('/site-plan-vector.json').then((r) => r.json()).then(setPlan).catch(() => {}) }, [])
   const active = VERSIONS.find((v) => v.id === mode)!
 
   return (
     <div className="space-y-4">
-      {/* version switcher */}
       <div className="flex flex-wrap gap-2">
         {VERSIONS.map((v) => (
           <button key={v.id} onClick={() => setMode(v.id)}
@@ -34,12 +30,12 @@ export default function MapVersions({ mineCode, initial = 'pin' }: { mineCode: s
       <p className="text-sm text-neutral-500">{active.blurb}</p>
 
       {!plan ? (
-        <div className="flex items-center gap-2 text-neutral-500 text-sm py-20 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> Loading the official site plan…</div>
+        <div className="flex items-center gap-2 text-neutral-500 text-sm py-20 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> Loading the site plan…</div>
       ) : (
-        <SitePlanMap key={mode} plan={plan} mode={mode} mineCode={mineCode} />
+        <SitePlanSVG key={mode} plan={plan} mode={mode} mineCode={mineCode} />
       )}
 
-      <p className="text-xs text-neutral-400">This is the actual organiser site plan (CTH 2026 Draft Site Layout), rendered exactly. {mineCode ? `Your stall: ${mineCode}.` : 'Your stall will be marked once allocated.'} Tell me which version to keep and I'll wire it into My Stand.</p>
+      <p className="text-xs text-neutral-400">Rebuilt as a true vector map directly from the organiser PDF: every stall, block and label kept at its exact size, shape and location. {mineCode ? `Your stall: ${mineCode}.` : ''} Each stall is an individually clickable element.</p>
     </div>
   )
 }
