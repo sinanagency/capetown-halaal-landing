@@ -71,14 +71,49 @@ New numbers start at **250 business-initiated conversations/day**, auto-scaling 
 
 ---
 
-## Env vars to hand back to me (or add to Netlify)
+## Env vars to hand back to me (or add to Vercel)
 ```
 WHATSAPP_TOKEN=            # permanent system-user token (Step 6)
 WHATSAPP_PHONE_ID=         # Step 3
 WHATSAPP_BUSINESS_ID=      # Step 3
 WHATSAPP_VERIFY_TOKEN=     # any secret string you choose (Step 8)
+WHATSAPP_APP_SECRET=       # App → Settings → Basic → App Secret (signs inbound webhooks)
 ```
 The moment these exist, the bot goes live. Everything else is built and waiting.
 
 ---
-*Saved: 2026-05-22 · capetown-halaal-landing*
+
+## Hosting plan: launch on Nisria now, migrate to Halaal Hub later
+
+We don't need youngatheart legally registered to go live. Two-phase plan:
+
+**Phase A — launch now (no legal friction):**
+- Add the festival number as a **separate WABA under Nisria's already-verified Meta portfolio** (separate WABA, not bolted onto Nisria's existing bot — isolates the failure domain).
+- Set the number's **display name = "Young at Heart Festival"**. End users see only that; Nisria is invisible (display name is per-number).
+- Bot goes live today. Costs bill to Nisria's payment method — track and reimburse.
+
+**Phase B — migrate to its own home (when ready):**
+- Verify the **real festival entity** (Halaal Hub, once confirmed in good standing at CIPC — not dormant/deregistering). See verification steps above.
+- **Migrate the number** to Halaal Hub's own portfolio: the number, chat history, and all the code below carry over. Only `WHATSAPP_PHONE_ID` + `WHATSAPP_TOKEN` change and templates get re-approved on the new WABA.
+- After migration, the festival shares nothing with Nisria.
+
+## Guardrail layer (built — keeps the host account safe)
+
+Run migration **`supabase-migration-v6-wa-consent.sql`** in the Supabase SQL editor before go-live. It adds:
+- `wa_contacts` — current consent state per phone (the pre-send gate reads this).
+- `wa_consent_log` — **append-only proof ledger** (when/where/what-text/IP) — this is the defense in any dispute.
+
+What's enforced in code, automatically:
+1. **Pre-send consent gate** (`src/lib/wa-consent.ts` → `canSend`): every outbound passes through it. Opted-out → blocked forever (even utility). Marketing templates → require explicit opt-in. Free-form text → only inside the 24h service window.
+2. **STOP handling** (`/api/whatsapp/webhook`): "STOP/unsubscribe/cancel" → instant opt-out + one confirmation, then silence. "START" → re-opt-in.
+3. **Webhook signature check**: every inbound is HMAC-verified against `WHATSAPP_APP_SECRET` — nobody can spoof messages or opt-outs.
+4. **Opt-in capture at checkout**: the buyer API records consent to the ledger (with IP + user-agent) when the WhatsApp box is ticked. Frontend just needs to send `whatsappOptIn: true`.
+5. **One brain**: the bot replies using the same festival concierge prompt as the site chat (`src/lib/festival-brain.ts`) — no divergent copy.
+
+Webhook callback URL for Step 8: `https://cthalaal.co.za/api/whatsapp/webhook`
+
+**Frontend TODO before go-live:** add the opt-in checkbox at ticket checkout —
+*"✅ Send my ticket and Young at Heart Festival updates via WhatsApp to this number"* (un-pre-ticked) — and pass `whatsappOptIn: true` to `/api/buyers`.
+
+---
+*Saved: 2026-05-22 · guardrail layer + Nisria-host plan added 2026-06-01 · capetown-halaal-landing*

@@ -1,0 +1,191 @@
+import { NextRequest, NextResponse } from 'next/server'
+import {
+  verifyWebhook,
+  verifySignature,
+  parseInbound,
+  parseStatuses,
+  sendText,
+  toE164,
+} from '@/lib/whatsapp'
+import {
+  recordOptOut,
+  recordConsent,
+  touchInbound,
+  isStopKeyword,
+  isStartKeyword,
+} from '@/lib/wa-consent'
+import { askFestivalBrain } from '@/lib/festival-brain'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
+// ---- GET: Meta verification handshake ----
+export async function GET(req: NextRequest) {
+  const p = req.nextUrl.searchParams
+  const challenge = verifyWebhook(p.get('hub.mode'), p.get('hub.verify_token'), p.get('hub.challenge'))
+  if (challenge) return new NextResponse(challenge, { status: 200 })
+  return new NextResponse('Forbidden', { status: 403 })
+}
+
+// ---- POST: inbound messages + delivery statuses ----
+export async function POST(req: NextRequest) {
+  // Read the RAW body for signature verification (must match byte-for-byte).
+  const raw = await req.text()
+  if (!verifySignature(raw, req.headers.get('x-hub-signature-256'))) {
+    return new NextResponse('Invalid signature', { status: 401 })
+  }
+
+  let body: unknown
+  try {
+    body = JSON.parse(raw)
+  } catch {
+    return new NextResponse('Bad JSON', { status: 400 })
+  }
+
+  // Log delivery statuses (fire and forget) — never blocks the 200.
+  try {
+    await logStatuses(parseStatuses(body))
+  } catch (e) {
+    console.error('wa status log error', e)
+  }
+
+  const inbound = parseInbound(body)
+  for (const msg of inbound) {
+    try {
+      await handleInbound(msg)
+    } catch (e) {
+      console.error('wa inbound handler error', e)
+    }
+  }
+
+  // Always 200 fast so Meta doesn't retry/penalize.
+  return NextResponse.json({ ok: true })
+}
+
+async function handleInbound(msg: {
+  from: string
+  messageId: string
+  type: string
+  text: string
+  name?: string
+}) {
+  const e164 = toE164(msg.from)
+
+  // Dedup: Meta retries webhooks. Skip if we've already stored this message id.
+  if (await alreadySeen(msg.messageId)) return
+  await logMessage({ direction: 'in', wa_phone: e164, body: msg.text, status: 'received', providerMessageId: msg.messageId })
+
+  // 1) STOP — hard opt-out, confirm once, then go silent.
+  if (isStopKeyword(msg.text)) {
+    await recordOptOut({ waPhone: e164, source: 'inbound' })
+    // Confirmation is allowed: it's a direct reply to their inbound (service window).
+    // recordOptOut set opted_out=true, so send the confirmation directly (not via gate).
+    await sendRaw(e164, "You're unsubscribed. You won't get any more WhatsApp messages from Young at Heart Festival. Reply START anytime to opt back in.")
+    return
+  }
+
+  // 2) START — re-opt-in.
+  if (isStartKeyword(msg.text)) {
+    await touchInbound(e164, msg.name)
+    await recordConsent({ waPhone: e164, source: 'inbound', profileName: msg.name })
+    await sendText(e164, "You're back in 🎉 You'll get Young at Heart Festival updates here. How can I help?")
+    return
+  }
+
+  // 3) Normal message — opens the 24h window, reply with the festival brain.
+  await touchInbound(e164, msg.name)
+
+  if (msg.type !== 'text' || !msg.text.trim()) {
+    await sendText(e164, "Hi! I'm the Young at Heart Festival assistant. Ask me about tickets, vendors, directions, or anything about the festival. Reply STOP to unsubscribe.")
+    return
+  }
+
+  const history = await recentHistory(e164)
+  history.push({ role: 'user', content: msg.text })
+  let reply = ''
+  try {
+    reply = await askFestivalBrain(history)
+  } catch (e) {
+    console.error('brain error', e)
+    reply = 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
+  }
+  const res = await sendText(e164, reply)
+  await logMessage({ direction: 'out', wa_phone: e164, body: reply, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
+}
+
+// ---- helpers (wa_messages = existing v5 table; wamid = provider_message_id) ----
+
+async function alreadySeen(providerMessageId: string): Promise<boolean> {
+  if (!providerMessageId) return false
+  const db = createAdminClient()
+  const { data } = await db.from('wa_messages').select('id').eq('provider_message_id', providerMessageId).maybeSingle()
+  return Boolean(data)
+}
+
+async function logMessage(row: {
+  direction: 'in' | 'out'
+  wa_phone: string
+  body: string
+  status: string
+  providerMessageId?: string
+}) {
+  const db = createAdminClient()
+  await db.from('wa_messages').insert({
+    direction: row.direction,
+    wa_phone: row.wa_phone,
+    body: row.body,
+    status: row.status,
+    provider_message_id: row.providerMessageId || null,
+  })
+}
+
+async function logStatuses(statuses: Array<{ messageId: string; status: string; recipient: string; errorMessage?: string }>) {
+  if (!statuses.length) return
+  const db = createAdminClient()
+  for (const s of statuses) {
+    await db
+      .from('wa_messages')
+      .update({ status: s.status, error: s.errorMessage || null, updated_at: new Date().toISOString() })
+      .eq('provider_message_id', s.messageId)
+  }
+}
+
+async function recentHistory(e164: string): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
+  const db = createAdminClient()
+  const { data } = await db
+    .from('wa_messages')
+    .select('direction, body')
+    .eq('wa_phone', e164)
+    .order('created_at', { ascending: false })
+    .limit(8)
+  const rows = (data as Array<{ direction: string; body: string }>) || []
+  return rows
+    .reverse()
+    .filter((r) => r.body)
+    .map((r) => ({ role: r.direction === 'in' ? ('user' as const) : ('assistant' as const), content: r.body }))
+}
+
+// Direct send for the STOP confirmation ONLY. recordOptOut() has already set
+// opted_out=true, so the normal sendText() gate would (correctly) block this.
+// A single opt-out confirmation is permitted and expected, so we bypass the gate
+// with a raw Graph call. Nothing else may use this path.
+async function sendRaw(e164: string, body: string) {
+  try {
+    await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: e164.replace('+', ''),
+        type: 'text',
+        text: { preview_url: false, body },
+      }),
+    })
+  } catch (e) {
+    console.error('stop-confirm send error', e)
+  }
+}

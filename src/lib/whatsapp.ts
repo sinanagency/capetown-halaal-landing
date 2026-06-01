@@ -2,10 +2,14 @@
 // Dormant until WHATSAPP_* env vars are set — see META-WHATSAPP-SETUP.md.
 // Swapping to Twilio later only touches this file.
 
+import { createHmac, timingSafeEqual } from 'crypto'
+import { canSend, type WaCategory } from './wa-consent'
+
 const GRAPH = 'https://graph.facebook.com/v21.0'
 const WA_TOKEN = process.env.WHATSAPP_TOKEN || ''
 const WA_PHONE_ID = process.env.WHATSAPP_PHONE_ID || ''
 const WA_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || ''
+const WA_APP_SECRET = process.env.WHATSAPP_APP_SECRET || ''
 
 export const whatsappConfigured = Boolean(WA_TOKEN && WA_PHONE_ID)
 
@@ -29,6 +33,7 @@ export function toE164(phone: string, defaultCc = '27'): string {
 interface SendResult {
   messageId: string
   to: string
+  skipped?: string // set (with reason) when the consent gate blocked the send
 }
 
 async function waFetch(path: string, payload: unknown): Promise<Record<string, unknown>> {
@@ -61,8 +66,11 @@ function extractMessageId(data: Record<string, unknown>, to: string): SendResult
 }
 
 // --- Free-form text (only valid inside the 24h customer service window) ---
+// Gated: blocked if the contact opted out or the 24h window is closed.
 export async function sendText(to: string, body: string): Promise<SendResult> {
   const waId = toWaId(to)
+  const gate = await canSend(toE164(to), { type: 'text' })
+  if (!gate.allowed) return { messageId: '', to: waId, skipped: gate.reason }
   const data = await waFetch(`${WA_PHONE_ID}/messages`, {
     messaging_product: 'whatsapp',
     to: waId,
@@ -79,9 +87,15 @@ export async function sendTemplate(
   to: string,
   templateName: string,
   bodyParams: string[] = [],
-  opts: { lang?: string; headerMedia?: { type: 'document' | 'image'; link: string; filename?: string } } = {}
+  opts: {
+    lang?: string
+    headerMedia?: { type: 'document' | 'image'; link: string; filename?: string }
+    category?: WaCategory // defaults to 'utility' (transactional); set 'marketing' for promos
+  } = {}
 ): Promise<SendResult> {
   const waId = toWaId(to)
+  const gate = await canSend(toE164(to), { type: 'template', category: opts.category || 'utility' })
+  if (!gate.allowed) return { messageId: '', to: waId, skipped: gate.reason }
   const components: Array<Record<string, unknown>> = []
 
   if (opts.headerMedia) {
@@ -133,6 +147,19 @@ export async function sendTicket(args: {
 export function verifyWebhook(mode: string | null, token: string | null, challenge: string | null): string | null {
   if (mode === 'subscribe' && token && token === WA_VERIFY_TOKEN) return challenge
   return null
+}
+
+// --- Payload signature check (POST webhook) ---
+// Meta signs every POST with the app secret. Reject anything that doesn't match
+// so nobody can spoof inbound messages / opt-outs against the bot.
+// If no app secret is configured, returns true (dev) — set WHATSAPP_APP_SECRET in prod.
+export function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
+  if (!WA_APP_SECRET) return true
+  if (!signatureHeader?.startsWith('sha256=')) return false
+  const expected = 'sha256=' + createHmac('sha256', WA_APP_SECRET).update(rawBody).digest('hex')
+  const a = Buffer.from(expected)
+  const b = Buffer.from(signatureHeader)
+  return a.length === b.length && timingSafeEqual(a, b)
 }
 
 // --- Inbound message parsing (POST webhook payload) ---
