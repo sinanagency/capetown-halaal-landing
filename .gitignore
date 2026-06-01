@@ -42,3 +42,10 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# verification blast — generated artifacts (no secrets in repo)
+scripts/verification-blast.log
+scripts/resume-cron.log
+scripts/resume-launchd.out
+scripts/resume-launchd.err
+scripts/.verification-blast.DONE
