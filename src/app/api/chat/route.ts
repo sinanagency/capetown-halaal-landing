@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
-import { FESTIVAL_SYSTEM_PROMPT } from '@/lib/festival-brain'
+import { FESTIVAL_SYSTEM_PROMPT, askFestivalBrain } from '@/lib/festival-brain'
 
 
 const ADMIN_PROMPT = `You are the Young at Heart Festival admin assistant. You help the festival management team understand their data and make decisions.
@@ -33,8 +32,6 @@ RULES:
 - Reference exact pages/sections where they can find data
 - Keep responses concise (2-3 sentences)`
 
-const client = new Anthropic()
-
 export async function POST(req: NextRequest) {
   try {
     const { messages, context } = await req.json()
@@ -47,19 +44,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Chat service not configured' }, { status: 503 })
     }
 
+    // Single Claude path (festival-brain): gets prompt caching + 429/529 backoff.
     const systemPrompt = context === 'admin' ? ADMIN_PROMPT : FESTIVAL_SYSTEM_PROMPT
-
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: messages.slice(-10).map((m: { role: string; content: string }) => ({
+    const text = await askFestivalBrain(
+      messages.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
-    })
-
-    const text = response.content[0].type === 'text' ? response.content[0].text : ''
+      { system: systemPrompt }
+    )
 
     return NextResponse.json({ message: text })
   } catch (error) {

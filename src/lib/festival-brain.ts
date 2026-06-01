@@ -84,7 +84,14 @@ export interface BrainMessage {
   content: string
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 // Ask the festival brain for a reply. Returns plain text.
+// Lessons applied from the Nisria/Sasa build:
+//  - PROMPT CACHING: the system prompt is cached (cache_control ephemeral) so
+//    repeated calls reuse it — ~90% cheaper on the prompt + faster first token.
+//  - BACKOFF: retry on 429 (rate limit) / 529 (overloaded) with exponential
+//    backoff, so festival-day spikes don't drop messages (Sasa hit 429s).
 export async function askFestivalBrain(
   messages: BrainMessage[],
   opts: { system?: string; maxTokens?: number } = {}
@@ -92,11 +99,28 @@ export async function askFestivalBrain(
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY not configured')
   }
-  const response = await client().messages.create({
+  const system = opts.system ?? FESTIVAL_SYSTEM_PROMPT
+  const payload = {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: opts.maxTokens ?? 300,
-    system: opts.system ?? FESTIVAL_SYSTEM_PROMPT,
+    system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
     messages: messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-  })
-  return response.content[0]?.type === 'text' ? response.content[0].text : ''
+  }
+
+  let lastErr: unknown
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await client().messages.create(payload)
+      return response.content[0]?.type === 'text' ? response.content[0].text : ''
+    } catch (e) {
+      lastErr = e
+      const status = (e as { status?: number })?.status
+      if (status === 429 || status === 529) {
+        await sleep(500 * Math.pow(2, attempt)) // 0.5s, 1s, 2s
+        continue
+      }
+      throw e
+    }
+  }
+  throw lastErr
 }
