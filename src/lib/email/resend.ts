@@ -58,7 +58,13 @@ export type SendResult = {
 }
 
 /**
- * Send a transactional email. Tries SMTP 465 -> SMTP 587 -> Resend.
+ * Send a transactional email. Tries Resend -> SMTP 465 -> SMTP 587.
+ *
+ * ORDER MATTERS: Resend is PRIMARY because mail sent via GoDaddy SMTP from the
+ * root domain has no DKIM signature and lands in spam. Resend signs every
+ * message with DKIM (resend._domainkey) aligned to youngatheart.co.za, so it
+ * passes DMARC and reaches the inbox. GoDaddy SMTP is kept only as a fallback
+ * for the rare case Resend is unreachable or rate-limited (free tier: 100/day).
  * Returns a SendResult so callers can react to / surface failures instead of
  * the old behaviour of silently swallowing every error and reporting success.
  */
@@ -91,7 +97,43 @@ export async function sendEmail({
 
   const errors: string[] = []
 
-  // Try port 465 SSL
+  // PRIMARY: Resend (DKIM-signed, inbox-safe)
+  const resend = getResend()
+  if (resend) {
+    try {
+      if (react) {
+        await resend.emails.send({
+          from: FROM_EMAIL,
+          to,
+          bcc: BCC_EMAIL,
+          replyTo: 'support@youngatheart.co.za',
+          subject,
+          react,
+          headers: mailHeaders,
+        })
+      } else {
+        await resend.emails.send({
+          from: FROM_EMAIL,
+          to,
+          bcc: BCC_EMAIL,
+          replyTo: 'support@youngatheart.co.za',
+          subject,
+          text: text || '',
+          headers: mailHeaders,
+        })
+      }
+      console.log(`Email sent via Resend to ${to}: ${subject}`)
+      return { ok: true, provider: 'resend' }
+    } catch (e) {
+      const msg = (e as Error).message
+      errors.push(`resend: ${msg}`)
+      console.error('Resend failed, falling back to SMTP:', msg)
+    }
+  } else {
+    errors.push('resend: RESEND_API_KEY missing')
+  }
+
+  // FALLBACK: GoDaddy SMTP 465 SSL
   if (SMTP_PASS) {
     try {
       await transporter.sendMail(mailOptions)
@@ -103,7 +145,7 @@ export async function sendEmail({
       console.error('SMTP 465 failed:', msg)
     }
 
-    // Try port 587 STARTTLS
+    // FALLBACK: GoDaddy SMTP 587 STARTTLS
     try {
       await transporterFallback.sendMail(mailOptions)
       console.log(`Email sent via SMTP 587 to ${to}: ${subject}`)
@@ -115,26 +157,6 @@ export async function sendEmail({
     }
   } else {
     errors.push('smtp: SMTP_PASS missing')
-  }
-
-  // Fallback to Resend
-  const resend = getResend()
-  if (resend) {
-    try {
-      if (react) {
-        await resend.emails.send({ from: FROM_EMAIL, to, subject, react })
-      } else {
-        await resend.emails.send({ from: FROM_EMAIL, to, subject, text: text || '' })
-      }
-      console.log(`Email sent via Resend to ${to}: ${subject}`)
-      return { ok: true, provider: 'resend' }
-    } catch (e) {
-      const msg = (e as Error).message
-      errors.push(`resend: ${msg}`)
-      console.error('Resend failed:', msg)
-    }
-  } else {
-    errors.push('resend: RESEND_API_KEY missing')
   }
 
   const error = errors.join(' | ')
