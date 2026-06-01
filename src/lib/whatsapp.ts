@@ -65,6 +65,36 @@ function extractMessageId(data: Record<string, unknown>, to: string): SendResult
   return { messageId: messages?.[0]?.id || '', to }
 }
 
+// Upload a file (e.g. the FooEvents ticket PDF) to WhatsApp's media store and
+// return a media id. Used to send the EXACT same PDF a buyer was emailed, by
+// id (more reliable than asking Meta to fetch a public URL). Multipart upload.
+export async function uploadMedia(
+  bytes: Buffer | Uint8Array,
+  mimeType = 'application/pdf',
+  filename = 'ticket.pdf'
+): Promise<string> {
+  if (!WA_TOKEN || !WA_PHONE_ID) {
+    throw new Error('WhatsApp not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID.')
+  }
+  const form = new FormData()
+  form.append('messaging_product', 'whatsapp')
+  form.append('type', mimeType)
+  form.append('file', new Blob([bytes as Uint8Array], { type: mimeType }), filename)
+
+  const res = await fetch(`${GRAPH}/${WA_PHONE_ID}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${WA_TOKEN}` },
+    body: form,
+    cache: 'no-store',
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.id) {
+    const detail = data?.error?.message || JSON.stringify(data)
+    throw new Error(`WhatsApp media upload failed: ${res.status} — ${detail}`)
+  }
+  return data.id as string
+}
+
 // --- Free-form text (only valid inside the 24h customer service window) ---
 // Gated: blocked if the contact opted out or the 24h window is closed.
 export async function sendText(to: string, body: string): Promise<SendResult> {
@@ -89,7 +119,8 @@ export async function sendTemplate(
   bodyParams: string[] = [],
   opts: {
     lang?: string
-    headerMedia?: { type: 'document' | 'image'; link: string; filename?: string }
+    // Provide EITHER a public `link` OR an uploaded media `id` (see uploadMedia).
+    headerMedia?: { type: 'document' | 'image'; link?: string; id?: string; filename?: string }
     category?: WaCategory // defaults to 'utility' (transactional); set 'marketing' for promos
   } = {}
 ): Promise<SendResult> {
@@ -99,7 +130,9 @@ export async function sendTemplate(
   const components: Array<Record<string, unknown>> = []
 
   if (opts.headerMedia) {
-    const media: Record<string, unknown> = { link: opts.headerMedia.link }
+    const media: Record<string, unknown> = opts.headerMedia.id
+      ? { id: opts.headerMedia.id }
+      : { link: opts.headerMedia.link }
     if (opts.headerMedia.filename) media.filename = opts.headerMedia.filename
     components.push({
       type: 'header',
@@ -133,13 +166,23 @@ export async function sendTicket(args: {
   firstName: string
   orderNumber: string
   ticketSummary: string
-  qrUrl: string
+  // Provide EITHER the uploaded media id (preferred — the exact FooEvents PDF)
+  // OR a public PDF url.
+  mediaId?: string
+  pdfUrl?: string
+  filename?: string
 }): Promise<SendResult> {
   return sendTemplate(
     args.to,
     'ticket_delivery',
     [args.firstName, args.orderNumber, args.ticketSummary],
-    { headerMedia: { type: 'document', link: args.qrUrl, filename: 'YAH-Festival-Ticket.pdf' } }
+    {
+      headerMedia: {
+        type: 'document',
+        ...(args.mediaId ? { id: args.mediaId } : { link: args.pdfUrl }),
+        filename: args.filename || 'YAH-Festival-Ticket.pdf',
+      },
+    }
   )
 }
 
