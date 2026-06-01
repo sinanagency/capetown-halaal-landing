@@ -97,30 +97,25 @@ export async function sendEmail({
 
   const errors: string[] = []
 
-  // PRIMARY: Resend (DKIM-signed, inbox-safe)
+  // PRIMARY: Resend (DKIM-signed, inbox-safe).
+  // Send the HTML we already rendered above — never hand the raw `react` element
+  // to the SDK. The SDK's own render path is brittle with our shared components
+  // and silently throws, which used to bounce every send down to spam-prone SMTP.
   const resend = getResend()
   if (resend) {
     try {
-      if (react) {
-        await resend.emails.send({
-          from: FROM_EMAIL,
-          to,
-          bcc: BCC_EMAIL,
-          replyTo: 'support@youngatheart.co.za',
-          subject,
-          react,
-          headers: mailHeaders,
-        })
+      const common = {
+        from: FROM_EMAIL,
+        to,
+        bcc: BCC_EMAIL,
+        replyTo: 'support@youngatheart.co.za',
+        subject,
+        headers: mailHeaders,
+      }
+      if (html) {
+        await resend.emails.send({ ...common, html })
       } else {
-        await resend.emails.send({
-          from: FROM_EMAIL,
-          to,
-          bcc: BCC_EMAIL,
-          replyTo: 'support@youngatheart.co.za',
-          subject,
-          text: text || '',
-          headers: mailHeaders,
-        })
+        await resend.emails.send({ ...common, text: text || '' })
       }
       console.log(`Email sent via Resend to ${to}: ${subject}`)
       return { ok: true, provider: 'resend' }

@@ -1,0 +1,17 @@
+{
+  "subject": "The countdown is on — Young at Heart Festival 2026",
+  "audience": "test",
+  "testTo": ["admin@sinan.agency"],
+  "content": {
+    "preview": "Three days of food, fashion and family — 11–13 December 2026.",
+    "heading": "The countdown is on",
+    "greeting": "Hi {name},",
+    "paragraphs": [
+      "We can't wait to welcome you to the third Young at Heart Festival — three days of the finest halaal food, fashion, and family entertainment Cape Town has to offer.",
+      "Over 350 vendors, live entertainment, and 25,000+ visitors across one unforgettable weekend at Youngsfield Military Base."
+    ],
+    "cta": { "label": "Get Your Tickets →", "href": "https://tickets.youngatheart.co.za" },
+    "showEvent": true,
+    "signoff": "See you there,"
+  }
+}
