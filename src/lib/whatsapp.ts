@@ -76,10 +76,12 @@ export async function uploadMedia(
   if (!WA_TOKEN || !WA_PHONE_ID) {
     throw new Error('WhatsApp not configured. Set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID.')
   }
+  const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes)
+  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
   const form = new FormData()
   form.append('messaging_product', 'whatsapp')
   form.append('type', mimeType)
-  form.append('file', new Blob([bytes as Uint8Array], { type: mimeType }), filename)
+  form.append('file', new Blob([ab], { type: mimeType }), filename)
 
   const res = await fetch(`${GRAPH}/${WA_PHONE_ID}/media`, {
     method: 'POST',
