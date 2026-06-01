@@ -8,12 +8,14 @@ const buyerSchema = z.object({
   email: z.string().email(),
   name: z.string().optional(),
   phone: z.string().optional(),
-  whatsappOptIn: z.boolean().optional(), // checkout checkbox: agree to WhatsApp updates
+  whatsappOptIn: z.boolean().optional(), // legacy; opt-in is now automatic via T&C
 })
 
-// Logs WhatsApp consent to the append-only proof ledger if the box was ticked.
-async function captureWaConsent(req: NextRequest, phone?: string, optIn?: boolean) {
-  if (!optIn || !phone) return
+// Auto opt-in (T&C basis): completing a ticket purchase = agreeing to receive
+// event updates and communications. We record consent for every buyer who gave
+// a phone number. STOP still hard-blocks them forever via the webhook.
+async function captureWaConsent(req: NextRequest, phone?: string) {
+  if (!phone) return
   const waPhone = toE164(phone)
   if (!waPhone) return
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined
@@ -52,7 +54,7 @@ export async function POST(request: NextRequest) {
           .update(updates)
           .eq('id', existing.id)
       }
-      await captureWaConsent(request, validated.phone || existing.phone, validated.whatsappOptIn)
+      await captureWaConsent(request, validated.phone || existing.phone)
       return NextResponse.json({ buyer: existing, isNew: false })
     }
 
@@ -72,7 +74,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create buyer' }, { status: 500 })
     }
 
-    await captureWaConsent(request, validated.phone, validated.whatsappOptIn)
+    await captureWaConsent(request, validated.phone)
     return NextResponse.json({ buyer: newBuyer, isNew: true })
   } catch (error) {
     if (error instanceof z.ZodError) {

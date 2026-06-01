@@ -13,7 +13,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export type WaCategory = 'utility' | 'marketing' | 'authentication' | 'service'
 export type ConsentSource = 'checkout' | 'vendor_form' | 'inbound' | 'manual' | 'import'
 
-export const CONSENT_TEXT_VERSION = 'wa_v1'
+// wa_v2 = T&C-based auto opt-in. By buying a ticket or submitting a vendor
+// application (and accepting the Terms & Conditions), the person agrees to
+// receive Young at Heart Festival event updates and communications via WhatsApp
+// and email. STOP always works and is honoured forever (see recordOptOut).
+export const CONSENT_TEXT_VERSION = 'wa_v2'
 const SERVICE_WINDOW_MS = 24 * 60 * 60 * 1000
 
 interface ContactState {

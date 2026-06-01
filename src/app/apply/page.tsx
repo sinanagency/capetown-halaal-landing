@@ -454,6 +454,7 @@ export default function ApplyPage() {
                   <p><strong>No exclusivity:</strong> No vendor is promised monopoly. Limit of 1-2 duplicates is the aim.</p>
                   <p><strong>Layout:</strong> Organisers reserve the right to reposition stalls. Layouts are not final.</p>
                   <p><strong>General:</strong> No personal generators. No flyers. No allowing unpaid entry. Violations = removal and blacklisting.</p>
+                  <p><strong>Communications:</strong> By submitting this application you agree to receive Young at Heart Festival updates and communications (application status, vendor logistics, payment reminders and event news) via WhatsApp and email at the contact details you provide. You can opt out of WhatsApp messages at any time by replying STOP.</p>
                 </div>
 
                 <label className="flex items-start gap-3 cursor-pointer">
@@ -467,6 +468,10 @@ export default function ApplyPage() {
                     className="mt-1 w-4 h-4 rounded border-neutral-300 text-[#cd2653] focus:ring-[#cd2653]" />
                   <span className="text-sm text-neutral-700">I understand and accept the terms and conditions *</span>
                 </label>
+
+                <p className="text-xs text-neutral-500 leading-relaxed">
+                  By submitting, you agree to receive festival updates and communications via WhatsApp and email. Reply STOP anytime to opt out of WhatsApp.
+                </p>
               </div>
 
               {/* Final cost summary */}

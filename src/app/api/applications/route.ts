@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email/resend'
 import { ApplicationConfirmation } from '@/lib/email/templates/ApplicationConfirmation'
+import { recordConsent } from '@/lib/wa-consent'
+import { toE164 } from '@/lib/whatsapp'
 
 // Validation schema for new applications
 const applicationSchema = z.object({
@@ -56,6 +58,25 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to submit application' },
         { status: 500 }
       )
+    }
+
+    // Auto opt-in (T&C basis): submitting a vendor application = agreeing to
+    // receive festival updates and communications. Record WhatsApp consent to
+    // the proof ledger. Never blocks the application. STOP still hard-blocks.
+    try {
+      const waPhone = toE164(validated.phone)
+      if (waPhone) {
+        const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined
+        await recordConsent({
+          waPhone,
+          source: 'vendor_form',
+          ip,
+          userAgent: request.headers.get('user-agent') || undefined,
+          profileName: validated.business_name,
+        })
+      }
+    } catch (consentError) {
+      console.error('[applications] wa consent capture failed:', consentError)
     }
 
     // Send confirmation email. We never block the applicant on email, but we
