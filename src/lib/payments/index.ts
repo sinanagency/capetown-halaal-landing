@@ -1,9 +1,12 @@
 import type { PaymentProvider } from './types'
-import { transactionJunction } from './transaction-junction'
+import { fnb } from './fnb'
+// transaction-junction.ts is kept as an alternative provider (unused while FNB is active).
 
-// Swap or add providers here. Booth fees go through Transaction Junction -> FNB.
+// Swap or add providers here. Booth fees go direct through the FNB eCommerce API
+// (FNB is both gateway and acquirer). Until FNB_API_KEY is set, isConfigured() is
+// false, so the portal stays EFT-only with no fake card button.
 export function activeProvider(): PaymentProvider {
-  return transactionJunction
+  return fnb
 }
 
 export function paymentsEnabled(): boolean {

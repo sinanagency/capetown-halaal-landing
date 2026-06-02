@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   }
   const reference = paymentReference(applicationId)
   try {
-    const { url } = await activeProvider().createPayment({
+    const { url, providerRef } = await activeProvider().createPayment({
       applicationId,
       amount,
       currency: 'ZAR',
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       cancelUrl: `${SITE}/exhibitor/portal/payments?cancelled=1`,
     })
     await updatePortalState(applicationId, (s) => ({
-      ...s, payment: { ...(s.payment || {}), status: 'pending', reference },
+      ...s, payment: { ...(s.payment || {}), status: 'pending', reference, provider_ref: providerRef },
     }))
     return NextResponse.json({ url })
   } catch (e) {

@@ -8,9 +8,14 @@ import { activeProvider } from '@/lib/payments'
 // On a successful payment it marks the vendor's stall fee paid (idempotent).
 export async function POST(req: NextRequest) {
   const rawBody = await req.text()
+  const provider = activeProvider()
+  if (!provider.parseWebhook) {
+    // Active provider is not webhook-based (e.g. FNB uses verifyReturn). Ignore.
+    return NextResponse.json({ ok: true, note: 'no webhook handler for active provider' })
+  }
   let result
   try {
-    result = await activeProvider().parseWebhook(req, rawBody)
+    result = await provider.parseWebhook(req, rawBody)
   } catch (e) {
     console.error('[payments webhook] parse threw:', (e as Error).message)
     return NextResponse.json({ ok: false }, { status: 400 })

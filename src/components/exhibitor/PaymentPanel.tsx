@@ -66,12 +66,13 @@ export default function PaymentPanel({
             <p className="font-semibold text-neutral-900 mb-1">Pay by card</p>
             {enabled ? (
               <>
-                <p className="text-sm text-neutral-500 mb-4">Secure card payment, processed by Transaction Junction.</p>
+                <p className="text-sm text-neutral-500 mb-4">Secure card payment in South African Rand (ZAR), processed on FNB&rsquo;s 3D-Secure page. We never see or store your card number.</p>
                 <button onClick={payByCard} disabled={paying || !amount}
                   className="bg-[#cd2653] hover:bg-[#b01f45] text-white font-semibold rounded-lg px-5 py-3 text-sm flex items-center gap-2 disabled:opacity-60">
                   {paying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                   {amount ? `Pay R${amount.toFixed(2)} now` : 'Amount pending'}
                 </button>
+                <p className="text-xs text-neutral-400 mt-3">By paying you agree to our <a href="/terms" className="underline hover:text-neutral-600">Terms</a> and <a href="/refund-policy" className="underline hover:text-neutral-600">Refund &amp; Cancellation Policy</a>.</p>
               </>
             ) : (
               <p className="text-sm text-neutral-500 flex items-start gap-2"><Info className="w-4 h-4 text-[#cd2653] mt-0.5 shrink-0" /> Card payment is being set up with our bank and opens shortly. Your spot is held in the meantime.</p>

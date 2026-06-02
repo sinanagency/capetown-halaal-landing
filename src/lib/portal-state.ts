@@ -42,6 +42,7 @@ export interface PortalState {
     amount?: number
     due?: string
     reference?: string
+    provider_ref?: string   // gateway's own txn id (FNB txnToken) — used to validate on return
     paid_at?: string
     proof_path?: string
   }

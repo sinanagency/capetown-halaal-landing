@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ChatWidget } from "@/components/chat-widget";
 import { AnalyticsTracker } from "@/components/analytics-tracker";
+import { SiteLegalFooter } from "@/components/site-legal-footer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -56,6 +57,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} antialiased bg-white text-neutral-900`}
       >
         {children}
+        <SiteLegalFooter />
         <Toaster />
         <ChatWidget />
         <AnalyticsTracker />

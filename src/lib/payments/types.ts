@@ -35,6 +35,17 @@ export interface PaymentProvider {
   isConfigured(): boolean
   /** Create a hosted payment and return the URL to redirect the vendor to. */
   createPayment(opts: CreatePaymentOpts): Promise<CreatePaymentResult>
-  /** Validate + parse an incoming webhook/callback into a normalised result. */
-  parseWebhook(req: Request, rawBody: string): Promise<WebhookResult>
+  /**
+   * PUSH model (e.g. Transaction Junction): validate + parse an incoming
+   * webhook/callback into a normalised result. Optional — return-redirect
+   * gateways implement verifyReturn() instead.
+   */
+  parseWebhook?(req: Request, rawBody: string): Promise<WebhookResult>
+  /**
+   * PULL model (e.g. FNB): the gateway redirects the buyer's browser back to
+   * our return URL, then we confirm the outcome with a server-side validate
+   * call. The buyer's redirect is never trusted on its own — this method is the
+   * source of truth. Receives the inbound GET request (with txnToken in query).
+   */
+  verifyReturn?(req: Request): Promise<WebhookResult>
 }
