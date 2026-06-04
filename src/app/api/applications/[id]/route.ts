@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import { sendEmail } from '@/lib/email/resend'
 import { ApplicationApproved } from '@/lib/email/templates/ApplicationApproved'
+import { ApplicationRejected } from '@/lib/email/templates/ApplicationRejected'
+import { ApplicationInfoRequested } from '@/lib/email/templates/ApplicationInfoRequested'
 import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
 
 // Validation for status updates
@@ -160,14 +162,22 @@ export async function PATCH(
         } else if (validated.status === 'rejected') {
           res = await sendEmail({
             to: data.email,
-            subject: 'Update on Your Application - Young at Heart Festival',
-            text: `Hi ${data.contact_name},\n\nThank you for your interest in exhibiting at Young at Heart Festival 2026.\n\nAfter careful review, we regret to inform you that we are unable to approve your application for ${data.business_name} at this time.\n\nThis decision may be due to booth availability, category balance, or other factors. We encourage you to apply again for future events.\n\nIf you have questions, please contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
+            subject: 'An update on your Young at Heart Festival 2026 application',
+            react: ApplicationRejected({
+              contactName: data.contact_name,
+              businessName: data.business_name,
+            }),
+            text: `Hi ${data.contact_name},\n\nThank you for applying to trade at Young at Heart Festival 2026 with ${data.business_name}, and for your patience while our selection committee reviewed every submission.\n\nWe received an overwhelming number of vendor applications this year, far beyond the spaces we have available. After a careful and fair review, we are not able to offer ${data.business_name} a trading spot at this year's festival.\n\nPlease know this is not a reflection of your business. With limited stalls and so many strong applications, many wonderful vendors could not be accommodated this time. Your details stay on file, and we would warmly welcome a fresh application for future events.\n\nIf you'd like any feedback, simply reply to this email. Questions? support@youngatheart.co.za or +27 65 943 5012.\n\nWarm regards,\nThe Young at Heart Festival Team`,
           })
         } else if (validated.status === 'info_requested') {
           res = await sendEmail({
             to: data.email,
-            subject: 'Additional Information Needed - Young at Heart Festival',
-            text: `Hi ${data.contact_name},\n\nThank you for applying to exhibit at Young at Heart Festival 2026.\n\nWe need some additional information before we can process your application for ${data.business_name}.\n\nPlease reply to this email with the requested details, or contact us at support@youngatheart.co.za.\n\nBest regards,\nThe Young at Heart Festival Team`,
+            subject: 'A little more information needed — Young at Heart Festival 2026',
+            react: ApplicationInfoRequested({
+              contactName: data.contact_name,
+              businessName: data.business_name,
+            }),
+            text: `Hi ${data.contact_name},\n\nThank you for applying to trade at Young at Heart Festival 2026 with ${data.business_name}. Your application is moving through review, and our committee just needs a little more detail before we can finalise a decision.\n\nWhat we need from you:\n- A clear description of what you plan to sell or showcase.\n- A few photos of your products, stall, or previous setups.\n- Your trading licence or relevant certification, if applicable.\n\nSimply reply to this email with the details above and we'll pick your application straight back up. Questions? support@youngatheart.co.za or +27 65 943 5012.\n\nWarm regards,\nThe Young at Heart Festival Team`,
           })
         }
         if (res) {

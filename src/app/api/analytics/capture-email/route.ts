@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/email/resend'
+import { ApplicationIncomplete } from '@/lib/email/templates/ApplicationIncomplete'
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,6 +38,10 @@ export async function POST(req: NextRequest) {
       await sendEmail({
         to: email,
         subject: 'Complete Your Vendor Application — Young at Heart Festival 2026',
+        react: ApplicationIncomplete({
+          contactName: name || undefined,
+          businessName: business || undefined,
+        }),
         text: `Hi ${name || 'there'},
 
 We noticed you started a vendor application for ${business ? business + ' at ' : ''}Young at Heart Festival 2026 but didn't complete it.

@@ -4,7 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email/resend'
 import { ApplicationConfirmation } from '@/lib/email/templates/ApplicationConfirmation'
 import { ApplicationApproved } from '@/lib/email/templates/ApplicationApproved'
+import { ApplicationRejected } from '@/lib/email/templates/ApplicationRejected'
+import { ApplicationInfoRequested } from '@/lib/email/templates/ApplicationInfoRequested'
+import { ApplicationIncomplete } from '@/lib/email/templates/ApplicationIncomplete'
 import { ApplicationDelayNotice } from '@/lib/email/templates/ApplicationDelayNotice'
+import { PasswordReset } from '@/lib/email/templates/PasswordReset'
 import { Campaign } from '@/lib/email/templates/Campaign'
 
 export const maxDuration = 60
@@ -36,6 +40,22 @@ const SAMPLES = {
   delay: () => ({
     subject: '[Preview] An update on your application — Young at Heart Festival 2026',
     react: ApplicationDelayNotice({ firstName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
+  }),
+  rejected: () => ({
+    subject: '[Preview] An update on your application — Young at Heart Festival 2026',
+    react: ApplicationRejected({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
+  }),
+  info_requested: () => ({
+    subject: '[Preview] A little more information needed — Young at Heart Festival 2026',
+    react: ApplicationInfoRequested({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
+  }),
+  incomplete: () => ({
+    subject: '[Preview] You’re almost there — Young at Heart Festival 2026',
+    react: ApplicationIncomplete({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
+  }),
+  password_reset: () => ({
+    subject: '[Preview] Reset your Young at Heart Festival exhibitor password',
+    react: PasswordReset({ contactName: 'Aisha', resetUrl: 'https://cthalaal.co.za/exhibitor/set-password#example-token' }),
   }),
   campaign: () => ({
     subject: '[Preview] You’re invited — Young at Heart Festival 2026',

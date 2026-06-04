@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/logo'
 import { Mail, Loader2, CheckCircle2 } from 'lucide-react'
 
@@ -13,11 +12,17 @@ export default function ForgotPassword() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const supabase = createClient()
-    await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/exhibitor/set-password`,
-    })
-    // Always show success (don't leak which emails exist)
+    // Branded reset: our own endpoint mints the recovery link and sends the
+    // Young at Heart branded email (not Supabase's generic default).
+    try {
+      await fetch('/api/exhibitor/send-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      })
+    } catch {
+      // swallow — always show success so we never leak which emails exist
+    }
     setSent(true); setLoading(false)
   }
 
