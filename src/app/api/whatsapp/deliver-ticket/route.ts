@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let b: { phone?: string; firstName?: string; orderNumber?: string; ticketSummary?: string; pdfBase64?: string; pdfUrl?: string; filename?: string }
+  let b: { phone?: string; firstName?: string; lastName?: string; email?: string; orderNumber?: string; ticketSummary?: string; ticketQty?: number; orderTotal?: number; pdfBase64?: string; pdfUrl?: string; filename?: string }
   try { b = await request.json() } catch { return NextResponse.json({ error: 'Bad JSON' }, { status: 400 }) }
 
   const e164 = toE164(b.phone || '')
@@ -84,6 +84,43 @@ export async function POST(request: NextRequest) {
     })
   } catch (e) {
     console.error('[deliver-ticket] log failed:', e)
+  }
+
+  // Identity-side: upsert the buyer so the bot's identity resolver greets
+  // them by name in any future inbound. Schema: email is the unique key,
+  // name+phone+ticket_count+total_spent+last_purchase_at.
+  if (b.email) {
+    try {
+      const db = createAdminClient()
+      const fullName = [b.firstName, b.lastName].filter(Boolean).join(' ').trim() || null
+      const qty = Math.max(1, Math.floor(Number(b.ticketQty) || 1))
+      const spent = Number(b.orderTotal) || 0
+      const { data: existing } = await db
+        .from('ticket_buyers')
+        .select('id, ticket_count, total_spent')
+        .ilike('email', b.email)
+        .maybeSingle()
+      if (existing) {
+        await db.from('ticket_buyers').update({
+          name: fullName,
+          phone: e164,
+          ticket_count: (Number(existing.ticket_count) || 0) + qty,
+          total_spent: (Number(existing.total_spent) || 0) + spent,
+          last_purchase_at: new Date().toISOString(),
+        }).eq('id', existing.id)
+      } else {
+        await db.from('ticket_buyers').insert({
+          email: b.email,
+          name: fullName,
+          phone: e164,
+          ticket_count: qty,
+          total_spent: spent,
+          last_purchase_at: new Date().toISOString(),
+        })
+      }
+    } catch (e) {
+      console.error('[deliver-ticket] ticket_buyers upsert failed:', e)
+    }
   }
 
   if (res.skipped) {

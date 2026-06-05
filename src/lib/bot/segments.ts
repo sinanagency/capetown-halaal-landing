@@ -53,13 +53,13 @@ export async function resolveSegment(key: SegmentKey): Promise<Recipient[]> {
   if (key === 'ticket_buyers') {
     const { data } = await db
       .from('ticket_buyers')
-      .select('email, first_name, last_name')
+      .select('email, name')
       .limit(5000)
     return (data || [])
       .filter((r) => r.email)
       .map((r) => ({
         email: r.email as string,
-        name: [r.first_name, r.last_name].filter(Boolean).join(' ') || null,
+        name: r.name || null,
       }))
   }
 

@@ -27,12 +27,13 @@ export interface ResolvedIdentity {
     payment_status: string       // 'none' | 'pending' | 'paid' | etc.
     tier_label: string | null
   }
-  // Ticket-buyer role:
+  // Ticket-buyer role (schema = email, name, phone, ticket_count, total_spent,
+  // last_purchase_at — no first/last name split, no order column).
   buyer?: {
     name: string | null
     email: string | null
-    last_order_number: string | null
-    total_tickets: number        // sum of qty across all their orders
+    total_tickets: number
+    total_spent: number
     last_buy_at: string | null
   }
 }
@@ -95,36 +96,37 @@ export async function resolveIdentity(e164: string): Promise<ResolvedIdentity> {
     }
   }
 
-  // (3) Ticket buyer via wa_phone (Meta cron-fed ticket_buyers).
+  // (3) Ticket buyer by phone — the live ticket_buyers schema has `phone` only
+  // (no wa_phone column), and a single `name` column (no first/last split).
   const { data: buyers } = await db
     .from('ticket_buyers')
-    .select('first_name, last_name, email, last_order_number, ticket_count, created_at')
-    .or(`wa_phone.eq.${e164},wa_phone.eq.${e164NoPlus}`)
-    .order('created_at', { ascending: false })
-    .limit(5)
-  const rows = (buyers || []) as Array<{
-    first_name: string | null
-    last_name: string | null
+    .select('email, name, phone, ticket_count, total_spent, last_purchase_at, created_at')
+    .or(`phone.eq.${e164},phone.eq.${e164NoPlus}`)
+    .order('last_purchase_at', { ascending: false, nullsFirst: false })
+    .limit(1)
+  const buyer = (buyers || [])[0] as {
     email: string | null
-    last_order_number: string | null
+    name: string | null
+    phone: string | null
     ticket_count: number | null
+    total_spent: number | null
+    last_purchase_at: string | null
     created_at: string | null
-  }>
-  if (rows.length > 0) {
-    const head = rows[0]
-    const fullName = [head.first_name, head.last_name].filter(Boolean).join(' ') || null
-    const totalTickets = rows.reduce((s, r) => s + (r.ticket_count || 0), 0)
+  } | undefined
+  if (buyer) {
+    const fullName = buyer.name || null
+    const firstName = (fullName || '').trim().split(/\s+/)[0] || null
     return {
       ...base,
       role: 'ticket_buyer',
       name: fullName,
-      firstName: head.first_name || null,
+      firstName,
       buyer: {
         name: fullName,
-        email: head.email,
-        last_order_number: head.last_order_number,
-        total_tickets: totalTickets,
-        last_buy_at: head.created_at,
+        email: buyer.email,
+        total_tickets: buyer.ticket_count || 0,
+        total_spent: Number(buyer.total_spent) || 0,
+        last_buy_at: buyer.last_purchase_at || buyer.created_at,
       },
     }
   }
@@ -153,7 +155,7 @@ export function identityBriefing(id: ResolvedIdentity): string {
   }
   if (id.role === 'ticket_buyer') {
     const b = id.buyer!
-    return `THE SENDER IS A TICKET BUYER — ${b.name || 'a confirmed buyer'}. Tickets on record: ${b.total_tickets}. Last order: ${b.last_order_number || 'unknown'}. Greet them by name when natural and focus on attendance-side info (gate times, parking, schedule, re-sending tickets).`
+    return `THE SENDER IS A TICKET BUYER — ${b.name || 'a confirmed buyer'}. Tickets on record: ${b.total_tickets}. Greet them by name when natural and focus on attendance-side info (gate times, parking, schedule, re-sending tickets).`
   }
   return 'The sender is an UNKNOWN contact — they may be a prospective vendor, a prospective ticket buyer, or just curious. Help warmly, ask which.'
 }
