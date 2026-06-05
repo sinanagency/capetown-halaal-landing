@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
       await notifyOwners({
         event: 'payment_succeeded',
         body: `${businessName} just paid ${formatRand(amount)} via Yoco. Ref ${providerRef}.`,
-        audience: 'festival_owner',
+        audience: 'all',
       })
     } catch (notifyError) {
       console.error('[yoco-webhook] notify owner failed:', notifyError)

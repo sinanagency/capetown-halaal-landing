@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       await notifyOwners({
         event: 'application_received',
         body: `New vendor application: ${validated.business_name} (${validated.email}). Booth chosen: ${validated.preferred_booth_tier || 'not specified'}.`,
-        audience: 'festival_owner',
+        audience: 'all',
       })
     } catch (notifyError) {
       console.error('[applications] notify owner failed:', notifyError)
