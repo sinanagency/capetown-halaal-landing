@@ -9,6 +9,7 @@ import { parsePortalState, updatePortalState } from '@/lib/portal-state'
 import { sendEmail } from '@/lib/email/resend'
 import { VendorPaymentConfirmation } from '@/lib/email/templates/VendorPaymentConfirmation'
 import { computeVendorPricing, formatRand } from '@/lib/payments/pricing'
+import { sendTemplate, toE164 } from '@/lib/whatsapp'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient()
   const { data: app } = await admin
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, admin_notes, special_requirements, preferred_booth_tier')
+    .select('id, business_name, contact_name, email, phone, wa_phone, admin_notes, special_requirements, preferred_booth_tier')
     .eq('id', applicationId)
     .maybeSingle()
 
@@ -78,29 +79,59 @@ export async function POST(req: NextRequest) {
     stage: s.stage === 'show_ready' ? 'show_ready' : 'paid',
   }))
 
-  // Idempotency guard: only send the confirmation email on the FIRST paid event.
+  // Idempotency guard: only send confirmations on the FIRST paid event.
   if (!alreadyPaid) {
+    const pricing = computeVendorPricing({
+      preferred_booth_tier: app.preferred_booth_tier as string,
+      special_requirements: app.special_requirements,
+    })
+    const amount = result.amount ?? pricing.total
+    const contactName = (app.contact_name as string) || 'there'
+    const firstName = contactName.trim().split(/\s+/)[0] || contactName
+    const businessName = (app.business_name as string) || 'your business'
+    const providerRef = result.providerRef || ''
+
+    // (1) EMAIL via Resend (DKIM-signed → inbox).
     try {
-      const pricing = computeVendorPricing({
-        preferred_booth_tier: app.preferred_booth_tier as string,
-        special_requirements: app.special_requirements,
-      })
       await sendEmail({
         to: app.email as string,
-        subject: `Payment confirmed — ${app.business_name} · YAH Festival 2026`,
+        subject: `Payment confirmed — ${businessName} · YAH Festival 2026`,
         react: VendorPaymentConfirmation({
-          contactName: (app.contact_name as string) || 'there',
-          businessName: (app.business_name as string) || 'your business',
-          amount: result.amount ?? pricing.total,
-          providerRef: result.providerRef || '',
+          contactName,
+          businessName,
+          amount,
+          providerRef,
           invoiceUrl: `${SITE}/exhibitor/portal/invoice`,
           portalUrl: `${SITE}/exhibitor/login`,
         }),
-        text: `Hi ${app.contact_name},\n\nWe've received your payment of ${formatRand(result.amount ?? pricing.total)} for ${app.business_name}. Reference: ${result.providerRef}. Your invoice is in your portal: ${SITE}/exhibitor/portal/invoice. Log in: ${SITE}/exhibitor/login.\n\nWelcome aboard.\nThe YAH Festival Team`,
+        text: `Hi ${contactName},\n\nWe've received your payment of ${formatRand(amount)} for ${businessName}. Reference: ${providerRef}. Your invoice is in your portal: ${SITE}/exhibitor/portal/invoice. Log in: ${SITE}/exhibitor/login.\n\nWelcome aboard.\nThe YAH Festival Team`,
       })
     } catch (e) {
       console.error('[yoco-webhook] confirmation email failed:', (e as Error).message)
-      // Don't fail the webhook — the state is paid; we'll resend manually if needed.
+    }
+
+    // (2) WHATSAPP via approved `vendor_payment_confirmation` template.
+    // Slot mapping: {{1}} = first name, {{2}} = amount, {{3}} = stall label.
+    const waPhone = (app.wa_phone as string) || (app.phone as string) || ''
+    if (waPhone) {
+      try {
+        const res = await sendTemplate(
+          toE164(waPhone),
+          'vendor_payment_confirmation',
+          [firstName, formatRand(amount), pricing.stallLabel],
+          { category: 'utility' }
+        )
+        await admin.from('wa_messages').insert({
+          direction: 'out',
+          wa_phone: toE164(waPhone),
+          body: `[vendor_payment_confirmation] Payment received, ${firstName}! Amount: ${formatRand(amount)} · Stall: ${pricing.stallLabel}`,
+          status: res.skipped ? 'failed' : 'sent',
+          provider_message_id: res.messageId || null,
+          error: res.skipped || null,
+        })
+      } catch (e) {
+        console.error('[yoco-webhook] confirmation whatsapp failed:', (e as Error).message)
+      }
     }
   }
 

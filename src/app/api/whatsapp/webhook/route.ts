@@ -14,9 +14,10 @@ import {
   isStopKeyword,
   isStartKeyword,
 } from '@/lib/wa-consent'
-import { askFestivalBrain } from '@/lib/festival-brain'
+import { askFestivalBrain, FESTIVAL_SYSTEM_PROMPT } from '@/lib/festival-brain'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findAdmin } from '@/lib/bot/admins'
+import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -123,14 +124,22 @@ async function handleInbound(msg: {
     return
   }
 
+  // Resolve who this is so every reply is personalised (vendor name, ticket
+  // count, etc.). Admins are already handled above; resolution here is for
+  // vendors / ticket buyers / unknowns.
+  const identity = await resolveIdentity(e164)
+  const personalisedSystem = `${FESTIVAL_SYSTEM_PROMPT}\n\n=== ABOUT THE SENDER ===\n${identityBriefing(identity)}`
+
   const history = await recentHistory(e164)
   history.push({ role: 'user', content: msg.text })
   let reply = ''
   try {
-    reply = await askFestivalBrain(history)
+    reply = await askFestivalBrain(history, { system: personalisedSystem })
   } catch (e) {
     console.error('brain error', e)
-    reply = 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
+    reply = identity.firstName
+      ? `Thanks for your message, ${identity.firstName}! Our team will get back to you. For tickets visit tickets.youngatheart.co.za`
+      : 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
   }
   const res = await sendText(e164, reply)
   await logMessage({ direction: 'out', wa_phone: e164, body: reply, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
