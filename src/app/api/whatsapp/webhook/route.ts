@@ -16,6 +16,7 @@ import {
 } from '@/lib/wa-consent'
 import { askFestivalBrain } from '@/lib/festival-brain'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findAdmin } from '@/lib/bot/admins'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -93,8 +94,29 @@ async function handleInbound(msg: {
     return
   }
 
-  // 3) Normal message — opens the 24h window, reply with the festival brain.
+  // 3) Normal message — opens the 24h window.
   await touchInbound(e164, msg.name)
+
+  // 3a) ADMIN path — bypass the festival LLM entirely. Tag, ack quietly, and
+  // (best-effort) notify the master. Admin messages are surfaced in the
+  // /admin/bot-inbox page so Taona sees them next time he opens the portal.
+  const admin = findAdmin(e164)
+  if (admin) {
+    const ack =
+      admin.role === 'festival_owner'
+        ? `Got it ${admin.name.split(' ')[0]} — passed straight to Taona. He'll pick it up from his side and come back to you.`
+        : `Logged for you, ${admin.name}.`
+    const res = await sendText(e164, ack)
+    await logMessage({
+      direction: 'out',
+      wa_phone: e164,
+      body: ack,
+      status: res.skipped ? 'failed' : 'sent',
+      providerMessageId: res.messageId,
+    })
+    await notifyMaster(admin, msg.text)
+    return
+  }
 
   if (msg.type !== 'text' || !msg.text.trim()) {
     await sendText(e164, "Hi! I'm the Young at Heart Festival assistant. Ask me about tickets, vendors, directions, or anything about the festival. Reply STOP to unsubscribe.")
@@ -112,6 +134,28 @@ async function handleInbound(msg: {
   }
   const res = await sendText(e164, reply)
   await logMessage({ direction: 'out', wa_phone: e164, body: reply, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
+}
+
+// Forward an admin's inbound straight to the master (Taona) so he sees it
+// without waiting to open /admin/bot-inbox. Best-effort: a failure here never
+// blocks the 200 to Meta because the caller logs and swallows errors.
+async function notifyMaster(from: { role: string; name: string }, body: string) {
+  const master = findAdmin('+971501168462')
+  if (!master || master.role !== 'master') return
+  if (master.name === from.name) return // Taona pinging himself
+  const text = `🛎️ ${from.name} (${from.role}) said:\n\n"${(body || '').slice(0, 400)}"\n\nReply in /admin/bot-inbox or here.`
+  try {
+    const res = await sendText(master.phone, text)
+    await logMessage({
+      direction: 'out',
+      wa_phone: master.phone,
+      body: text,
+      status: res.skipped ? 'failed' : 'sent',
+      providerMessageId: res.messageId,
+    })
+  } catch (e) {
+    console.error('notifyMaster error', e)
+  }
 }
 
 // ---- helpers (wa_messages = existing v5 table; wamid = provider_message_id) ----

@@ -9,6 +9,7 @@
 //   - free-form text     → only inside the 24h service window AND not opted_out
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isAdmin } from '@/lib/bot/admins'
 
 export type WaCategory = 'utility' | 'marketing' | 'authentication' | 'service'
 export type ConsentSource = 'checkout' | 'vendor_form' | 'inbound' | 'manual' | 'import'
@@ -47,6 +48,17 @@ export async function canSend(
   waPhone: string,
   kind: { type: 'template'; category: WaCategory } | { type: 'text' }
 ): Promise<SendDecision> {
+  // Bot admins (Taona, Samreen) are not subject to marketing/window gates —
+  // they're internal users, not customers. STOP still applies (explicit opt-out
+  // is honoured for everyone) but they cannot be silently blocked from
+  // utility/marketing/free-form just because the customer consent table doesn't
+  // know about them.
+  if (isAdmin(waPhone)) {
+    const c = await getContact(waPhone)
+    if (c?.opted_out) return { allowed: false, reason: 'admin contact opted out (STOP)' }
+    return { allowed: true, reason: 'admin bypass' }
+  }
+
   const c = await getContact(waPhone)
 
   // Unknown contact: never opted out, but also never opted in.
