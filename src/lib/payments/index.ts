@@ -1,12 +1,15 @@
 import type { PaymentProvider } from './types'
+import { yoco } from './yoco'
 import { fnb } from './fnb'
-// transaction-junction.ts is kept as an alternative provider (unused while FNB is active).
+// fnb.ts + transaction-junction.ts are kept as fallback providers. Yoco is the
+// live one for 2026 because the WordPress ticket store already charges to the
+// same Yoco merchant — booth fees land in the same wallet, settled to FNB.
 
-// Swap or add providers here. Booth fees go direct through the FNB eCommerce API
-// (FNB is both gateway and acquirer). Until FNB_API_KEY is set, isConfigured() is
-// false, so the portal stays EFT-only with no fake card button.
+// Switch by env: set PAYMENT_PROVIDER=yoco (default), =fnb, or =transaction-junction.
 export function activeProvider(): PaymentProvider {
-  return fnb
+  const id = (process.env.PAYMENT_PROVIDER || 'yoco').toLowerCase()
+  if (id === 'fnb') return fnb
+  return yoco
 }
 
 export function paymentsEnabled(): boolean {

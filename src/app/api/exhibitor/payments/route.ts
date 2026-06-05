@@ -51,9 +51,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Online card payment is not enabled yet' }, { status: 503 })
   }
   const state = parsePortalState(app.admin_notes as string)
-  const amount = state.payment?.amount
+  // Compute amount from the application's stall + electricals + furniture. An
+  // organiser-set state.payment.amount overrides for special-case quotes.
+  const { computeVendorPricing } = await import('@/lib/payments/pricing')
+  const pricing = computeVendorPricing({
+    preferred_booth_tier: app.preferred_booth_tier as string,
+    special_requirements: app.special_requirements,
+  })
+  const amount = state.payment?.amount && state.payment.amount > 0 ? state.payment.amount : pricing.total
   if (!amount || amount <= 0) {
-    return NextResponse.json({ error: 'Your stall fee has not been set by the organisers yet' }, { status: 400 })
+    return NextResponse.json({ error: 'Your stall fee could not be computed. Please contact the team.' }, { status: 400 })
   }
   const reference = paymentReference(applicationId)
   try {
@@ -69,7 +76,7 @@ export async function POST(req: NextRequest) {
       cancelUrl: `${SITE}/exhibitor/portal/payments?cancelled=1`,
     })
     await updatePortalState(applicationId, (s) => ({
-      ...s, payment: { ...(s.payment || {}), status: 'pending', reference, provider_ref: providerRef },
+      ...s, payment: { ...(s.payment || {}), status: 'pending', amount, reference, provider_ref: providerRef },
     }))
     return NextResponse.json({ url })
   } catch (e) {

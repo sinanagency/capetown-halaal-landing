@@ -6,6 +6,8 @@ import {
   parseAllocation, withAllocation, tierLabel, stallTypeOf,
   type StallType, type StallStatus,
 } from '@/lib/stalls'
+import { parsePortalState } from '@/lib/portal-state'
+import { computeVendorPricing } from '@/lib/payments/pricing'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -21,13 +23,21 @@ async function requireAdmin() {
 async function loadOccupants(admin: ReturnType<typeof createAdminClient>) {
   const { data: apps } = await admin
     .from('vendor_applications')
-    .select('id, business_name, contact_name, phone, email, product_categories, preferred_booth_tier, status, admin_notes')
+    .select('id, business_name, contact_name, phone, email, product_categories, preferred_booth_tier, status, admin_notes, special_requirements')
 
   const byCode = new Map<string, Record<string, unknown>>()
   const allocatable: Record<string, unknown>[] = []
 
   for (const a of apps || []) {
     const { stall, status } = parseAllocation(a.admin_notes as string)
+    const portal = parsePortalState(a.admin_notes as string)
+    const pricing = computeVendorPricing({
+      preferred_booth_tier: a.preferred_booth_tier as string,
+      special_requirements: a.special_requirements,
+    })
+    const paymentStatus = (portal.payment?.status || 'none') as string
+    const paymentAmount =
+      portal.payment?.amount && portal.payment.amount > 0 ? portal.payment.amount : pricing.total
     const row = {
       id: a.id,
       business_name: a.business_name,
@@ -40,6 +50,9 @@ async function loadOccupants(admin: ReturnType<typeof createAdminClient>) {
       app_status: a.status,
       stall,
       stall_status: stall ? status : null,
+      payment_status: paymentStatus,
+      payment_amount: paymentAmount,
+      payment_ref: portal.payment?.provider_ref || portal.payment?.reference || null,
     }
     if (stall) byCode.set(stall, row)
     // dropdown = approved applicants + anyone already placed (so you can move them)

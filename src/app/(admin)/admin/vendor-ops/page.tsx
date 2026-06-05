@@ -20,6 +20,9 @@ interface AppRow {
   app_status: string
   stall: string | null
   stall_status: string | null
+  payment_status?: string
+  payment_amount?: number
+  payment_ref?: string | null
 }
 interface Avail { total: number; allocated: number; held: number; available: number }
 interface StallsResponse {
@@ -256,28 +259,40 @@ export default function VendorOpsPage() {
 
       {!loading && tab === 'payments' && data && (() => {
         const rows = data.applications.filter((a) => a.app_status === 'approved' || a.stall)
-        const priceOf = (t: string | null) => (t && TIER_META[t]?.price) || 0
-        const outstanding = rows.filter((r) => !r.stall).reduce((s, r) => s + priceOf(r.tier), 0)
-        const confirmed = rows.filter((r) => r.stall).reduce((s, r) => s + priceOf(r.tier), 0)
+        const amountOf = (r: AppRow) => r.payment_amount ?? (r.tier ? TIER_META[r.tier]?.price || 0 : 0)
+        const paidRows = rows.filter((r) => r.payment_status === 'paid')
+        const pendingRows = rows.filter((r) => r.payment_status === 'pending')
+        const dueRows = rows.filter((r) => r.payment_status !== 'paid')
+        const paidSum = paidRows.reduce((s, r) => s + amountOf(r), 0)
+        const dueSum = dueRows.reduce((s, r) => s + amountOf(r), 0)
+        const pendingSum = pendingRows.reduce((s, r) => s + amountOf(r), 0)
+        const pillFor = (s: string | undefined) => {
+          if (s === 'paid') return 'bg-green-50 text-green-700 border-green-200'
+          if (s === 'pending') return 'bg-blue-50 text-blue-700 border-blue-200'
+          if (s === 'deferred') return 'bg-neutral-50 text-neutral-600 border-neutral-200'
+          return 'bg-amber-50 text-amber-700 border-amber-200'
+        }
         return (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Confirmed (placed)</p><p className="text-2xl font-bold text-green-600">R{confirmed.toLocaleString()}</p></div>
-              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Approved, awaiting placement</p><p className="text-2xl font-bold text-amber-600">R{outstanding.toLocaleString()}</p></div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Paid</p><p className="text-2xl font-bold text-green-600">R{paidSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{paidRows.length} vendor{paidRows.length === 1 ? '' : 's'}</p></div>
+              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Pending checkout</p><p className="text-2xl font-bold text-blue-600">R{pendingSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{pendingRows.length} vendor{pendingRows.length === 1 ? '' : 's'}</p></div>
+              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Outstanding</p><p className="text-2xl font-bold text-amber-600">R{dueSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{dueRows.length} vendor{dueRows.length === 1 ? '' : 's'}</p></div>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800"><b>Policy:</b> no deposit — full settlement confirms the stall. Full refund if cancelled 8+ weeks before; none after.</div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800"><b>Policy:</b> no deposit — full settlement confirms the stall. Full refund if cancelled 8+ weeks before; none after. Payments process via Yoco (card).</div>
             <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="text-left text-xs text-neutral-500 border-b border-neutral-200"><th className="p-3 font-semibold">Vendor</th><th className="p-3 font-semibold">Chosen booth</th><th className="p-3 font-semibold">Stall</th><th className="p-3 font-semibold">Est. fee</th><th className="p-3 font-semibold">State</th></tr></thead>
+                  <thead><tr className="text-left text-xs text-neutral-500 border-b border-neutral-200"><th className="p-3 font-semibold">Vendor</th><th className="p-3 font-semibold">Chosen booth</th><th className="p-3 font-semibold">Stall</th><th className="p-3 font-semibold">Amount</th><th className="p-3 font-semibold">Payment</th><th className="p-3 font-semibold">Yoco ref</th></tr></thead>
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.id} className="border-b border-neutral-100">
                         <td className="p-3 font-semibold">{r.business_name}</td>
                         <td className="p-3 text-neutral-600">{r.tier_label}</td>
                         <td className="p-3">{r.stall || '—'}</td>
-                        <td className="p-3">{priceOf(r.tier) ? `R${priceOf(r.tier).toLocaleString()}` : '—'}</td>
-                        <td className="p-3"><span className={`text-[11px] font-semibold border px-2 py-0.5 rounded ${r.stall ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{r.stall ? 'placed' : 'awaiting'}</span></td>
+                        <td className="p-3">{amountOf(r) ? `R${amountOf(r).toLocaleString()}` : '—'}</td>
+                        <td className="p-3"><span className={`text-[11px] font-semibold border px-2 py-0.5 rounded ${pillFor(r.payment_status)}`}>{r.payment_status || 'none'}</span></td>
+                        <td className="p-3 text-xs text-neutral-500 font-mono">{r.payment_ref || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
