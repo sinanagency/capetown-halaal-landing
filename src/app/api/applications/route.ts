@@ -100,6 +100,18 @@ export async function POST(request: NextRequest) {
       console.error('[applications] confirmation email threw:', emailError)
     }
 
+    // Best-effort owner notification — never block the applicant on this.
+    try {
+      const { notifyOwners } = await import('@/lib/bot/notify')
+      await notifyOwners({
+        event: 'application_received',
+        body: `New vendor application: ${validated.business_name} (${validated.email}). Booth chosen: ${validated.preferred_booth_tier || 'not specified'}.`,
+        audience: 'festival_owner',
+      })
+    } catch (notifyError) {
+      console.error('[applications] notify owner failed:', notifyError)
+    }
+
     return NextResponse.json({ success: true, application: data, emailSent })
   } catch (error) {
     if (error instanceof z.ZodError) {

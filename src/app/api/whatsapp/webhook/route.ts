@@ -18,6 +18,7 @@ import { askFestivalBrain, FESTIVAL_SYSTEM_PROMPT } from '@/lib/festival-brain'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findAdmin } from '@/lib/bot/admins'
 import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
+import { handleAdminMessage } from '@/lib/bot/admin-chat'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -98,24 +99,28 @@ async function handleInbound(msg: {
   // 3) Normal message — opens the 24h window.
   await touchInbound(e164, msg.name)
 
-  // 3a) ADMIN path — bypass the festival LLM entirely. Tag, ack quietly, and
-  // (best-effort) notify the master. Admin messages are surfaced in the
-  // /admin/bot-inbox page so Taona sees them next time he opens the portal.
+  // 3a) ADMIN path — bypass the festival LLM and route through the admin chat
+  // handler. The handler returns either a structured reply (intent matched —
+  // stats query, blast proposal, confirmation, cancellation) or an empty reply
+  // (no intent matched → fall through to a one-line ack + master forward).
   const admin = findAdmin(e164)
   if (admin) {
-    const ack =
-      admin.role === 'festival_owner'
-        ? `Got it ${admin.name.split(' ')[0]} — passed straight to Taona. He'll pick it up from his side and come back to you.`
-        : `Logged for you, ${admin.name}.`
-    const res = await sendText(e164, ack)
+    const adminResult = await handleAdminMessage(admin, msg.text)
+    const reply = adminResult.reply ||
+      (admin.role === 'festival_owner'
+        ? `Got it ${admin.name.split(' ')[0]} — passed to Taona. Ask me 'stats' for live numbers, or tell me who you want to email and I'll draft it.`
+        : `Logged for you, ${admin.name}. Try 'stats' or 'email approved unpaid the payment reminder'.`)
+    const res = await sendText(e164, reply)
     await logMessage({
       direction: 'out',
       wa_phone: e164,
-      body: ack,
+      body: reply,
       status: res.skipped ? 'failed' : 'sent',
       providerMessageId: res.messageId,
     })
-    await notifyMaster(admin, msg.text)
+    // Only notify master on free-form (non-intent) admin messages — proposals
+    // and stats queries are noise to forward.
+    if (!adminResult.reply) await notifyMaster(admin, msg.text)
     return
   }
 

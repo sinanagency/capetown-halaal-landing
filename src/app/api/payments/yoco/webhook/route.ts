@@ -110,6 +110,18 @@ export async function POST(req: NextRequest) {
       console.error('[yoco-webhook] confirmation email failed:', (e as Error).message)
     }
 
+    // Notify the festival owner (Samreen) in real time.
+    try {
+      const { notifyOwners } = await import('@/lib/bot/notify')
+      await notifyOwners({
+        event: 'payment_succeeded',
+        body: `${businessName} just paid ${formatRand(amount)} via Yoco. Ref ${providerRef}.`,
+        audience: 'festival_owner',
+      })
+    } catch (notifyError) {
+      console.error('[yoco-webhook] notify owner failed:', notifyError)
+    }
+
     // (2) WHATSAPP via approved `vendor_payment_confirmation` template.
     // Slot mapping: {{1}} = first name, {{2}} = amount, {{3}} = stall label.
     const waPhone = (app.wa_phone as string) || (app.phone as string) || ''
