@@ -52,6 +52,11 @@ export interface PortalState {
   support?: SupportMessage[]
   passAllowance?: number        // gate passes this vendor is entitled to (set by organisers)
   stage?: 'approved' | 'invoiced' | 'paid' | 'docs' | 'show_ready'
+  wa?: {
+    phone: string              // E.164 — the WhatsApp number they opted in with (may differ from vendor.phone)
+    opted_in_at: string        // ISO timestamp
+    welcome_sent?: boolean     // did we fire the approved welcome template
+  }
 }
 
 export interface SupportMessage {
