@@ -59,6 +59,9 @@ export default function ApplyPage() {
   const [step, setStep] = useState(1)
   const [formState, setFormState] = useState<FormState>('idle')
   const [error, setError] = useState('')
+  // Honeypot: hidden field bots auto-fill, humans never see. Submission silently dropped if non-empty.
+  const [companyWebsiteUrl, setCompanyWebsiteUrl] = useState('')
+
   const [form, setForm] = useState({
     // Step 1: Business Info
     email: '',
@@ -131,6 +134,7 @@ export default function ApplyPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          company_website_url: companyWebsiteUrl, // honeypot
           business_name: form.stall_brand_name,
           business_description: form.business_description,
           product_categories: [form.item_category],
@@ -223,6 +227,20 @@ export default function ApplyPage() {
             </div>
           )}
 
+          {/* Honeypot: invisible to humans, bots auto-fill it and get silently dropped */}
+          <div aria-hidden="true" style={{ position: 'absolute', left: '-10000px', top: 'auto', width: '1px', height: '1px', overflow: 'hidden' }}>
+            <label htmlFor="company_website_url">Company website (leave blank)</label>
+            <input
+              type="text"
+              id="company_website_url"
+              name="company_website_url"
+              tabIndex={-1}
+              autoComplete="off"
+              value={companyWebsiteUrl}
+              onChange={e => setCompanyWebsiteUrl(e.target.value)}
+            />
+          </div>
+
           {/* Step 1: Business Info */}
           {step === 1 && (
             <div className="space-y-6">
@@ -241,7 +259,7 @@ export default function ApplyPage() {
                         fetch('/api/analytics/capture-email', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ email, name: form.contact_person, business: form.stall_brand_name }),
+                          body: JSON.stringify({ email, name: form.contact_person, business: form.stall_brand_name, company_website_url: companyWebsiteUrl }),
                           keepalive: true,
                         }).catch(() => {})
                       }

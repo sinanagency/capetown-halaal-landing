@@ -6,6 +6,17 @@ import { sendEmail } from '@/lib/email/resend'
 import { ApplicationConfirmation } from '@/lib/email/templates/ApplicationConfirmation'
 import { recordConsent } from '@/lib/wa-consent'
 import { toE164 } from '@/lib/whatsapp'
+import {
+  checkHoneypot,
+  checkEmail,
+  checkTokens,
+  checkIpThrottle,
+  logGuardEvent,
+  clientIp,
+  HONEYPOT_FIELD,
+} from '@/lib/security/abuse-guard'
+
+const APPLY_ENDPOINT = 'applications'
 
 // Validation schema for new applications
 const applicationSchema = z.object({
@@ -26,9 +37,42 @@ const applicationSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const supabase = createAdminClient()
+    const ip = clientIp(request.headers)
+
+    // 1. Honeypot. Silent 200 so bots cannot probe the defense.
+    const hp = checkHoneypot(body)
+    if (!hp.ok) {
+      await logGuardEvent(supabase, { endpoint: APPLY_ENDPOINT, ip, reason: hp.reason!, fields: { hp: String(body[HONEYPOT_FIELD] ?? '').slice(0, 64) } })
+      return NextResponse.json({ success: true, application: null, emailSent: false })
+    }
+
+    // 2. Attacker payloads in any free-text field. Done before Zod so
+    // we never echo PWNED/<script back through validation errors.
+    const tokenGuard = checkTokens(
+      body?.business_name, body?.business_description, body?.contact_name,
+      body?.email, body?.phone, body?.special_requirements, body?.preferred_booth_tier,
+    )
+    if (!tokenGuard.ok) {
+      await logGuardEvent(supabase, { endpoint: APPLY_ENDPOINT, ip, reason: tokenGuard.reason!, fields: { email: body?.email } })
+      return NextResponse.json({ error: 'Submission rejected.' }, { status: 400 })
+    }
+
     const validated = applicationSchema.parse(body)
 
-    const supabase = createAdminClient()
+    // 3. Reserved TLDs + disposable providers. Real vendors do not use these.
+    const emailGuard = checkEmail(validated.email)
+    if (!emailGuard.ok) {
+      await logGuardEvent(supabase, { endpoint: APPLY_ENDPOINT, ip, reason: emailGuard.reason!, fields: { email: validated.email } })
+      return NextResponse.json({ error: 'Please use a real business email address.' }, { status: 400 })
+    }
+
+    // 4. Per-IP throttle. Fall-open on DB blip so real applicants are never blocked.
+    const throttle = await checkIpThrottle(supabase, { ip, endpoint: APPLY_ENDPOINT, max: 3, windowMin: 10 })
+    if (!throttle.ok) {
+      await logGuardEvent(supabase, { endpoint: APPLY_ENDPOINT, ip, reason: throttle.reason!, fields: { email: validated.email } })
+      return NextResponse.json({ error: 'Too many submissions. Please wait a few minutes and try again.' }, { status: 429 })
+    }
 
     // Check for duplicate email submission
     const { data: existingApps } = await supabase
