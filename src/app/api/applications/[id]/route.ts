@@ -88,6 +88,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // Idempotency: if the application is already in the target status, no-op.
+    // Re-running approve was previously a destructive action (it reset the
+    // vendor's portal password and re-sent the approval email). This guard
+    // makes a double-click safe.
+    if (validated.status) {
+      const { data: existing } = await admin
+        .from('vendor_applications')
+        .select('id, status, reviewed_at, business_name, email, contact_name, payment_status, preferred_booth_tier')
+        .eq('id', id)
+        .single()
+      if (existing && existing.status === validated.status && existing.reviewed_at) {
+        return NextResponse.json({
+          success: true,
+          application: existing,
+          alreadyInStatus: true,
+          emailSent: false,
+        })
+      }
+    }
+
     // Update application
     const updateData: Record<string, unknown> = { ...validated }
     if (validated.status) {

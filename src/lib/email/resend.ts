@@ -15,7 +15,11 @@ const SMTP_USER = (process.env.SMTP_USER || 'support@youngatheart.co.za').trim()
 const SMTP_PASS = (process.env.SMTP_PASS || '').trim()
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim()
 
-// GoDaddy SMTP transport (port 465 SSL)
+// GoDaddy SMTP transport (port 465 SSL).
+// pool + maxMessages: 20 + maxConnections: 1 per Doctrine Law 5:
+// GoDaddy throttles aggressively; we MUST recycle the connection every
+// 20 messages so the back half of any batch isn't silently dropped.
+const SMTP_POOL = { pool: true, maxConnections: 1, maxMessages: 20 } as const
 const transporter = nodemailer.createTransport({
   host: 'smtpout.secureserver.net',
   port: 465,
@@ -25,9 +29,10 @@ const transporter = nodemailer.createTransport({
   connectionTimeout: 10000,
   greetingTimeout: 10000,
   socketTimeout: 15000,
+  ...SMTP_POOL,
 })
 
-// Fallback SMTP (port 587 STARTTLS)
+// Fallback SMTP (port 587 STARTTLS) — same throttle.
 const transporterFallback = nodemailer.createTransport({
   host: 'smtpout.secureserver.net',
   port: 587,
@@ -37,6 +42,7 @@ const transporterFallback = nodemailer.createTransport({
   connectionTimeout: 10000,
   greetingTimeout: 10000,
   socketTimeout: 15000,
+  ...SMTP_POOL,
 })
 
 let resendClient: Resend | null = null

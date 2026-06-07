@@ -1,10 +1,25 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { BOT_ADMINS, adminPhones } from '@/lib/bot/admins'
 import { BotInboxClient, type AdminThread } from './BotInboxClient'
+import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
 
 export default async function BotInboxPage() {
+  // Belt-and-suspenders auth: don't trust only the layout. This page reads
+  // every admin's WhatsApp history (PII heavy) so we re-check inline.
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/admin/login')
+  const adminCheck = createAdminClient()
+  const { data: adminUser } = await adminCheck
+    .from('admin_users')
+    .select('id')
+    .eq('id', user.id)
+    .single()
+  if (!adminUser) redirect('/admin/login')
+
   const db = createAdminClient()
   const phones = adminPhones()
 

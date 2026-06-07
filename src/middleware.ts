@@ -5,6 +5,11 @@ export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
   const hostname = request.headers.get('host') || ''
 
+  // Expose pathname to server components (layouts use this to allowlist
+  // public sub-routes like /admin/login while gating everything else).
+  const inboundHeaders = new Headers(request.headers)
+  inboundHeaders.set('x-pathname', pathname)
+
   // ---- Maintenance gate (runs FIRST so admin subdomain rewrites still get gated) ----
   if (isMaintenanceEnabled() && !isPathAlwaysOpen(pathname)) {
     const expected = bypassTokenFromEnv()
@@ -34,7 +39,7 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/maintenance'
     url.search = ''
-    const res = NextResponse.rewrite(url)
+    const res = NextResponse.rewrite(url, { request: { headers: inboundHeaders } })
     res.headers.set('Cache-Control', 'no-store, max-age=0, must-revalidate')
     return res
   }
@@ -47,10 +52,11 @@ export async function middleware(request: NextRequest) {
     } else if (!pathname.startsWith('/admin')) {
       url.pathname = `/admin${pathname}`
     }
-    return NextResponse.rewrite(url)
+    inboundHeaders.set('x-pathname', url.pathname)
+    return NextResponse.rewrite(url, { request: { headers: inboundHeaders } })
   }
 
-  return NextResponse.next()
+  return NextResponse.next({ request: { headers: inboundHeaders } })
 }
 
 export const config = {

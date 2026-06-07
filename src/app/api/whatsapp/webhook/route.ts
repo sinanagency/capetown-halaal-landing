@@ -20,6 +20,7 @@ import { findAdmin } from '@/lib/bot/admins'
 import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
 import { handleAdminMessage } from '@/lib/bot/admin-chat'
 import { isMaintenanceEnabled } from '@/lib/maintenance'
+import { guardReply, logGuardRedaction } from '@/lib/bot/reply-guard'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -183,8 +184,20 @@ async function handleInbound(msg: {
       ? `Thanks for your message, ${identity.firstName}! Our team will get back to you. For tickets visit tickets.youngatheart.co.za`
       : 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
   }
-  const res = await sendText(e164, reply)
-  await logMessage({ direction: 'out', wa_phone: e164, body: reply, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
+  // OUTPUT-side PII guard (KT #114 pattern). Redact phones/emails/IDs in
+  // the bot's reply that don't belong to the caller. Log redactions.
+  const guarded = guardReply(reply, { identity, callerE164: e164 })
+  if (guarded.redactionCount > 0) {
+    await logGuardRedaction({
+      callerE164: e164,
+      role: identity.role,
+      redactionCount: guarded.redactionCount,
+      reasons: guarded.reasons,
+      originalLen: reply.length,
+    })
+  }
+  const res = await sendText(e164, guarded.reply)
+  await logMessage({ direction: 'out', wa_phone: e164, body: guarded.reply, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
 }
 
 // Forward an admin's inbound straight to the master (Taona) so he sees it

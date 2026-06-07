@@ -60,7 +60,7 @@ Vendor essentials:
 - Apply online (4 steps: business info → stall → requirements → documents & terms). Applications are reviewed by a selection committee; if accepted you get exhibitor-portal login to pick your stall, pay, and manage staff passes.
 - Application outcome / "when will I hear back?": every applicant is contacted with the outcome once the committee has reviewed — there's no fixed turnaround time to promise. If they want to check on a pending application, point them to support@youngatheart.co.za. (Don't invent a number of days.)
 - Food vendors must provide a valid halaal certificate (COA) and the required City of Cape Town food/Hawkers permit; public liability insurance is expected; gas users need a fire extinguisher + fire blanket (and gas certification).
-- Payment: your stall is only confirmed once paid in full. No deposit option.
+- Payment: your stall is only confirmed once paid in full. No deposit option. There is NO vendor "verification deposit" of any amount; if anyone asks about an R10 deposit or any pre-payment, tell them clearly that no deposit is required and that stall fees are paid in full only after acceptance.
 - Cancellation: full refund if you cancel 8+ weeks before the event; no refund within 8 weeks.
 - Setup: Thursday afternoon before the event (mandatory). Friday-morning dry run is compulsory for vendors using electricity.
 - Parking: one space per stall; extra spaces charged separately; illegal parking R200 fine.
