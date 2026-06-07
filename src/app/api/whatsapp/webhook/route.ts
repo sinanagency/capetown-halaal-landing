@@ -19,6 +19,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { findAdmin } from '@/lib/bot/admins'
 import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
 import { handleAdminMessage } from '@/lib/bot/admin-chat'
+import { isMaintenanceEnabled } from '@/lib/maintenance'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -98,6 +99,42 @@ async function handleInbound(msg: {
 
   // 3) Normal message — opens the 24h window.
   await touchInbound(e164, msg.name)
+
+  // 3-MAINT) Maintenance gate. Runs AFTER STOP/START (compliance preserved)
+  // and AFTER message logging (audit preserved). Master (Taona) bypasses
+  // entirely so testing the bot during sweep still works. Festival_owner
+  // (Samreen) gets a personalized soft message. Everyone else gets the
+  // generic maintenance reply with ticket purchase still pointed at
+  // tickets.youngatheart.co.za (Doctrine Laws 3+4 stay live).
+  if (isMaintenanceEnabled()) {
+    const known = findAdmin(e164)
+    if (known?.role === 'master') {
+      // Fall through to normal flow — Taona keeps full bot access.
+    } else if (known?.role === 'festival_owner') {
+      const first = known.name.split(' ')[0]
+      const softMsg = `Hey ${first}, quick heads-up: I'm doing a deep tune-up on the festival platform tonight. Site and portal are temporarily offline while I tighten everything. Back online by tomorrow with everything cleaner. If anything's urgent in the meantime, message Taona directly on +971501168462. Catch you on the other side.`
+      const res = await sendText(e164, softMsg)
+      await logMessage({
+        direction: 'out',
+        wa_phone: e164,
+        body: softMsg,
+        status: res.skipped ? 'failed' : 'sent',
+        providerMessageId: res.messageId,
+      })
+      return
+    } else {
+      const genericMsg = `Hi! The Cape Town Halaal vendor portal is being tuned up tonight. Back online tomorrow. Festival tickets are still available now at tickets.youngatheart.co.za. If you started a vendor application, your progress is saved. Reply STOP to unsubscribe.`
+      const res = await sendText(e164, genericMsg)
+      await logMessage({
+        direction: 'out',
+        wa_phone: e164,
+        body: genericMsg,
+        status: res.skipped ? 'failed' : 'sent',
+        providerMessageId: res.messageId,
+      })
+      return
+    }
+  }
 
   // 3a) ADMIN path — bypass the festival LLM and route through the admin chat
   // handler. The handler returns either a structured reply (intent matched —
