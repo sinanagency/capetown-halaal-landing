@@ -99,32 +99,47 @@ export default function SectorPage() {
             </motion.div>
           ) : (
             <div className="grid gap-4">
-              {vendors.map((vendor, i) => (
-                <motion.div
-                  key={vendor.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="bg-white rounded-xl border border-neutral-200 p-6 hover:shadow-md transition-shadow"
-                >
-                  <h3 className="text-lg font-bold text-neutral-900 mb-1">{vendor.business_name}</h3>
-                  {vendor.business_description && (
-                    <p className="text-neutral-600 text-sm mb-3">{vendor.business_description}</p>
-                  )}
-                  <div className="flex gap-4">
-                    {vendor.website && (
-                      <a href={vendor.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-[#cd2653] hover:underline">
-                        <Globe className="w-3.5 h-3.5" /> Website
-                      </a>
-                    )}
-                    {vendor.instagram && (
-                      <a href={`https://instagram.com/${vendor.instagram.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-[#cd2653] hover:underline">
-                        <Instagram className="w-3.5 h-3.5" /> {vendor.instagram}
-                      </a>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+              {vendors.map((vendor, i) => {
+                const profSlug = (vendor.business_name || '')
+                  .toLowerCase()
+                  .normalize('NFKD')
+                  .replace(/[^a-z0-9\s-]/g, '')
+                  .trim()
+                  .replace(/\s+/g, '-')
+                  .replace(/-+/g, '-')
+                  .slice(0, 80)
+                return (
+                  <motion.div
+                    key={vendor.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
+                    <Link
+                      href={`/sectors/${slug}/${profSlug}`}
+                      className="block bg-white rounded-xl border border-neutral-200 p-6 hover:shadow-md transition-shadow"
+                    >
+                      <h3 className="text-lg font-bold text-neutral-900 mb-1">{vendor.business_name}</h3>
+                      {vendor.business_description && (
+                        <p className="text-neutral-600 text-sm mb-3 line-clamp-2">{vendor.business_description}</p>
+                      )}
+                      <div className="flex items-center gap-4 text-sm text-[#cd2653]">
+                        <span className="hover:underline">View profile →</span>
+                        {vendor.website && (
+                          <span className="flex items-center gap-1 text-neutral-500">
+                            <Globe className="w-3.5 h-3.5" /> Website
+                          </span>
+                        )}
+                        {vendor.instagram && (
+                          <span className="flex items-center gap-1 text-neutral-500">
+                            <Instagram className="w-3.5 h-3.5" /> {vendor.instagram}
+                          </span>
+                        )}
+                      </div>
+                    </Link>
+                  </motion.div>
+                )
+              })}
             </div>
           )}
         </div>

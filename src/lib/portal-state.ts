@@ -28,7 +28,8 @@ export interface MenuItem { name: string; price?: string; desc?: string }
 export interface VendorProfile {
   tagline?: string
   description?: string
-  logo_path?: string       // object path in the public vendor-assets bucket
+  logo_path?: string             // object path in vendor-assets bucket
+  photo_gallery?: string[]       // additional photo paths in vendor-assets bucket
   website?: string
   instagram?: string
   facebook?: string

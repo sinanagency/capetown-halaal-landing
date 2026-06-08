@@ -369,8 +369,8 @@ export default function HomePage() {
 
   const navItems = [
     { label: 'About', href: '#about' },
-    { label: 'Vendors', href: '/apply' },
     { label: 'Sectors', href: '#sectors' },
+    { label: 'Exhibit', href: '/apply' },
     { label: 'Sponsors', href: '#sponsors' },
     { label: 'Contact', href: '#contact' },
   ]

@@ -5,6 +5,10 @@ import { Loader2, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Upload, Build
 import { track } from '@/components/analytics-tracker'
 import { Logo } from '@/components/logo'
 
+// Single source of truth for the 8 public sectors. Mirrors the cards on
+// the homepage SectorsSection + /sectors/[slug] map + /api/sectors/[slug].
+// "Other" was dropped 2026-06-08 because it created a category-mismatch
+// trap (vendor applies, never lands in any sector listing).
 const ITEM_CATEGORIES = [
   'Food & Beverage',
   'Fashion & Modest Wear',
@@ -14,7 +18,6 @@ const ITEM_CATEGORIES = [
   'Home & Living',
   'Finance & Services',
   'Business & Trade',
-  'Other',
 ]
 
 const STALL_OPTIONS = [
