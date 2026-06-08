@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
   }
 
   const transport = await verifyEmailTransport()
-  const healthy = transport.smtp465.ok || transport.smtp587.ok || transport.resendKeySet
+  // Resend-only since 2026-06-08 (GoDaddy SMTP removed; mail was landing in spam).
+  const healthy = transport.resend.ok && transport.resendKeySet
 
   return NextResponse.json(
     { healthy, transport, checkedAt: new Date().toISOString() },

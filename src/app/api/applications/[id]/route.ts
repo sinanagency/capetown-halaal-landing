@@ -172,6 +172,7 @@ export async function PATCH(
             react: ApplicationApproved({
               businessName: data.business_name,
               contactName: data.contact_name,
+              email: data.email,
               boothTier: data.preferred_booth_tier || undefined,
               applicationId: id,
               tempPassword,

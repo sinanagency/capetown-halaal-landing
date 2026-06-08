@@ -35,7 +35,7 @@ const SAMPLES = {
   }),
   approved: () => ({
     subject: '[Preview] Your application has been approved — Young at Heart Festival 2026',
-    react: ApplicationApproved({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen', boothTier: 'Premium Food Stall (3m × 3m)', tempPassword: 'YAH-7K2P' }),
+    react: ApplicationApproved({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen', email: 'aisha@example.com', boothTier: 'Premium Food Stall (3m × 3m)', tempPassword: 'YAH-7K2P' }),
   }),
   delay: () => ({
     subject: '[Preview] An update on your application — Young at Heart Festival 2026',

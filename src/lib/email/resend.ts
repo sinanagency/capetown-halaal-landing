@@ -1,49 +1,33 @@
-import nodemailer from 'nodemailer'
 import { render } from '@react-email/components'
 import { Resend } from 'resend'
 import type { ReactElement } from 'react'
+
+// =============================================================================
+// CTH email — RESEND ONLY (2026-06-08).
+//
+// Why we ripped GoDaddy SMTP out:
+//   - GoDaddy SMTP from the root domain has no DKIM signature on outbound;
+//     mail consistently landed in Gmail Promotions / Spam for recipients on
+//     major providers. Sam confirmed Global Cuisine approval went to spam.
+//   - Resend signs every message with DKIM (`resend._domainkey`) aligned to
+//     youngatheart.co.za, passes DMARC, reaches the inbox reliably.
+//   - 415/415 vendor verification blast on 2026-06-04 went through Resend
+//     successfully — empirical confirmation Resend is the only reliable
+//     channel from this domain.
+//   - Maintaining a fallback that lands in spam adds zero value (sender
+//     reputation actually degrades when the same content hits spam often).
+//
+// CTH-DOCTRINE Law 5 (email-throttle) now applies to Resend rate limits, not
+// SMTP. Resend free tier = 100/day; paid scales beyond. Resend's own client
+// handles batching internally so we don't need pool/maxMessages config.
+// =============================================================================
 
 export const FROM_EMAIL = 'Young at Heart Festival <support@youngatheart.co.za>'
 export const ADMIN_EMAIL = 'support@youngatheart.co.za'
 const BCC_EMAIL = 'info@sinan.agency'
 
-// CRITICAL: env vars set via the Vercel dashboard frequently arrive with a
-// trailing newline (e.g. "Saosin182!\n"). GoDaddy then rejects the password
-// and every send fails silently. Trimming here neutralises that class of bug
-// permanently — do not remove. See: 2026-05-26 email outage post-mortem.
-const SMTP_USER = (process.env.SMTP_USER || 'support@youngatheart.co.za').trim()
-const SMTP_PASS = (process.env.SMTP_PASS || '').trim()
+// Trim trailing newlines (Vercel env vars often have them).
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim()
-
-// GoDaddy SMTP transport (port 465 SSL).
-// pool + maxMessages: 20 + maxConnections: 1 per Doctrine Law 5:
-// GoDaddy throttles aggressively; we MUST recycle the connection every
-// 20 messages so the back half of any batch isn't silently dropped.
-const SMTP_POOL = { pool: true, maxConnections: 1, maxMessages: 20 } as const
-const transporter = nodemailer.createTransport({
-  host: 'smtpout.secureserver.net',
-  port: 465,
-  secure: true,
-  auth: { user: SMTP_USER, pass: SMTP_PASS },
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  ...SMTP_POOL,
-})
-
-// Fallback SMTP (port 587 STARTTLS) — same throttle.
-const transporterFallback = nodemailer.createTransport({
-  host: 'smtpout.secureserver.net',
-  port: 587,
-  secure: false,
-  auth: { user: SMTP_USER, pass: SMTP_PASS },
-  tls: { rejectUnauthorized: false },
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 15000,
-  ...SMTP_POOL,
-})
 
 let resendClient: Resend | null = null
 export function getResend(): Resend | null {
@@ -59,20 +43,16 @@ const mailHeaders = {
 
 export type SendResult = {
   ok: boolean
-  provider?: 'smtp465' | 'smtp587' | 'resend'
+  provider?: 'resend'
   error?: string
 }
 
 /**
- * Send a transactional email. Tries Resend -> SMTP 465 -> SMTP 587.
+ * Send a transactional email via Resend (DKIM-signed, inbox-safe).
  *
- * ORDER MATTERS: Resend is PRIMARY because mail sent via GoDaddy SMTP from the
- * root domain has no DKIM signature and lands in spam. Resend signs every
- * message with DKIM (resend._domainkey) aligned to youngatheart.co.za, so it
- * passes DMARC and reaches the inbox. GoDaddy SMTP is kept only as a fallback
- * for the rare case Resend is unreachable or rate-limited (free tier: 100/day).
- * Returns a SendResult so callers can react to / surface failures instead of
- * the old behaviour of silently swallowing every error and reporting success.
+ * No SMTP fallback by design — see the doctrine block at the top of this file.
+ * If Resend fails the call returns ok:false with the error so callers can
+ * surface it (admin UI, audit log) instead of silently swallowing.
  */
 export async function sendEmail({
   to,
@@ -90,116 +70,66 @@ export async function sendEmail({
     html = await render(react)
   }
 
-  const mailOptions = {
-    from: FROM_EMAIL,
-    replyTo: 'support@youngatheart.co.za',
-    to,
-    bcc: BCC_EMAIL,
-    subject,
-    html,
-    text: text || undefined,
-    headers: mailHeaders,
-  }
-
-  const errors: string[] = []
-
-  // PRIMARY: Resend (DKIM-signed, inbox-safe).
-  // Send the HTML we already rendered above — never hand the raw `react` element
-  // to the SDK. The SDK's own render path is brittle with our shared components
-  // and silently throws, which used to bounce every send down to spam-prone SMTP.
   const resend = getResend()
-  if (resend) {
-    try {
-      const common = {
-        from: FROM_EMAIL,
-        to,
-        bcc: BCC_EMAIL,
-        replyTo: 'support@youngatheart.co.za',
-        subject,
-        headers: mailHeaders,
-      }
-      if (html) {
-        await resend.emails.send({ ...common, html })
-      } else {
-        await resend.emails.send({ ...common, text: text || '' })
-      }
-      console.log(`Email sent via Resend to ${to}: ${subject}`)
-      return { ok: true, provider: 'resend' }
-    } catch (e) {
-      const msg = (e as Error).message
-      errors.push(`resend: ${msg}`)
-      console.error('Resend failed, falling back to SMTP:', msg)
-    }
-  } else {
-    errors.push('resend: RESEND_API_KEY missing')
+  if (!resend) {
+    const error = 'RESEND_API_KEY missing — no email channel available'
+    console.error(`Email FAILED for ${to} ("${subject}"): ${error}`)
+    return { ok: false, error }
   }
 
-  // FALLBACK: GoDaddy SMTP 465 SSL
-  if (SMTP_PASS) {
-    try {
-      await transporter.sendMail(mailOptions)
-      console.log(`Email sent via SMTP 465 to ${to}: ${subject}`)
-      return { ok: true, provider: 'smtp465' }
-    } catch (e) {
-      const msg = (e as Error).message
-      errors.push(`smtp465: ${msg}`)
-      console.error('SMTP 465 failed:', msg)
+  try {
+    const common = {
+      from: FROM_EMAIL,
+      to,
+      bcc: BCC_EMAIL,
+      replyTo: 'support@youngatheart.co.za',
+      subject,
+      headers: mailHeaders,
     }
-
-    // FALLBACK: GoDaddy SMTP 587 STARTTLS
-    try {
-      await transporterFallback.sendMail(mailOptions)
-      console.log(`Email sent via SMTP 587 to ${to}: ${subject}`)
-      return { ok: true, provider: 'smtp587' }
-    } catch (e) {
-      const msg = (e as Error).message
-      errors.push(`smtp587: ${msg}`)
-      console.error('SMTP 587 failed:', msg)
+    if (html) {
+      await resend.emails.send({ ...common, html })
+    } else {
+      await resend.emails.send({ ...common, text: text || '' })
     }
-  } else {
-    errors.push('smtp: SMTP_PASS missing')
+    console.log(`Email sent via Resend to ${to}: ${subject}`)
+    return { ok: true, provider: 'resend' }
+  } catch (e) {
+    const msg = (e as Error).message
+    console.error(`Resend send FAILED for ${to} ("${subject}"): ${msg}`)
+    return { ok: false, error: `resend: ${msg}` }
   }
-
-  const error = errors.join(' | ')
-  console.error(
-    `ALL email providers failed for ${to} ("${subject}"). ` +
-      `SMTP_PASS: ${SMTP_PASS ? 'set' : 'missing'}, RESEND_API_KEY: ${RESEND_API_KEY ? 'set' : 'missing'}. ` +
-      `Errors: ${error}`
-  )
-  return { ok: false, error }
 }
 
 /**
- * Verify SMTP connectivity + auth without sending mail. Used by the
- * /api/admin/email-health endpoint so email health can be checked any time.
+ * Verify Resend connectivity. Used by the /api/admin/email-health endpoint.
+ * Returns the legacy shape with smtp fields removed.
  */
 export async function verifyEmailTransport(): Promise<{
-  smtp465: { ok: boolean; error?: string }
-  smtp587: { ok: boolean; error?: string }
-  smtpUser: string
-  smtpPassSet: boolean
-  smtpPassLength: number
+  resend: { ok: boolean; error?: string }
   resendKeySet: boolean
+  fromEmail: string
 }> {
   const result = {
-    smtp465: { ok: false } as { ok: boolean; error?: string },
-    smtp587: { ok: false } as { ok: boolean; error?: string },
-    smtpUser: SMTP_USER,
-    smtpPassSet: !!SMTP_PASS,
-    smtpPassLength: SMTP_PASS.length,
+    resend: { ok: false } as { ok: boolean; error?: string },
     resendKeySet: !!RESEND_API_KEY,
+    fromEmail: FROM_EMAIL,
   }
-  try {
-    await transporter.verify()
-    result.smtp465.ok = true
-  } catch (e) {
-    result.smtp465.error = (e as Error).message
+  if (!RESEND_API_KEY) {
+    result.resend.error = 'RESEND_API_KEY not set'
+    return result
   }
+  // The Resend SDK has no ping/verify endpoint; check by listing domains.
   try {
-    await transporterFallback.verify()
-    result.smtp587.ok = true
+    const r = getResend()
+    if (!r) throw new Error('client init failed')
+    const domains = await r.domains.list()
+    if ((domains as { data?: unknown })?.data !== undefined) {
+      result.resend.ok = true
+    } else {
+      result.resend.error = 'unexpected response from resend.domains.list'
+    }
   } catch (e) {
-    result.smtp587.error = (e as Error).message
+    result.resend.error = (e as Error).message
   }
   return result
 }

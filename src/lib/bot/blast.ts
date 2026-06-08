@@ -53,6 +53,7 @@ function renderFor(template: BlastTemplate, r: Recipient, spec: BlastSpec) {
     return ApplicationApproved({
       contactName,
       businessName,
+      email: r.email || '',
       boothTier: undefined,
       applicationId: r.application_id || '',
       tempPassword: '',

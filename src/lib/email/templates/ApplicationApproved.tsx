@@ -18,6 +18,7 @@ import { brand } from '../brand'
 interface ApplicationApprovedProps {
   businessName: string
   contactName: string
+  email: string
   boothTier?: string
   applicationId?: string
   tempPassword?: string
@@ -28,18 +29,19 @@ interface ApplicationApprovedProps {
 export function ApplicationApproved({
   businessName,
   contactName,
+  email,
   boothTier,
   tempPassword,
   loginUrl = 'https://cthalaal.co.za/exhibitor/login',
 }: ApplicationApprovedProps) {
   return (
-    <EmailLayout preview="Your vendor application has been approved — Young at Heart Festival 2026">
+    <EmailLayout preview="Your vendor application has been approved, Young at Heart Festival 2026">
       <SuccessBadge>✓ APPLICATION APPROVED</SuccessBadge>
 
       <Heading>Welcome aboard, {contactName}!</Heading>
 
       <Paragraph>
-        Great news — your exhibitor application for <strong>{businessName}</strong> has been
+        Great news. Your exhibitor application for <strong>{businessName}</strong> has been
         approved for Young at Heart Festival 2026.
       </Paragraph>
 
@@ -50,11 +52,11 @@ export function ApplicationApproved({
           <Divider />
           <Subheading>Your login credentials</Subheading>
           <Paragraph>
-            Use the temporary password below to log into your exhibitor portal. You&apos;ll be
-            prompted to set a new password on first login.
+            Sign in to your exhibitor portal with the email and temporary password below.
+            You will be asked to set a new password on first login.
           </Paragraph>
           <CredBox
-            email={businessName}
+            email={email}
             password={tempPassword}
             note="This password expires in 48 hours."
           />

@@ -13,11 +13,17 @@ export interface DocView {
   note?: string
 }
 
+// Document policy refresh (2026-06-08, per Samreen):
+//   - Public liability insurance: covered by ORGANISERS, vendor does not upload.
+//   - Electrical CoC: covered by ORGANISERS, vendor does not upload.
+//   - Halaal certificate: optional. Vendors without formal certification can
+//     upload a halaal declaration letter instead (same field, accept either).
+//   - Health permit: REQUIRED (City of Cape Town food trading permit).
+//   - Gas certification: REQUIRED ONLY IF VENDOR USES GAS (conditional).
 const REQUIRED = [
-  { type: 'halaal_cert', label: 'Halaal certificate', required: true, hint: 'Mandatory for all food & ingestible vendors' },
-  { type: 'public_liability', label: 'Public liability insurance', required: true, hint: 'Cover for your stall during the festival' },
-  { type: 'health_permit', label: 'Health / food permit', required: true, hint: 'City of Cape Town food trading permit' },
-  { type: 'electrical_coc', label: 'Electrical CoC', required: false, hint: 'If you bring your own electrical equipment' },
+  { type: 'health_permit', label: 'Health / food permit', required: true, hint: 'City of Cape Town food trading permit. Required for all food vendors.' },
+  { type: 'halaal_cert', label: 'Halaal certificate or declaration', required: false, hint: 'Upload either a formal halaal certificate OR a signed declaration letter if you do not have certification.' },
+  { type: 'gas_cert', label: 'Gas certification', required: false, hint: 'Only required if you use gas (cooking, heating). Skip if you do not use gas.' },
 ]
 
 const STATUS: Record<string, { label: string; cls: string; Icon: typeof CheckCircle2 }> = {
