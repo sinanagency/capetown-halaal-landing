@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Map, Banknote, FileCheck, Megaphone, Sparkles, Loader2, Search, X, MapPin, Phone, Mail, Tag } from 'lucide-react'
+import { Map, Banknote, FileCheck, Megaphone, Sparkles, Loader2, Search, X, MapPin, Phone, Mail, Tag, CheckCircle2 } from 'lucide-react'
 import StallMap, { type MapStall } from '@/components/admin/StallMap'
 import { TYPE_META, TIER_META, type StallType } from '@/lib/stalls'
 
@@ -52,6 +52,11 @@ export default function VendorOpsPage() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('hi everyone, move-in is thursday night, please bring your car pass from the vendor pack and dont be late')
   const [polishing, setPolishing] = useState(false)
+  const [markPaidFor, setMarkPaidFor] = useState<AppRow | null>(null)
+  const [paidMethod, setPaidMethod] = useState<'eft' | 'cash' | 'manual_card' | 'waived'>('eft')
+  const [paidRef, setPaidRef] = useState('')
+  const [paidAmountOverride, setPaidAmountOverride] = useState<string>('')
+  const [markingPaid, setMarkingPaid] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -106,6 +111,31 @@ export default function VendorOpsPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Save failed')
     } finally { setSaving(false) }
+  }
+
+  async function confirmMarkPaid() {
+    if (!markPaidFor) return
+    setMarkingPaid(true)
+    try {
+      const amt = paidAmountOverride.trim() ? Number(paidAmountOverride) : undefined
+      if (amt !== undefined && (!isFinite(amt) || amt <= 0)) throw new Error('Amount must be a positive number')
+      const res = await fetch('/api/admin/payments/mark-paid', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: markPaidFor.id,
+          method: paidMethod,
+          providerRef: paidRef.trim() || undefined,
+          amount: amt,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      toast.success(j.alreadyPaid ? `${markPaidFor.business_name} was already paid` : `Marked ${markPaidFor.business_name} as paid`)
+      setMarkPaidFor(null); setPaidRef(''); setPaidAmountOverride(''); setPaidMethod('eft')
+      await load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Mark as paid failed')
+    } finally { setMarkingPaid(false) }
   }
 
   async function polish() {
@@ -283,7 +313,7 @@ export default function VendorOpsPage() {
             <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="text-left text-xs text-neutral-500 border-b border-neutral-200"><th className="p-3 font-semibold">Vendor</th><th className="p-3 font-semibold">Chosen booth</th><th className="p-3 font-semibold">Stall</th><th className="p-3 font-semibold">Amount</th><th className="p-3 font-semibold">Payment</th><th className="p-3 font-semibold">Yoco ref</th></tr></thead>
+                  <thead><tr className="text-left text-xs text-neutral-500 border-b border-neutral-200"><th className="p-3 font-semibold">Vendor</th><th className="p-3 font-semibold">Chosen booth</th><th className="p-3 font-semibold">Stall</th><th className="p-3 font-semibold">Amount</th><th className="p-3 font-semibold">Payment</th><th className="p-3 font-semibold">Yoco ref</th><th className="p-3 font-semibold text-right">Actions</th></tr></thead>
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.id} className="border-b border-neutral-100">
@@ -293,6 +323,18 @@ export default function VendorOpsPage() {
                         <td className="p-3">{amountOf(r) ? `R${amountOf(r).toLocaleString()}` : '—'}</td>
                         <td className="p-3"><span className={`text-[11px] font-semibold border px-2 py-0.5 rounded ${pillFor(r.payment_status)}`}>{r.payment_status || 'none'}</span></td>
                         <td className="p-3 text-xs text-neutral-500 font-mono">{r.payment_ref || '—'}</td>
+                        <td className="p-3 text-right">
+                          {r.payment_status === 'paid' ? (
+                            <span className="text-[11px] text-neutral-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-500" />confirmed</span>
+                          ) : (
+                            <button
+                              onClick={() => { setMarkPaidFor(r); setPaidMethod('manual_card'); setPaidRef(''); setPaidAmountOverride('') }}
+                              className="text-[11px] font-semibold text-[#cd2653] hover:underline"
+                            >
+                              Mark as paid
+                            </button>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -322,6 +364,82 @@ export default function VendorOpsPage() {
           </div>
         )
       })()}
+
+      {markPaidFor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !markingPaid && setMarkPaidFor(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-neutral-900">Mark as paid</h3>
+                <p className="text-sm text-neutral-500 mt-0.5">{markPaidFor.business_name}</p>
+              </div>
+              <button onClick={() => setMarkPaidFor(null)} className="text-neutral-400 hover:text-neutral-700"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">How was this paid?</label>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  {([
+                    { v: 'manual_card', l: 'Yoco card (manual)' },
+                    { v: 'eft', l: 'EFT (bank)' },
+                    { v: 'cash', l: 'Cash' },
+                    { v: 'waived', l: 'Waived' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.v}
+                      onClick={() => setPaidMethod(opt.v)}
+                      className={`px-3 py-2 text-sm rounded-lg border text-left ${paidMethod === opt.v ? 'border-[#cd2653] bg-[#cd2653]/5 font-semibold text-[#cd2653]' : 'border-neutral-200 text-neutral-700 hover:border-neutral-300'}`}
+                    >
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Reference (optional)</label>
+                <input
+                  value={paidRef}
+                  onChange={(e) => setPaidRef(e.target.value)}
+                  placeholder="FNB ref, Yoco ID, slip number, etc"
+                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-[#cd2653]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-neutral-600">Override amount (optional)</label>
+                <input
+                  value={paidAmountOverride}
+                  onChange={(e) => setPaidAmountOverride(e.target.value)}
+                  placeholder={(() => {
+                    const a = markPaidFor.payment_amount ?? (markPaidFor.tier ? TIER_META[markPaidFor.tier]?.price || 0 : 0)
+                    return a ? `Leave blank to use R${a.toLocaleString()}` : 'Required if no quoted amount'
+                  })()}
+                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-[#cd2653]"
+                />
+              </div>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3">
+                This sends the vendor a payment-confirmation email and WhatsApp template. Reversible from this row.
+              </div>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setMarkPaidFor(null)}
+                disabled={markingPaid}
+                className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmMarkPaid}
+                disabled={markingPaid}
+                className="flex-1 px-4 py-2.5 rounded-lg bg-[#cd2653] hover:bg-[#b01f45] text-white text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {markingPaid ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Confirm paid
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!loading && tab === 'broadcast' && data && (
         <div className="grid lg:grid-cols-2 gap-5">

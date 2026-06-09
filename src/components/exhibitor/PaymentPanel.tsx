@@ -1,21 +1,33 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { CreditCard, CheckCircle2, Clock, Loader2, Upload, Info } from 'lucide-react'
+import { CreditCard, CheckCircle2, Clock, Loader2, Info, RefreshCw, MessageSquare } from 'lucide-react'
 
 export default function PaymentPanel({
   enabled, status, amount, reference, dueDate,
-}: { enabled: boolean; status: string; amount: number | null; reference: string | null; dueDate: string }) {
+}: {
+  enabled: boolean
+  status: string
+  amount: number | null
+  reference: string | null
+  dueDate: string
+}) {
   const params = useSearchParams()
   const justPaid = params.get('paid') === '1'
   const cancelled = params.get('cancelled') === '1'
 
   const [paying, setPaying] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [proofDone, setProofDone] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
+
   const isPaid = status === 'paid' || justPaid
+  // "Locked" = a card payment is in-flight. We hide the Pay-now CTA so the
+  // vendor doesn't get charged twice. They can still force a retry (rare:
+  // abandoned Yoco session or webhook never fired) via the explicit button.
+  const isPending = !isPaid && status === 'pending'
+  const showPayBlock = !isPaid && (!isPending || retrying || cancelled)
 
   async function payByCard() {
     setPaying(true); setError(null)
@@ -25,16 +37,6 @@ export default function PaymentPanel({
       if (!res.ok) throw new Error(j.error || 'Could not start payment')
       window.location.href = j.url
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); setPaying(false) }
-  }
-
-  async function uploadProof(file: File) {
-    setUploading(true); setError(null)
-    try {
-      const fd = new FormData(); fd.append('file', file)
-      const res = await fetch('/api/exhibitor/payments', { method: 'POST', body: fd })
-      if (!res.ok) throw new Error((await res.json()).error || 'Upload failed')
-      setProofDone(true)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Upload failed') } finally { setUploading(false) }
   }
 
   return (
@@ -59,7 +61,29 @@ export default function PaymentPanel({
         </div>
       </div>
 
-      {!isPaid && (
+      {/* Pending banner — webhook hasn't confirmed yet. Show this INSTEAD of the
+          Pay-now button so we don't double-charge if the user reloads while the
+          gateway is still processing. */}
+      {isPending && !retrying && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 flex items-start gap-3">
+          <Loader2 className="w-5 h-5 text-blue-600 animate-spin shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-blue-900 mb-1">Payment in progress</p>
+            <p className="text-sm text-blue-800 mb-3">
+              We&apos;re waiting for the bank to confirm your last payment.
+              This usually takes under a minute. Refresh this page in a moment.
+            </p>
+            <button
+              onClick={() => setRetrying(true)}
+              className="text-xs font-semibold text-blue-900 underline hover:no-underline inline-flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3 h-3" /> Didn&apos;t go through? Try again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showPayBlock && (
         <>
           {/* card payment */}
           <div className="bg-white border border-neutral-200 rounded-2xl p-6">
@@ -79,18 +103,18 @@ export default function PaymentPanel({
             )}
           </div>
 
-          {/* EFT proof upload */}
-          <div className="bg-white border border-neutral-200 rounded-2xl p-6">
-            <p className="font-semibold text-neutral-900 mb-1">Paid by EFT?</p>
-            <p className="text-sm text-neutral-500 mb-4">If you paid by bank transfer, upload your proof of payment here and the organisers will confirm it{reference ? `. Use reference ${reference}` : ''}.</p>
-            {proofDone ? (
-              <p className="text-sm text-green-700 flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Proof received. The organisers will confirm shortly.</p>
-            ) : (
-              <label className="inline-flex items-center gap-2 text-sm font-medium rounded-lg px-4 py-2.5 border border-neutral-200 hover:border-[#cd2653] hover:text-[#cd2653] cursor-pointer">
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Upload proof of payment
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadProof(f) }} />
-              </label>
-            )}
+          {/* Card trouble? Route to support, organisers reconcile manually. */}
+          <div className="bg-neutral-50 border border-neutral-200 rounded-2xl p-5">
+            <p className="text-sm text-neutral-700 mb-3 flex items-start gap-2">
+              <Info className="w-4 h-4 text-[#cd2653] mt-0.5 shrink-0" />
+              Card not going through, or paying another way? Message the organisers and we&apos;ll sort it out with you.
+            </p>
+            <Link
+              href="/exhibitor/portal/support"
+              className="inline-flex items-center gap-2 text-sm font-semibold rounded-lg px-4 py-2 bg-white border border-neutral-200 hover:border-[#cd2653] hover:text-[#cd2653]"
+            >
+              <MessageSquare className="w-4 h-4" /> Message support
+            </Link>
           </div>
         </>
       )}
