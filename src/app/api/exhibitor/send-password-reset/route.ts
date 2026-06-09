@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
     }
 
-    const redirectTo = `${new URL(req.url).origin}/exhibitor/set-password`
+    // Route through /auth/callback so the PKCE code gets exchanged for a session
+    // BEFORE the user lands on set-password. Otherwise set-password has no session
+    // and updateUser({password}) silently fails.
+    const origin = new URL(req.url).origin
+    const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent('/exhibitor/set-password')}`
     const admin = createAdminClient()
 
     try {
@@ -27,15 +31,34 @@ export async function POST(req: NextRequest) {
       })
 
       // No account / not allowed → silently succeed (don't reveal existence).
-      const actionLink = data?.properties?.action_link
-      if (!error && actionLink) {
+      //
+      // IMPORTANT: we do NOT use data.properties.action_link directly. That link
+      // points at Supabase's /auth/v1/verify endpoint which then redirects back
+      // with either ?code= (PKCE) or #access_token= (implicit). Neither works
+      // cleanly here:
+      //   - PKCE fails because the code_verifier cookie is never set (link was
+      //     minted server-side, no browser involved)
+      //   - implicit hash flow has its own client-side bootstrap fragility
+      //
+      // Instead we use data.properties.hashed_token + type and route through our
+      // own callback that calls supabase.auth.verifyOtp({type, token_hash}) —
+      // stateless verification, no code_verifier needed.
+      const hashedToken = data?.properties?.hashed_token
+      const verificationType = data?.properties?.verification_type
+      if (!error && hashedToken && verificationType) {
+        const params = new URLSearchParams({
+          token_hash: hashedToken,
+          type: verificationType,
+          next: '/exhibitor/set-password',
+        })
+        const resetUrl = `${origin}/auth/callback?${params.toString()}`
         const contactName =
           (data.user?.user_metadata?.business_name as string | undefined) || undefined
         await sendEmail({
           to: email.trim(),
           subject: 'Reset your Young at Heart Festival exhibitor password',
-          react: PasswordReset({ resetUrl: actionLink, contactName }),
-          text: `Hi ${contactName || 'there'},\n\nWe received a request to reset your Young at Heart Festival exhibitor password. Use this link (expires in 1 hour) to choose a new one:\n\n${actionLink}\n\nIf you didn't request this, you can safely ignore this email.\n\nWarm regards,\nThe Young at Heart Festival Team`,
+          react: PasswordReset({ resetUrl, contactName }),
+          text: `Hi ${contactName || 'there'},\n\nWe received a request to reset your Young at Heart Festival exhibitor password. Use this link (expires in 1 hour) to choose a new one:\n\n${resetUrl}\n\nIf you didn't request this, you can safely ignore this email.\n\nWarm regards,\nThe Young at Heart Festival Team`,
         })
       } else if (error) {
         // Log server-side only; client still sees ok.

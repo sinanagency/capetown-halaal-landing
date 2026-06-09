@@ -1,19 +1,33 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { Suspense, useEffect, useState, type FormEvent } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Logo } from '@/components/logo'
-import { Mail, Loader2, CheckCircle2 } from 'lucide-react'
+import { Mail, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
-export default function ForgotPassword() {
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-neutral-50" />}>
+      <ForgotPassword />
+    </Suspense>
+  )
+}
+
+function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  const [errFromCallback, setErrFromCallback] = useState<string | null>(null)
+  const sp = useSearchParams()
+
+  useEffect(() => {
+    const err = sp?.get('err')
+    if (err) setErrFromCallback(err)
+  }, [sp])
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setLoading(true)
-    // Branded reset: our own endpoint mints the recovery link and sends the
-    // Young at Heart branded email (not Supabase's generic default).
     try {
       await fetch('/api/exhibitor/send-password-reset', {
         method: 'POST',
@@ -23,7 +37,7 @@ export default function ForgotPassword() {
     } catch {
       // swallow — always show success so we never leak which emails exist
     }
-    setSent(true); setLoading(false)
+    setSent(true); setLoading(false); setErrFromCallback(null)
   }
 
   return (
@@ -42,6 +56,13 @@ export default function ForgotPassword() {
             <>
               <h2 className="text-xl font-bold text-neutral-900">Reset password</h2>
               <p className="text-neutral-500 text-sm mt-1 mb-5">Enter your email and we will send a reset link.</p>
+
+              {errFromCallback && (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 text-sm text-amber-800">
+                  <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /> {errFromCallback}
+                </div>
+              )}
+
               <form onSubmit={onSubmit} className="space-y-3">
                 <div className="relative">
                   <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5" />
@@ -50,7 +71,7 @@ export default function ForgotPassword() {
                 </div>
                 <button disabled={loading}
                   className="w-full bg-[#cd2653] hover:bg-[#b01f45] text-white font-semibold rounded-lg py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
-                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}{loading ? 'Sending…' : 'Send reset link'}
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}{loading ? 'Sending...' : 'Send reset link'}
                 </button>
               </form>
               <a href="/exhibitor/login" className="inline-block mt-4 text-sm text-neutral-500 hover:text-[#cd2653]">← Back to sign in</a>
