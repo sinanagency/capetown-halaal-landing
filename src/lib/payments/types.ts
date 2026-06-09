@@ -12,6 +12,7 @@ export interface CreatePaymentOpts {
   description: string
   returnUrl: string         // where TJ sends the buyer back after paying
   cancelUrl: string
+  failureUrl?: string       // separate URL on gateway failure. Falls back to cancelUrl.
 }
 
 export interface CreatePaymentResult {

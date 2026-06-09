@@ -37,14 +37,14 @@ export function VendorPaymentConfirmation({
   portalUrl,
 }: VendorPaymentConfirmationProps) {
   return (
-    <EmailLayout preview={`Payment confirmed for ${businessName} — Young at Heart Festival 2026`}>
-      <Heading>Payment received — see you in December</Heading>
+    <EmailLayout preview={`Payment confirmed for ${businessName}, Young at Heart Festival 2026`}>
+      <Heading>Payment received. See you in December.</Heading>
 
       <SuccessBadge>Your stall is confirmed</SuccessBadge>
 
       <Paragraph>Hi {contactName},</Paragraph>
       <Paragraph>
-        Thank you — we&apos;ve received your payment for <strong>{businessName}</strong>. Your trading
+        Thank you. We&apos;ve received your payment for <strong>{businessName}</strong>. Your trading
         spot at Young at Heart Festival 2026 is now secured. Welcome to the family.
       </Paragraph>
 

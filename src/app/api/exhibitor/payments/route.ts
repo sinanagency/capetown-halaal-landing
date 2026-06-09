@@ -52,8 +52,15 @@ export async function POST() {
       email: ctx.email,
       businessName: (app.business_name as string) || 'Exhibitor',
       description: `Stall fee, ${app.business_name}, Young at Heart Festival 2026`,
-      returnUrl: `${SITE}/exhibitor/portal/payments?paid=1`,
-      cancelUrl: `${SITE}/exhibitor/portal/payments?cancelled=1`,
+      // Return URLs deliberately point OUTSIDE the auth-gated /exhibitor/portal
+      // tree. Yoco's cross-domain hop can drop the Supabase session on Safari
+      // ITP, WhatsApp in-app browsers, or after a long-running checkout — and
+      // a gated path would bounce the vendor to /exhibitor/login mid-flow.
+      // The public return page shows status and links them back to the portal
+      // (where session refresh / re-login happens naturally if needed).
+      returnUrl: `${SITE}/exhibitor/payment-return?status=success`,
+      cancelUrl: `${SITE}/exhibitor/payment-return?status=cancelled`,
+      failureUrl: `${SITE}/exhibitor/payment-return?status=failed`,
     })
     await updatePortalState(applicationId, (s) => ({
       ...s, payment: { ...(s.payment || {}), status: 'pending', amount, reference, provider_ref: providerRef },

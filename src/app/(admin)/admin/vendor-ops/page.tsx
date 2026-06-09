@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Map, Banknote, FileCheck, Megaphone, Sparkles, Loader2, Search, X, MapPin, Phone, Mail, Tag, CheckCircle2 } from 'lucide-react'
+import { Map, Banknote, FileCheck, Megaphone, Sparkles, Loader2, Search, X, MapPin, Phone, Mail, Tag, CheckCircle2, Send } from 'lucide-react'
 import StallMap, { type MapStall } from '@/components/admin/StallMap'
 import { TYPE_META, TIER_META, type StallType } from '@/lib/stalls'
 
@@ -57,6 +57,7 @@ export default function VendorOpsPage() {
   const [paidRef, setPaidRef] = useState('')
   const [paidAmountOverride, setPaidAmountOverride] = useState<string>('')
   const [markingPaid, setMarkingPaid] = useState(false)
+  const [resendingFor, setResendingFor] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -136,6 +137,21 @@ export default function VendorOpsPage() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Mark as paid failed')
     } finally { setMarkingPaid(false) }
+  }
+
+  async function resendInvoice(row: AppRow) {
+    setResendingFor(row.id)
+    try {
+      const res = await fetch('/api/admin/payments/resend-invoice', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId: row.id }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      toast.success(`Invoice email resent to ${j.to}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Resend failed')
+    } finally { setResendingFor(null) }
   }
 
   async function polish() {
@@ -329,7 +345,18 @@ export default function VendorOpsPage() {
                         <td className="p-3 text-xs text-neutral-500 font-mono">{r.payment_ref || '—'}</td>
                         <td className="p-3 text-right">
                           {r.payment_status === 'paid' ? (
-                            <span className="text-[11px] text-neutral-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-500" />confirmed</span>
+                            <div className="inline-flex items-center gap-3 justify-end">
+                              <span className="text-[11px] text-neutral-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-500" />confirmed</span>
+                              <button
+                                onClick={() => resendInvoice(r)}
+                                disabled={resendingFor === r.id}
+                                title="Resend the payment confirmation + invoice link to the vendor's email"
+                                className="text-[11px] font-semibold text-neutral-500 hover:text-[#cd2653] hover:underline inline-flex items-center gap-1 disabled:opacity-60"
+                              >
+                                {resendingFor === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                                {resendingFor === r.id ? 'Sending…' : 'Resend invoice'}
+                              </button>
+                            </div>
                           ) : (
                             <button
                               onClick={() => { setMarkPaidFor(r); setPaidMethod('manual_card'); setPaidRef(''); setPaidAmountOverride('') }}

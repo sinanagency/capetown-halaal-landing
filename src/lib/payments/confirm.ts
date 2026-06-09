@@ -33,6 +33,42 @@ export interface ConfirmPaymentResult {
   error?: string
 }
 
+/**
+ * Send (or re-send) the vendor payment confirmation email using the same
+ * template + invoice link the original confirmation used. Called by
+ * confirmPayment() on first success and by /api/admin/payments/resend-invoice
+ * when an organiser triggers a resend. Returns { sent } so callers can show a
+ * truthful real-time toast.
+ */
+export async function sendVendorPaymentEmail(args: {
+  to: string
+  contactName: string
+  businessName: string
+  amount: number
+  providerRef: string
+}): Promise<{ sent: boolean; error?: string }> {
+  try {
+    await sendEmail({
+      to: args.to,
+      subject: `Payment confirmed, ${args.businessName}, YAH Festival 2026`,
+      react: VendorPaymentConfirmation({
+        contactName: args.contactName,
+        businessName: args.businessName,
+        amount: args.amount,
+        providerRef: args.providerRef,
+        invoiceUrl: `${SITE}/exhibitor/portal/invoice`,
+        portalUrl: `${SITE}/exhibitor/login`,
+      }),
+      text: `Hi ${args.contactName},\n\nWe've received your payment of ${formatRand(args.amount)} for ${args.businessName}. Reference: ${args.providerRef || 'manual'}. Your invoice is in your portal: ${SITE}/exhibitor/portal/invoice. Log in: ${SITE}/exhibitor/login.\n\nWelcome aboard.\nThe YAH Festival Team`,
+    })
+    return { sent: true }
+  } catch (e) {
+    const msg = (e as Error).message
+    console.error('[sendVendorPaymentEmail] failed:', msg)
+    return { sent: false, error: msg }
+  }
+}
+
 export async function confirmPayment(input: ConfirmPaymentInput): Promise<ConfirmPaymentResult> {
   const admin = createAdminClient()
   const { data: app } = await admin
@@ -73,23 +109,13 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
   const businessName = (app.business_name as string) || 'your business'
   const providerRef = input.providerRef || ''
 
-  try {
-    await sendEmail({
-      to: app.email as string,
-      subject: `Payment confirmed, ${businessName}, YAH Festival 2026`,
-      react: VendorPaymentConfirmation({
-        contactName,
-        businessName,
-        amount,
-        providerRef,
-        invoiceUrl: `${SITE}/exhibitor/portal/invoice`,
-        portalUrl: `${SITE}/exhibitor/login`,
-      }),
-      text: `Hi ${contactName},\n\nWe've received your payment of ${formatRand(amount)} for ${businessName}. Reference: ${providerRef || input.method}. Your invoice is in your portal: ${SITE}/exhibitor/portal/invoice. Log in: ${SITE}/exhibitor/login.\n\nWelcome aboard.\nThe YAH Festival Team`,
-    })
-  } catch (e) {
-    console.error('[confirmPayment] email failed:', (e as Error).message)
-  }
+  await sendVendorPaymentEmail({
+    to: app.email as string,
+    contactName,
+    businessName,
+    amount,
+    providerRef: providerRef || input.method,
+  })
 
   try {
     const { notifyOwners } = await import('@/lib/bot/notify')

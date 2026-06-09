@@ -40,7 +40,7 @@ export const yoco: PaymentProvider = {
       currency: opts.currency || 'ZAR',
       successUrl: opts.returnUrl,
       cancelUrl: opts.cancelUrl,
-      failureUrl: opts.cancelUrl,
+      failureUrl: opts.failureUrl || opts.cancelUrl,
       metadata: {
         applicationId: opts.applicationId,
         reference: opts.reference,
