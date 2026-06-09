@@ -309,7 +309,11 @@ export default function VendorOpsPage() {
               <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Pending checkout</p><p className="text-2xl font-bold text-blue-600">R{pendingSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{pendingRows.length} vendor{pendingRows.length === 1 ? '' : 's'}</p></div>
               <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Outstanding</p><p className="text-2xl font-bold text-amber-600">R{dueSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{dueRows.length} vendor{dueRows.length === 1 ? '' : 's'}</p></div>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800"><b>Policy:</b> no deposit — full settlement confirms the stall. Full refund if cancelled 8+ weeks before; none after. Payments process via Yoco (card).</div>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800"><b>Policy:</b> no deposit, full settlement confirms the stall. Full refund if cancelled 8+ weeks before, none after. Payments process via Yoco (card).</div>
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900">
+              <p className="font-semibold mb-1">Yoco card payments confirm automatically.</p>
+              <p className="text-blue-800">When a vendor pays through their portal, the bank webhook flips them to <b>paid</b> in seconds, no action needed here. The <i>Confirm manually</i> link is only for special cases: vendor messaged Support because the card flow failed, paid by EFT off-platform, paid cash at the door, or the fee was waived.</p>
+            </div>
             <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -329,9 +333,10 @@ export default function VendorOpsPage() {
                           ) : (
                             <button
                               onClick={() => { setMarkPaidFor(r); setPaidMethod('manual_card'); setPaidRef(''); setPaidAmountOverride('') }}
-                              className="text-[11px] font-semibold text-[#cd2653] hover:underline"
+                              title="Use only for off-platform payments (EFT, cash, waived). Yoco card payments confirm themselves."
+                              className="text-[11px] font-semibold text-neutral-500 hover:text-[#cd2653] hover:underline"
                             >
-                              Mark as paid
+                              Confirm manually
                             </button>
                           )}
                         </td>
@@ -370,8 +375,9 @@ export default function VendorOpsPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-lg font-bold text-neutral-900">Mark as paid</h3>
+                <h3 className="text-lg font-bold text-neutral-900">Confirm payment manually</h3>
                 <p className="text-sm text-neutral-500 mt-0.5">{markPaidFor.business_name}</p>
+                <p className="text-[11px] text-neutral-400 mt-1">Only for off-platform payments. Yoco card pays confirm themselves.</p>
               </div>
               <button onClick={() => setMarkPaidFor(null)} className="text-neutral-400 hover:text-neutral-700"><X className="w-4 h-4" /></button>
             </div>
