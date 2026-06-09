@@ -9,7 +9,7 @@
 //   YOCO_WEBHOOK_SECRET  — Yoco-issued whsec_... for the portal webhook
 //                          (separate from the WordPress plugin's webhook secret).
 
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto'
 import type { CreatePaymentOpts, CreatePaymentResult, PaymentProvider, WebhookResult } from './types'
 
 const SECRET_KEY = (process.env.YOCO_SECRET_KEY || '').trim()
@@ -54,9 +54,13 @@ export const yoco: PaymentProvider = {
       headers: {
         Authorization: `Bearer ${SECRET_KEY}`,
         'Content-Type': 'application/json',
-        // Idempotency: a vendor double-clicking "Pay" must not create two
-        // checkouts. The reference is unique-per-application.
-        'Idempotency-Key': opts.reference,
+        // Fresh idempotency key per attempt. The previous design keyed on
+        // opts.reference (deterministic per application) which meant a vendor
+        // who cancelled or abandoned a checkout, then clicked Pay again, got
+        // Yoco's cached redirect URL for the dead session and could never
+        // start a fresh one inside the idempotency window. Double-click
+        // protection lives at the UI layer (button disabled while paying).
+        'Idempotency-Key': randomUUID(),
       },
       body: JSON.stringify(body),
       cache: 'no-store',
