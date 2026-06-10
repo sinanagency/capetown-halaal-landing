@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { motion, useInView } from 'framer-motion'
 import {
@@ -84,7 +84,7 @@ const sectors = [
   }
 ]
 
-function SectorCard({ sector, index }: { sector: typeof sectors[0]; index: number }) {
+function SectorCard({ sector, index, liveCount }: { sector: typeof sectors[0]; index: number; liveCount: number | null }) {
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: '-50px' })
 
@@ -107,10 +107,10 @@ function SectorCard({ sector, index }: { sector: typeof sectors[0]; index: numbe
       />
 
       <div className="relative p-6 bg-neutral-900/80 backdrop-blur-sm border border-white/5 rounded-2xl hover:border-white/10 transition-all duration-500 h-full min-h-[200px] flex flex-col">
-        {/* Count badge */}
+        {/* Count badge — real count once loaded, falls back to estimate before */}
         <div className="absolute top-4 right-4">
           <span className="text-xs font-bold text-neutral-500">
-            {sector.count}
+            {liveCount === null ? sector.count : liveCount === 0 ? 'New' : `${liveCount}`}
           </span>
         </div>
 
@@ -156,6 +156,23 @@ function SectorCard({ sector, index }: { sector: typeof sectors[0]; index: numbe
 export function SectorsSection() {
   const containerRef = useRef<HTMLDivElement>(null)
   const isInView = useInView(containerRef, { once: true, margin: '-100px' })
+  const [counts, setCounts] = useState<Record<string, number> | null>(null)
+  const [totalLive, setTotalLive] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/sectors/counts')
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data && typeof data === 'object' && data.counts) {
+          setCounts(data.counts as Record<string, number>)
+          setTotalLive(typeof data.total === 'number' ? data.total : null)
+        }
+      })
+      .catch(() => { /* silent — fall back to estimate */ })
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <section id="sectors" className="py-24 relative overflow-hidden">
@@ -221,7 +238,7 @@ export function SectorsSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {sectors.map((sector, i) => (
             <Link key={sector.title} href={`/sectors/${sector.slug}`}>
-              <SectorCard sector={sector} index={i} />
+              <SectorCard sector={sector} index={i} liveCount={counts ? counts[sector.slug] ?? 0 : null} />
             </Link>
           ))}
         </div>
@@ -234,7 +251,7 @@ export function SectorsSection() {
           className="text-center mt-12"
         >
           <p className="text-neutral-500">
-            <span className="text-2xl font-bold text-white">400+</span>{' '}
+            <span className="text-2xl font-bold text-white">{totalLive !== null ? totalLive : '400+'}</span>{' '}
             exhibitors confirmed across all sectors
           </p>
         </motion.div>

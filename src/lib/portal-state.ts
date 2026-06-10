@@ -18,6 +18,9 @@ export interface DocRecord {
 export interface StaffMember {
   id: string
   name: string
+  /** Contact phone for the gate. New default since 2026-06-11. */
+  phone?: string
+  /** Legacy SA ID number, kept for backwards compatibility with pre-2026-06-11 records. */
   id_number: string
   vehicle_reg: string
   added_at: string
@@ -43,9 +46,17 @@ export interface PortalState {
     amount?: number
     due?: string
     reference?: string
-    provider_ref?: string   // gateway's own txn id (FNB txnToken) — used to validate on return
+    provider_ref?: string   // gateway's own txn id (FNB txnToken), used to validate on return
     paid_at?: string
     proof_path?: string
+    /** ISO time the vendor most recently clicked Pay and got a checkout URL.
+     *  Used to detect stale 'pending' status (Yoco checkouts time out ~15min). */
+    attempted_at?: string
+    /** Number of checkout attempts since approval. Lets the UI escalate to
+     *  "WhatsApp support" after repeated failures. */
+    attempts?: number
+    /** Number of attempts the webhook marked failed. */
+    failed_attempts?: number
   }
   docs?: DocRecord[]
   staff?: StaffMember[]
@@ -54,10 +65,12 @@ export interface PortalState {
   passAllowance?: number        // gate passes this vendor is entitled to (set by organisers)
   stage?: 'approved' | 'invoiced' | 'paid' | 'docs' | 'show_ready'
   wa?: {
-    phone: string              // E.164 — the WhatsApp number they opted in with (may differ from vendor.phone)
+    phone: string              // E.164, the WhatsApp number they opted in with (may differ from vendor.phone)
     opted_in_at: string        // ISO timestamp
     welcome_sent?: boolean     // did we fire the approved welcome template
   }
+  /** ISO timestamp the vendor ticked the terms-and-conditions acceptance step in the portal. */
+  terms_accepted_at?: string
 }
 
 export interface SupportMessage {

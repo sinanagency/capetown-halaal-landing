@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
   const member: StaffMember = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name,
+    phone: String(body.phone || '').trim(),
     id_number: String(body.id_number || '').trim(),
     vehicle_reg: String(body.vehicle_reg || '').trim(),
     added_at: new Date().toISOString(),

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { UserPlus, Loader2, Trash2, IdCard, Car, Users, Ticket, Printer, QrCode, AlertTriangle, ExternalLink } from 'lucide-react'
+import { UserPlus, Loader2, Trash2, Phone, Car, Users, Ticket, Printer, QrCode, AlertTriangle, ExternalLink } from 'lucide-react'
 import type { StaffMember } from '@/lib/portal-state'
 
 const TICKETS_URL = 'https://tickets.youngatheart.co.za'
@@ -10,7 +10,7 @@ export default function StaffManager({
   initial, allowance, businessName, stall,
 }: { initial: StaffMember[]; allowance: number; businessName: string; stall: string | null }) {
   const [staff, setStaff] = useState<StaffMember[]>(initial)
-  const [form, setForm] = useState({ name: '', id_number: '', vehicle_reg: '' })
+  const [form, setForm] = useState({ name: '', phone: '', vehicle_reg: '' })
   const [busy, setBusy] = useState(false)
   const [badging, setBadging] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +30,7 @@ export default function StaffManager({
       })
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || 'Could not add')
-      setStaff(j.staff); setForm({ name: '', id_number: '', vehicle_reg: '' })
+      setStaff(j.staff); setForm({ name: '', phone: '', vehicle_reg: '' })
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed') } finally { setBusy(false) }
   }
 
@@ -42,8 +42,8 @@ export default function StaffManager({
   }
 
   function printList() {
-    const rows = staff.map((m, i) => `<tr><td class="n">${i + 1}</td><td class="nm">${esc(m.name)}</td><td>${esc(m.id_number) || '—'}</td><td>${esc(m.vehicle_reg) || '—'}</td></tr>`).join('')
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gate list — ${esc(cleanBiz)}</title>${PRINT_HEAD}
+    const rows = staff.map((m, i) => `<tr><td class="n">${i + 1}</td><td class="nm">${esc(m.name)}</td><td>${esc(m.phone || m.id_number) || ','}</td><td>${esc(m.vehicle_reg) || ','}</td></tr>`).join('')
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Gate list, ${esc(cleanBiz)}</title>${PRINT_HEAD}
 <style>
 @page{size:A4;margin:18mm 16mm}
 body{font-family:'Inter',-apple-system,sans-serif;color:#1a1416;margin:0}
@@ -67,7 +67,7 @@ td.n{color:#b9b9b9;width:28px}td.nm{font-weight:600}
   <div class="lh"><img src="${LOGO}" alt=""><div><div class="eb">Exhibitor Gate Access</div><div class="ttl">Young at Heart Festival 2026</div></div></div>
   <p class="sub">Youngsfield Military Base, Cape Town · 11–13 December 2026</p>
   <div class="meta"><div><b>Business</b><span>${esc(cleanBiz)}</span></div><div><b>Stall</b><span>${esc(stall || 'TBC')}</span></div><div><b>Pass allowance</b><span>${allowance}</span></div><div><b>Registered</b><span>${used}</span></div></div>
-  <table><thead><tr><th>#</th><th>Name</th><th>ID number</th><th>Vehicle registration</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="color:#9ca3af;padding:16px 12px">No team members added yet</td></tr>'}</tbody></table>
+  <table><thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Vehicle registration</th></tr></thead><tbody>${rows || '<tr><td colspan="4" style="color:#9ca3af;padding:16px 12px">No team members added yet</td></tr>'}</tbody></table>
   <p class="note">Present this list at the gate. Final gate passes are confirmed by the organisers based on your stall package.</p>
 </div>${PRINT_TRIGGER}</body></html>`
     openPrint(html)
@@ -86,11 +86,11 @@ td.n{color:#b9b9b9;width:28px}td.nm{font-weight:600}
           <div class="bname">${esc(m.name)}</div>
           <div class="bbiz">${esc(cleanBiz)} · Stall ${esc(stall || 'TBC')}</div>
           <img src="${qr}" class="qr" alt="gate QR"/>
-          <div class="bmeta">${m.id_number ? 'ID ' + esc(m.id_number) : '&nbsp;'}${m.vehicle_reg ? ' &nbsp;·&nbsp; ' + esc(m.vehicle_reg) : ''}</div>
+          <div class="bmeta">${m.phone ? esc(m.phone) : (m.id_number ? 'ID ' + esc(m.id_number) : '&nbsp;')}${m.vehicle_reg ? ' &nbsp;·&nbsp; ' + esc(m.vehicle_reg) : ''}</div>
           <div class="bfoot">Scan at the gate · 11–13 Dec 2026 · Youngsfield</div>
         </div>`
       }))
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Staff badges — ${esc(cleanBiz)}</title>${PRINT_HEAD}
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Staff badges, ${esc(cleanBiz)}</title>${PRINT_HEAD}
 <style>
 @page{size:A4;margin:12mm}
 body{font-family:'Inter',-apple-system,sans-serif;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:12mm;align-content:start}
@@ -148,12 +148,12 @@ body{font-family:'Inter',-apple-system,sans-serif;margin:0;display:grid;grid-tem
       {/* add form */}
       <div className="bg-white border border-neutral-200 rounded-2xl p-5">
         <p className="font-semibold text-neutral-900 mb-1 flex items-center gap-2"><UserPlus className="w-4 h-4 text-[#cd2653]" /> Add a team member</p>
-        <p className="text-xs text-neutral-500 mb-4">These names go on the Youngsfield gate manifest. ID number and vehicle registration speed up entry.</p>
+        <p className="text-xs text-neutral-500 mb-4">These names go on the Youngsfield gate manifest. A contact phone number and vehicle registration speed up entry.</p>
         {error && <div className="mb-3 p-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
         <form onSubmit={add} className="grid sm:grid-cols-[1.4fr_1fr_1fr_auto] gap-2">
           <input required disabled={atLimit} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name"
             className="rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-[#cd2653] disabled:bg-neutral-50 disabled:text-neutral-400" />
-          <input disabled={atLimit} value={form.id_number} onChange={(e) => setForm({ ...form, id_number: e.target.value })} placeholder="ID number"
+          <input type="tel" disabled={atLimit} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone number"
             className="rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-[#cd2653] disabled:bg-neutral-50" />
           <input disabled={atLimit} value={form.vehicle_reg} onChange={(e) => setForm({ ...form, vehicle_reg: e.target.value })} placeholder="Vehicle reg"
             className="rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-[#cd2653] disabled:bg-neutral-50" />
@@ -179,7 +179,7 @@ body{font-family:'Inter',-apple-system,sans-serif;margin:0;display:grid;grid-tem
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-neutral-900">{m.name}</p>
                   <p className="text-xs text-neutral-500 flex items-center gap-3 mt-0.5">
-                    {m.id_number && <span className="flex items-center gap-1"><IdCard className="w-3 h-3" />{m.id_number}</span>}
+                    {(m.phone || m.id_number) && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{m.phone || m.id_number}</span>}
                     {m.vehicle_reg && <span className="flex items-center gap-1"><Car className="w-3 h-3" />{m.vehicle_reg}</span>}
                   </p>
                 </div>
