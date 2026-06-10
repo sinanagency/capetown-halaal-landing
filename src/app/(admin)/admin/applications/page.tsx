@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { ApplicationCard } from '@/components/admin/ApplicationCard'
 import type { VendorApplication, ApplicationStatus } from '@/lib/supabase/types'
-import { Search, Loader2, FileText, Filter, Mail, X, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Search, Loader2, Mail, X, AlertCircle, CheckCircle2, FileSpreadsheet, FileText } from 'lucide-react'
+import {
+  PageShell, PageHeader, Card, Tabs, ButtonPrimary, ButtonSecondary, Empty,
+} from '@/components/chrome/PageChrome'
 
 const statusFilters: { value: string; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -122,70 +124,70 @@ export default function ApplicationsPage() {
   }
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Applications</h1>
-          <p className="text-neutral-500">Manage vendor booth applications</p>
-        </div>
-        <button
-          onClick={openDelayModal}
-          className="flex items-center gap-2 px-4 py-2.5 bg-[#0a0a0a] text-white rounded-lg text-sm font-semibold hover:bg-[#262626] transition-colors"
-        >
-          <Mail className="w-4 h-4" />
-          Send delay notice
-        </button>
-      </div>
+    <PageShell>
+      <PageHeader
+        kicker="Vendor Pipeline"
+        title="Applications"
+        subtitle="Manage vendor booth applications"
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <a
+              href="/api/admin/vendor-list?format=csv"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-[#1a1416] bg-white border border-neutral-200 rounded-lg hover:border-[#cd2653] hover:text-[#cd2653] transition-colors"
+              title="Approved vendor list with stall allocations, Excel format"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Excel
+            </a>
+            <a
+              href="/api/admin/vendor-list?format=pdf"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-[#1a1416] bg-white border border-neutral-200 rounded-lg hover:border-[#cd2653] hover:text-[#cd2653] transition-colors"
+              title="Approved vendor list with stall allocations, printable PDF"
+            >
+              <FileText className="w-4 h-4" />
+              PDF
+            </a>
+            <ButtonPrimary onClick={openDelayModal} className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              Send delay notice
+            </ButtonPrimary>
+          </div>
+        }
+      />
 
       {/* Filters */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
+      <Card className="mb-6">
+        <div className="flex flex-col md:flex-row gap-4 md:items-center">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#E5E5E5]" />
             <input
               type="text"
               placeholder="Search by business, name, or email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2.5 bg-[#FFFFFF] border border-[#E5E5E5]/40 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
             />
           </div>
-
-          {/* Status Filter */}
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-neutral-400" />
-            <div className="flex gap-1">
-              {statusFilters.map((filter) => (
-                <button
-                  key={filter.value}
-                  onClick={() => handleStatusChange(filter.value)}
-                  className={cn(
-                    'px-3 py-2 text-sm font-medium rounded-lg transition-colors',
-                    currentStatus === filter.value
-                      ? 'bg-[#cd2653] text-white'
-                      : 'text-neutral-600 hover:bg-neutral-100'
-                  )}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
+          <div className="[&>div]:mb-0">
+            <Tabs
+              items={statusFilters.map((f) => ({ k: f.value, label: f.label }))}
+              active={currentStatus}
+              onChange={handleStatusChange}
+            />
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Applications List */}
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-neutral-400" />
+          <Loader2 className="w-8 h-8 animate-spin text-[#E5E5E5]" />
         </div>
       ) : applications.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-xl border border-neutral-200">
-          <FileText className="w-12 h-12 mx-auto mb-3 text-neutral-300" />
-          <p className="text-neutral-500">No applications found</p>
-        </div>
+        <Empty
+          title="No applications found"
+          hint="Try a different status filter or search term."
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {applications.map((app) => (
@@ -200,20 +202,20 @@ export default function ApplicationsPage() {
           onClick={closeDelayModal}
         >
           <div
-            className="bg-white rounded-xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+            className="bg-[#FFFFFF] border border-[#E5E5E5]/40 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between p-6 border-b border-neutral-200">
+            <div className="flex items-start justify-between p-6 border-b border-[#E5E5E5]/20">
               <div>
-                <h2 className="text-xl font-bold text-neutral-900">Send delay notice</h2>
-                <p className="text-sm text-neutral-500 mt-1">
+                <h2 className="font-serif text-xl text-[#1B1A17]">Send delay notice</h2>
+                <p className="text-sm text-[#1B1A17]/55 mt-1">
                   Emails every pending and info_requested applicant who has not yet received a delay notice.
                 </p>
               </div>
               <button
                 onClick={closeDelayModal}
                 disabled={delaySending}
-                className="p-1 text-neutral-400 hover:text-neutral-600 disabled:opacity-50"
+                className="p-1 text-[#1B1A17]/45 hover:text-[#1B1A17] disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -222,29 +224,29 @@ export default function ApplicationsPage() {
             <div className="flex-1 overflow-y-auto p-6">
               {delayLoading && (
                 <div className="flex items-center justify-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
+                  <Loader2 className="w-6 h-6 animate-spin text-[#E5E5E5]" />
                 </div>
               )}
 
               {!delayLoading && delayResult && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                  <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <CheckCircle2 className="w-6 h-6 text-emerald-600" />
                     <div>
-                      <p className="font-semibold text-green-900">Broadcast complete</p>
-                      <p className="text-sm text-green-700">
+                      <p className="font-semibold text-emerald-900">Broadcast complete</p>
+                      <p className="text-sm text-emerald-700">
                         Sent: {delayResult.sent} · Failed: {delayResult.failed} · Eligible: {delayResult.eligibleCount}
                       </p>
                     </div>
                   </div>
                   {delayResult.failures.length > 0 && (
                     <div>
-                      <p className="text-sm font-semibold text-neutral-900 mb-2">Failures</p>
-                      <div className="border border-neutral-200 rounded-lg divide-y divide-neutral-100 max-h-60 overflow-y-auto">
+                      <p className="text-sm font-semibold text-[#1B1A17] mb-2">Failures</p>
+                      <div className="border border-[#E5E5E5]/30 rounded-lg divide-y divide-[#E5E5E5]/15 max-h-60 overflow-y-auto">
                         {delayResult.failures.map((f, i) => (
                           <div key={i} className="px-3 py-2 text-sm">
-                            <div className="font-medium text-neutral-900">{f.email}</div>
-                            <div className="text-xs text-red-600">{f.error}</div>
+                            <div className="font-medium text-[#1B1A17]">{f.email}</div>
+                            <div className="text-xs text-[#bf3026]">{f.error}</div>
                           </div>
                         ))}
                       </div>
@@ -255,13 +257,13 @@ export default function ApplicationsPage() {
 
               {!delayLoading && !delayResult && delayPreview && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
-                    <AlertCircle className="w-5 h-5 text-neutral-600" />
+                  <div className="flex items-center gap-3 p-4 bg-[#FFFFFF] border border-[#E5E5E5]/30 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-[#E5E5E5]" />
                     <div>
-                      <p className="font-semibold text-neutral-900">
+                      <p className="font-semibold text-[#1B1A17]">
                         {delayPreview.eligibleCount} eligible {delayPreview.eligibleCount === 1 ? 'applicant' : 'applicants'}
                       </p>
-                      <p className="text-sm text-neutral-600">
+                      <p className="text-sm text-[#1B1A17]/65">
                         Each recipient receives one email. Already notified applicants are skipped automatically.
                       </p>
                     </div>
@@ -269,17 +271,17 @@ export default function ApplicationsPage() {
 
                   {delayPreview.preview.length > 0 && (
                     <div>
-                      <p className="text-sm font-semibold text-neutral-900 mb-2">
+                      <p className="text-sm font-semibold text-[#1B1A17] mb-2">
                         Preview (first {delayPreview.preview.length})
                       </p>
-                      <div className="border border-neutral-200 rounded-lg divide-y divide-neutral-100 max-h-60 overflow-y-auto">
+                      <div className="border border-[#E5E5E5]/30 rounded-lg divide-y divide-[#E5E5E5]/15 max-h-60 overflow-y-auto">
                         {delayPreview.preview.map((p, i) => (
                           <div key={i} className="px-3 py-2 text-sm flex items-center justify-between gap-3">
                             <div>
-                              <div className="font-medium text-neutral-900">{p.firstName} · {p.businessName}</div>
-                              <div className="text-xs text-neutral-500">{p.email}</div>
+                              <div className="font-medium text-[#1B1A17]">{p.firstName} · {p.businessName}</div>
+                              <div className="text-xs text-[#1B1A17]/55">{p.email}</div>
                             </div>
-                            <div className="text-xs text-neutral-400">
+                            <div className="text-xs text-[#1B1A17]/45">
                               {new Date(p.createdAt).toLocaleDateString()}
                             </div>
                           </div>
@@ -291,27 +293,18 @@ export default function ApplicationsPage() {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-neutral-200">
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-[#E5E5E5]/20">
               {delayResult ? (
-                <button
-                  onClick={closeDelayModal}
-                  className="px-4 py-2 bg-neutral-900 text-white rounded-lg text-sm font-semibold hover:bg-neutral-800"
-                >
-                  Close
-                </button>
+                <ButtonPrimary onClick={closeDelayModal}>Close</ButtonPrimary>
               ) : (
                 <>
-                  <button
-                    onClick={closeDelayModal}
-                    disabled={delaySending}
-                    className="px-4 py-2 text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-50"
-                  >
+                  <ButtonSecondary onClick={closeDelayModal} disabled={delaySending}>
                     Cancel
-                  </button>
-                  <button
+                  </ButtonSecondary>
+                  <ButtonPrimary
                     onClick={confirmSendDelay}
                     disabled={delaySending || delayLoading || !delayPreview || delayPreview.eligibleCount === 0}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#cd2653] text-white rounded-lg text-sm font-semibold hover:bg-[#b01f47] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2"
                   >
                     {delaySending ? (
                       <>
@@ -324,13 +317,13 @@ export default function ApplicationsPage() {
                         Send to {delayPreview?.eligibleCount ?? 0} {delayPreview?.eligibleCount === 1 ? 'applicant' : 'applicants'}
                       </>
                     )}
-                  </button>
+                  </ButtonPrimary>
                 </>
               )}
             </div>
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

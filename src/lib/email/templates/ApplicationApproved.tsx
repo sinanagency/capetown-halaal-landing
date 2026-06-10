@@ -69,8 +69,9 @@ export function ApplicationApproved({
       <Steps
         items={[
           'Log into your exhibitor portal using the credentials above.',
-          'Select your booth location and complete payment.',
-          'Receive your exhibitor pack with all event details.',
+          'Confirm the terms & conditions, then complete your stall fee payment.',
+          'Upload your compliance documents and register your gate staff.',
+          'The organisers allocate your stall position; you will see it in your portal.',
         ]}
       />
 
