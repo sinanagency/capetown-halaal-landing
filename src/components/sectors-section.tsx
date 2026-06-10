@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { motion, useInView } from 'framer-motion'
+import { motion, AnimatePresence, useInView } from 'framer-motion'
 import {
   Utensils, ShoppingBag, Heart, Sparkles,
-  Building, Plane, Home, Briefcase
+  Building, Plane, Home, Briefcase,
+  X, ArrowLeft, Loader2, Globe, Instagram, MapPin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -84,7 +85,39 @@ const sectors = [
   }
 ]
 
-function SectorCard({ sector, index, liveCount }: { sector: typeof sectors[0]; index: number; liveCount: number | null }) {
+type Sector = typeof sectors[number]
+
+interface VendorLite {
+  id: string
+  business_name: string
+  business_description: string | null
+  website: string | null
+  instagram: string | null
+}
+
+interface MenuItem { name: string; price?: string; desc?: string }
+
+interface VendorFull {
+  slug: string
+  business_name: string
+  tagline?: string | null
+  write_up: string
+  menu: MenuItem[]
+  photo_gallery: string[]
+  logo_url?: string | null
+  logo_path?: string | null
+  stall_code?: string | null
+  website?: string | null
+  instagram?: string | null
+  facebook?: string | null
+  sector: string
+}
+
+function slugifyName(s: string): string {
+  return s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 80)
+}
+
+function SectorCard({ sector, index, liveCount, active, onClick }: { sector: Sector; index: number; liveCount: number | null; active: boolean; onClick: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: '-50px' })
 
@@ -106,7 +139,14 @@ function SectorCard({ sector, index, liveCount }: { sector: typeof sectors[0]; i
         style={{ background: sector.bgGlow }}
       />
 
-      <div className="relative p-6 bg-neutral-900/80 backdrop-blur-sm border border-white/5 rounded-2xl hover:border-white/10 transition-all duration-500 h-full min-h-[200px] flex flex-col">
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'relative w-full text-left p-6 bg-neutral-900/80 backdrop-blur-sm rounded-2xl transition-all duration-500 h-full min-h-[200px] flex flex-col cursor-pointer',
+          active ? 'border-2 border-[#cd2653] shadow-[0_0_30px_rgba(205,38,83,0.35)]' : 'border border-white/5 hover:border-white/10'
+        )}
+      >
         {/* Count badge — real count once loaded, falls back to estimate before */}
         <div className="absolute top-4 right-4">
           <span className="text-xs font-bold text-neutral-500">
@@ -145,9 +185,272 @@ function SectorCard({ sector, index, liveCount }: { sector: typeof sectors[0]; i
             background: `linear-gradient(to right, ${sector.bgGlow}, transparent)`
           }}
           initial={{ scaleX: 0, originX: 0 }}
-          whileHover={{ scaleX: 1 }}
+          animate={active ? { scaleX: 1 } : { scaleX: 0 }}
           transition={{ duration: 0.3 }}
         />
+      </button>
+    </motion.div>
+  )
+}
+
+function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () => void }) {
+  const [vendors, setVendors] = useState<VendorLite[] | null>(null)
+  const [loadingList, setLoadingList] = useState(true)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [vendorBio, setVendorBio] = useState<VendorFull | null>(null)
+  const [loadingBio, setLoadingBio] = useState(false)
+  const [bioError, setBioError] = useState<string | null>(null)
+  const detailRef = useRef<HTMLDivElement>(null)
+
+  // Fetch vendor list when the drawer opens / sector changes.
+  useEffect(() => {
+    let cancelled = false
+    setLoadingList(true)
+    setVendors(null)
+    setSelected(null)
+    setVendorBio(null)
+    fetch(`/api/sectors/${sector.slug}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return
+        setVendors((d?.vendors as VendorLite[]) || [])
+      })
+      .catch(() => { if (!cancelled) setVendors([]) })
+      .finally(() => { if (!cancelled) setLoadingList(false) })
+    return () => { cancelled = true }
+  }, [sector.slug])
+
+  // Fetch bio when a vendor is picked.
+  useEffect(() => {
+    if (!selected) return
+    let cancelled = false
+    setLoadingBio(true)
+    setBioError(null)
+    setVendorBio(null)
+    fetch(`/api/sectors/${sector.slug}/${selected}`)
+      .then(async (r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const d = await r.json()
+        if (cancelled) return
+        if (!d?.vendor) {
+          setBioError('That vendor has not finished their profile yet.')
+        } else {
+          setVendorBio(d.vendor as VendorFull)
+        }
+      })
+      .catch(() => { if (!cancelled) setBioError("Couldn't load this vendor's profile.") })
+      .finally(() => { if (!cancelled) setLoadingBio(false) })
+    return () => { cancelled = true }
+  }, [selected, sector.slug])
+
+  // When a bio loads, scroll it into view so the user sees it.
+  useEffect(() => {
+    if (vendorBio && detailRef.current) {
+      detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [vendorBio])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
+      className="overflow-hidden"
+    >
+      <div className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900/95 to-neutral-950/95 backdrop-blur-sm p-6 md:p-8">
+        <div className="flex items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={cn('w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br shrink-0', sector.color)}
+              style={{ boxShadow: `0 8px 24px ${sector.bgGlow}` }}
+            >
+              <sector.icon className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#cd2653]">Vendors in</p>
+              <h3 className="text-xl md:text-2xl font-bold text-white truncate">{sector.title}</h3>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-neutral-400 hover:text-white text-sm transition-colors"
+            aria-label="Close vendor panel"
+          >
+            <X className="w-4 h-4" /> Close
+          </button>
+        </div>
+
+        {/* Vendor list */}
+        <AnimatePresence mode="wait">
+          {!selected && (
+            <motion.div
+              key="list"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              {loadingList ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#cd2653]" />
+                </div>
+              ) : !vendors || vendors.length === 0 ? (
+                <div className="text-center py-12 text-neutral-400">
+                  <p className="text-base">No vendors listed in {sector.title} yet.</p>
+                  <Link href="/apply" className="inline-block mt-4 text-[#cd2653] hover:underline text-sm font-medium">
+                    Be the first to exhibit →
+                  </Link>
+                </div>
+              ) : (
+                <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {vendors.map((v) => {
+                    const profSlug = slugifyName(v.business_name)
+                    return (
+                      <li key={v.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelected(profSlug)}
+                          className="w-full text-left p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#cd2653]/40 transition-colors group"
+                        >
+                          <h4 className="text-base font-semibold text-white group-hover:text-[#cd2653] transition-colors line-clamp-1">
+                            {v.business_name}
+                          </h4>
+                          {v.business_description && (
+                            <p className="text-sm text-neutral-400 mt-1 line-clamp-2">{v.business_description}</p>
+                          )}
+                          <div className="flex items-center gap-3 mt-3 text-xs text-neutral-500">
+                            <span className="text-[#cd2653] font-medium">View profile →</span>
+                            {v.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Website</span>}
+                            {v.instagram && <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> Instagram</span>}
+                          </div>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </motion.div>
+          )}
+
+          {selected && (
+            <motion.div
+              key="bio"
+              ref={detailRef}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25 }}
+            >
+              <button
+                type="button"
+                onClick={() => { setSelected(null); setVendorBio(null) }}
+                className="flex items-center gap-1.5 text-neutral-400 hover:text-white text-sm mb-5 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to {sector.title}
+              </button>
+
+              {loadingBio && (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-[#cd2653]" />
+                </div>
+              )}
+
+              {bioError && !loadingBio && (
+                <div className="text-center py-10 text-neutral-400">
+                  <p>{bioError}</p>
+                </div>
+              )}
+
+              {vendorBio && !loadingBio && (
+                <div className="space-y-6">
+                  <div className="flex flex-col md:flex-row items-start gap-6">
+                    {vendorBio.logo_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={vendorBio.logo_url}
+                        alt={`${vendorBio.business_name} logo`}
+                        className="w-24 h-24 md:w-28 md:h-28 rounded-2xl object-contain bg-white p-2 shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {vendorBio.stall_code && (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
+                            <MapPin className="w-3 h-3" /> Stall {vendorBio.stall_code}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-2xl md:text-3xl font-bold text-white mb-1" style={{ fontFamily: '"Fraunces", Georgia, serif' }}>
+                        {vendorBio.business_name}
+                      </h3>
+                      {vendorBio.tagline && (
+                        <p className="text-base text-neutral-400">{vendorBio.tagline}</p>
+                      )}
+                      <div className="flex flex-wrap gap-3 mt-3">
+                        {vendorBio.website && (
+                          <a href={vendorBio.website} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm text-[#cd2653] hover:text-[#ff7a9c] transition-colors">
+                            <Globe className="w-3.5 h-3.5" /> Website
+                          </a>
+                        )}
+                        {vendorBio.instagram && (
+                          <a href={`https://instagram.com/${vendorBio.instagram.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm text-[#cd2653] hover:text-[#ff7a9c] transition-colors">
+                            <Instagram className="w-3.5 h-3.5" /> {vendorBio.instagram}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-xs uppercase tracking-wider text-neutral-500 mb-2">About</h4>
+                    <p className="text-base text-neutral-200 leading-relaxed whitespace-pre-wrap">
+                      {vendorBio.write_up}
+                    </p>
+                  </div>
+
+                  {vendorBio.menu && vendorBio.menu.length > 0 && (
+                    <div>
+                      <h4 className="text-xs uppercase tracking-wider text-neutral-500 mb-2">
+                        {sector.title === 'Food & Beverage' ? 'On the Menu' : 'What They Bring'}
+                      </h4>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {vendorBio.menu.map((item, i) => (
+                          <li key={i} className="bg-white/[0.03] border border-white/5 rounded-lg px-4 py-3">
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-sm font-medium text-white">{item.name}</span>
+                              {item.price && <span className="text-xs text-neutral-400 whitespace-nowrap">{item.price}</span>}
+                            </div>
+                            {item.desc && <p className="text-xs text-neutral-500 mt-1">{item.desc}</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                    <Link
+                      href={`/sectors/${sector.slug}/${vendorBio.slug}`}
+                      className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+                    >
+                      Open full page →
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => { setSelected(null); setVendorBio(null) }}
+                      className="text-xs text-[#cd2653] hover:text-[#ff7a9c] transition-colors"
+                    >
+                      ← Back to vendors
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   )
@@ -158,6 +461,7 @@ export function SectorsSection() {
   const isInView = useInView(containerRef, { once: true, margin: '-100px' })
   const [counts, setCounts] = useState<Record<string, number> | null>(null)
   const [totalLive, setTotalLive] = useState<number | null>(null)
+  const [activeSlug, setActiveSlug] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -173,6 +477,8 @@ export function SectorsSection() {
       .catch(() => { /* silent — fall back to estimate */ })
     return () => { cancelled = true }
   }, [])
+
+  const activeSector = sectors.find((s) => s.slug === activeSlug) || null
 
   return (
     <section id="sectors" className="py-24 relative overflow-hidden">
@@ -231,17 +537,34 @@ export function SectorsSection() {
           </h2>
           <p className="text-neutral-400 text-lg max-w-2xl mx-auto">
             From food and fashion to finance and travel, discover exhibitors across all aspects of the lifestyle.
+            Tap a sector to see who&rsquo;s exhibiting.
           </p>
         </motion.div>
 
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {sectors.map((sector, i) => (
-            <Link key={sector.title} href={`/sectors/${sector.slug}`}>
-              <SectorCard sector={sector} index={i} liveCount={counts ? counts[sector.slug] ?? 0 : null} />
-            </Link>
+            <SectorCard
+              key={sector.title}
+              sector={sector}
+              index={i}
+              liveCount={counts ? counts[sector.slug] ?? 0 : null}
+              active={activeSlug === sector.slug}
+              onClick={() => setActiveSlug((cur) => (cur === sector.slug ? null : sector.slug))}
+            />
           ))}
         </div>
+
+        {/* Inline expanding vendor panel */}
+        <AnimatePresence>
+          {activeSector && (
+            <VendorDrawerPanel
+              key={activeSector.slug}
+              sector={activeSector}
+              onClose={() => setActiveSlug(null)}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Total count */}
         <motion.div
