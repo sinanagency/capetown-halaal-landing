@@ -424,12 +424,18 @@ export default function HomePage() {
               </a>
               <a
                 href="/apply"
-                className="hidden sm:flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl shadow-lg shadow-[#cd2653]/20 hover:opacity-90 transition-opacity"
+                className="relative hidden sm:flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl shadow-lg shadow-[#cd2653]/20 hover:opacity-90 transition-opacity group"
               >
-                <Store className="w-4 h-4" />
-                <span className="hidden md:inline">Vendor Application</span>
-                <span className="md:hidden">Apply</span>
-                <ArrowUpRight className="w-4 h-4" />
+                <span
+                  aria-hidden
+                  className="absolute inset-0 -m-0.5 rounded-xl bg-gradient-to-r from-[#cd2653] to-[#f59e0b] opacity-40 blur-md animate-pulse pointer-events-none"
+                />
+                <span className="relative flex items-center gap-2">
+                  <Store className="w-4 h-4" />
+                  <span className="hidden md:inline">Vendor Application</span>
+                  <span className="md:hidden">Apply</span>
+                  <ArrowUpRight className="w-4 h-4" />
+                </span>
               </a>
 
               {/* Mobile hamburger */}

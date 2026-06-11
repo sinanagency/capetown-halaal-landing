@@ -263,11 +263,11 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
   return (
     <motion.div
       ref={drawerRef}
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
-      className="overflow-hidden scroll-mt-24"
+      initial={{ opacity: 0, y: -12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className="scroll-mt-24"
     >
       <div className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900/95 to-neutral-950/95 backdrop-blur-sm p-6 md:p-8">
         <div className="flex items-center justify-between gap-4 mb-6">
@@ -317,10 +317,10 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
           {!selected && (
             <motion.div
               key="list"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
             >
               {loadingList ? (
                 <div className="flex justify-center py-12">
@@ -391,10 +391,10 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
             <motion.div
               key="bio"
               ref={detailRef}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
               className="h-[440px] overflow-y-auto pr-2 -mr-2 sectors-v-scroll"
             >
               {loadingBio && (
