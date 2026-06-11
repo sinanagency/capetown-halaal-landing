@@ -6,7 +6,7 @@ import { motion, AnimatePresence, useInView } from 'framer-motion'
 import {
   Utensils, ShoppingBag, Heart, Sparkles,
   Building, Plane, Home, Briefcase,
-  X, ArrowLeft, Loader2, Globe, Instagram, MapPin,
+  X, Loader2, Globe, Instagram, MapPin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -279,17 +279,36 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
               <sector.icon className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[#cd2653]">Vendors in</p>
-              <h3 className="text-xl md:text-2xl font-bold text-white truncate">{sector.title}</h3>
+              {selected ? (
+                <>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#cd2653]">{sector.title}</p>
+                  <h3 className="text-xl md:text-2xl font-bold text-white truncate">
+                    {vendorBio?.business_name || 'Loading…'}
+                  </h3>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#cd2653]">Vendors in</p>
+                  <h3 className="text-xl md:text-2xl font-bold text-white truncate">{sector.title}</h3>
+                </>
+              )}
             </div>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => {
+              // X means "go back one step": from profile -> vendor list, from list -> close drawer.
+              if (selected) {
+                setSelected(null)
+                setVendorBio(null)
+              } else {
+                onClose()
+              }
+            }}
             className="flex items-center gap-1.5 text-neutral-400 hover:text-white text-sm transition-colors"
-            aria-label="Close vendor panel"
+            aria-label={selected ? 'Back to vendor list' : 'Close vendor panel'}
           >
-            <X className="w-4 h-4" /> Close
+            <X className="w-4 h-4" /> {selected ? 'Back' : 'Close'}
           </button>
         </div>
 
@@ -315,42 +334,52 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
                   </Link>
                 </div>
               ) : (
-                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                  {vendors.map((v) => {
-                    const profSlug = slugifyName(v.business_name)
-                    return (
-                      <li key={v.id}>
-                        <button
-                          type="button"
-                          onClick={() => setSelected(profSlug)}
-                          className="relative w-full text-left p-6 rounded-2xl bg-neutral-900/80 backdrop-blur-sm border border-white/5 hover:border-[#cd2653]/40 transition-all duration-500 min-h-[200px] flex flex-col group"
-                        >
-                          <div
-                            className={cn('w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br shadow-lg', sector.color)}
-                            style={{ boxShadow: `0 10px 40px ${sector.bgGlow}` }}
-                          >
-                            <sector.icon className="w-7 h-7 text-white" />
-                          </div>
-                          <h4 className="text-lg font-bold text-white group-hover:text-neutral-50 transition-colors line-clamp-1 mb-2">
-                            {v.business_name}
-                          </h4>
-                          {v.business_description ? (
-                            <p className="text-sm text-neutral-500 group-hover:text-neutral-400 transition-colors leading-relaxed line-clamp-2">
-                              {v.business_description}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-neutral-600 italic">Profile coming soon</p>
-                          )}
-                          <div className="flex items-center gap-3 mt-auto pt-4 text-xs text-neutral-500">
-                            <span className="text-[#cd2653] font-medium group-hover:text-[#ff7a9c] transition-colors">View profile →</span>
-                            {v.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Web</span>}
-                            {v.instagram && <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> IG</span>}
-                          </div>
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
+                <>
+                  {/* Fixed-height viewport: ~9 cards visible (3 rows of 3 on lg, scrolling inside the drawer when there are more). */}
+                  <div className="max-h-[640px] overflow-y-auto pr-2 -mr-2 sectors-scroll">
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {vendors.map((v) => {
+                        const profSlug = slugifyName(v.business_name)
+                        return (
+                          <li key={v.id}>
+                            <button
+                              type="button"
+                              onClick={() => setSelected(profSlug)}
+                              className="relative w-full text-left p-6 rounded-2xl bg-neutral-900/80 backdrop-blur-sm border border-white/5 hover:border-[#cd2653]/40 transition-all duration-500 min-h-[200px] flex flex-col group"
+                            >
+                              <div
+                                className={cn('w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br shadow-lg', sector.color)}
+                                style={{ boxShadow: `0 10px 40px ${sector.bgGlow}` }}
+                              >
+                                <sector.icon className="w-7 h-7 text-white" />
+                              </div>
+                              <h4 className="text-lg font-bold text-white group-hover:text-neutral-50 transition-colors line-clamp-1 mb-2">
+                                {v.business_name}
+                              </h4>
+                              {v.business_description ? (
+                                <p className="text-sm text-neutral-500 group-hover:text-neutral-400 transition-colors leading-relaxed line-clamp-2">
+                                  {v.business_description}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-neutral-600 italic">Profile coming soon</p>
+                              )}
+                              <div className="flex items-center gap-3 mt-auto pt-4 text-xs text-neutral-500">
+                                <span className="text-[#cd2653] font-medium group-hover:text-[#ff7a9c] transition-colors">View profile →</span>
+                                {v.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Web</span>}
+                                {v.instagram && <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> IG</span>}
+                              </div>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                  {vendors.length > 9 && (
+                    <p className="mt-4 text-center text-xs text-neutral-500">
+                      Showing {Math.min(9, vendors.length)} of {vendors.length} — scroll inside the panel to see the rest.
+                    </p>
+                  )}
+                </>
               )}
             </motion.div>
           )}
@@ -364,14 +393,6 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
             >
-              <button
-                type="button"
-                onClick={() => { setSelected(null); setVendorBio(null) }}
-                className="flex items-center gap-1.5 text-neutral-400 hover:text-white text-sm mb-5 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" /> Back to {sector.title}
-              </button>
-
               {loadingBio && (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-[#cd2653]" />
@@ -459,13 +480,6 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
                     >
                       Open full page →
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => { setSelected(null); setVendorBio(null) }}
-                      className="text-xs text-[#cd2653] hover:text-[#ff7a9c] transition-colors"
-                    >
-                      ← Back to vendors
-                    </button>
                   </div>
                 </div>
               )}
