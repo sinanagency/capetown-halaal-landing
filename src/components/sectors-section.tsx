@@ -335,48 +335,51 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
                 </div>
               ) : (
                 <>
-                  {/* Fixed-height viewport: ~9 cards visible (3 rows of 3 on lg, scrolling inside the drawer when there are more). */}
-                  <div className="max-h-[640px] overflow-y-auto pr-2 -mr-2 sectors-scroll">
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {/* Fixed-height drawer ≈ 2 rows of sector cards so the expanded panel matches the Sectors grid visually.
+                      9 vendor cards visible at once in a 3-row × 3-col layout. Sideways scroll for the next 9. */}
+                  <div className="h-[440px] overflow-x-auto overflow-y-hidden snap-x snap-mandatory sectors-h-scroll">
+                    <div
+                      className="grid grid-flow-col grid-rows-3 gap-4 h-full"
+                      style={{ gridAutoColumns: 'calc((100% - 2rem) / 3)' }}
+                    >
                       {vendors.map((v) => {
                         const profSlug = slugifyName(v.business_name)
                         return (
-                          <li key={v.id}>
-                            <button
-                              type="button"
-                              onClick={() => setSelected(profSlug)}
-                              className="relative w-full text-left p-6 rounded-2xl bg-neutral-900/80 backdrop-blur-sm border border-white/5 hover:border-[#cd2653]/40 transition-all duration-500 min-h-[200px] flex flex-col group"
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => setSelected(profSlug)}
+                            className="relative snap-start text-left p-5 rounded-2xl bg-neutral-900/80 backdrop-blur-sm border border-white/5 hover:border-[#cd2653]/40 transition-all duration-300 flex flex-col group h-full"
+                          >
+                            <div
+                              className={cn('w-11 h-11 rounded-xl flex items-center justify-center mb-3 bg-gradient-to-br shadow-lg shrink-0', sector.color)}
+                              style={{ boxShadow: `0 8px 30px ${sector.bgGlow}` }}
                             >
-                              <div
-                                className={cn('w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br shadow-lg', sector.color)}
-                                style={{ boxShadow: `0 10px 40px ${sector.bgGlow}` }}
-                              >
-                                <sector.icon className="w-7 h-7 text-white" />
-                              </div>
-                              <h4 className="text-lg font-bold text-white group-hover:text-neutral-50 transition-colors line-clamp-1 mb-2">
-                                {v.business_name}
-                              </h4>
-                              {v.business_description ? (
-                                <p className="text-sm text-neutral-500 group-hover:text-neutral-400 transition-colors leading-relaxed line-clamp-2">
-                                  {v.business_description}
-                                </p>
-                              ) : (
-                                <p className="text-sm text-neutral-600 italic">Profile coming soon</p>
-                              )}
-                              <div className="flex items-center gap-3 mt-auto pt-4 text-xs text-neutral-500">
-                                <span className="text-[#cd2653] font-medium group-hover:text-[#ff7a9c] transition-colors">View profile →</span>
-                                {v.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Web</span>}
-                                {v.instagram && <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> IG</span>}
-                              </div>
-                            </button>
-                          </li>
+                              <sector.icon className="w-5 h-5 text-white" />
+                            </div>
+                            <h4 className="text-sm font-bold text-white group-hover:text-neutral-50 transition-colors line-clamp-1 mb-1">
+                              {v.business_name}
+                            </h4>
+                            {v.business_description ? (
+                              <p className="text-xs text-neutral-500 group-hover:text-neutral-400 transition-colors leading-relaxed line-clamp-2">
+                                {v.business_description}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-neutral-600 italic">Profile coming soon</p>
+                            )}
+                            <div className="flex items-center gap-2 mt-auto pt-3 text-[11px] text-neutral-500">
+                              <span className="text-[#cd2653] font-medium group-hover:text-[#ff7a9c] transition-colors">View →</span>
+                              {v.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Web</span>}
+                              {v.instagram && <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> IG</span>}
+                            </div>
+                          </button>
                         )
                       })}
-                    </ul>
+                    </div>
                   </div>
                   {vendors.length > 9 && (
                     <p className="mt-4 text-center text-xs text-neutral-500">
-                      Showing {Math.min(9, vendors.length)} of {vendors.length} — scroll inside the panel to see the rest.
+                      Showing 9 of {vendors.length} — scroll sideways inside the panel for the rest.
                     </p>
                   )}
                 </>
@@ -392,15 +395,16 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
+              className="h-[440px] overflow-y-auto pr-2 -mr-2 sectors-v-scroll"
             >
               {loadingBio && (
-                <div className="flex justify-center py-12">
+                <div className="flex justify-center items-center h-full">
                   <Loader2 className="w-6 h-6 animate-spin text-[#cd2653]" />
                 </div>
               )}
 
               {bioError && !loadingBio && (
-                <div className="text-center py-10 text-neutral-400">
+                <div className="flex items-center justify-center h-full text-neutral-400">
                   <p>{bioError}</p>
                 </div>
               )}

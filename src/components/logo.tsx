@@ -23,17 +23,23 @@ export function Logo({ size = 'md', showText = true, className, light = false }:
   return (
     <div className={cn('flex items-center gap-2.5', className)}>
       <div className="relative flex-shrink-0" style={{ width: s.icon, height: s.icon }}>
-        {/* Spinning halo behind the logo. Conic-gradient ring rotates slowly with a soft blur. */}
+        {/* Spinning halo positioned to hug the visible heart only (not the PNG file bounds).
+            Heart bbox confirmed via sharp.trim(): left 26%, right 30%, top 34%, bottom 34%
+            of the rendered square, after the existing translate-y-11% on the image.
+            Negative margin extends the glow ~3px beyond the heart's silhouette. */}
         <span
           aria-hidden
-          className="absolute inset-0 -m-1.5 rounded-full opacity-60 blur-[6px] animate-spin [animation-duration:9s] pointer-events-none"
+          className="absolute rounded-full opacity-70 blur-[5px] animate-spin [animation-duration:9s] pointer-events-none"
           style={{
+            top: '32%',
+            bottom: '32%',
+            left: '24%',
+            right: '28%',
+            margin: '-3px',
             background:
-              'conic-gradient(from 0deg, #cd2653 0%, #f59e0b 25%, #cd2653 50%, #f59e0b 75%, #cd2653 100%)',
+              'conic-gradient(from 0deg, #cd2653 0%, #cd2653 25%, #f59e0b 45%, #cd2653 70%, #cd2653 100%)',
           }}
         />
-        {/* Faint inner glow sitting under the logo for depth */}
-        <span aria-hidden className="absolute inset-0 rounded-full bg-white" />
         <Image
           src="/logo.png"
           alt="Young at Heart"
