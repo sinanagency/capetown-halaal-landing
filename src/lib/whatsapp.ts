@@ -55,7 +55,7 @@ async function waFetch(path: string, payload: unknown): Promise<Record<string, u
   if (!res.ok) {
     const detail = (data as { error?: { message?: string } })?.error?.message || JSON.stringify(data)
     console.error(`WhatsApp API error: ${res.status}`, detail)
-    throw new Error(`WhatsApp API error: ${res.status} — ${detail}`)
+    throw new Error(`WhatsApp API error: ${res.status}, ${detail}`)
   }
   return data as Record<string, unknown>
 }
@@ -92,22 +92,55 @@ export async function uploadMedia(
   const data = await res.json().catch(() => ({}))
   if (!res.ok || !data.id) {
     const detail = data?.error?.message || JSON.stringify(data)
-    throw new Error(`WhatsApp media upload failed: ${res.status} — ${detail}`)
+    throw new Error(`WhatsApp media upload failed: ${res.status}, ${detail}`)
   }
   return data.id as string
 }
 
 // --- Free-form text (only valid inside the 24h customer service window) ---
 // Gated: blocked if the contact opted out or the 24h window is closed.
+//
+// Architecture 2 pre-send gate (2026-06-12): every outbound passes through
+// the shared @sinanagency/bot-guards sanitizeReply with CTH's BotGuardsConfig.
+// Catches: brand leaks (Sasa/Nisria/Jensen/Stephen mentions), em-dashes,
+// Netlify mentions, urgency-manipulation phrasing. On catch, body is replaced
+// with reaskPhrase and the original is logged for engineering review.
+// Reference: ~/Code/bot-guards/ + src/lib/bot/guards-config.ts.
 export async function sendText(to: string, body: string): Promise<SendResult> {
   const waId = toWaId(to)
   const gate = await canSend(toE164(to), { type: 'text' })
   if (!gate.allowed) return { messageId: '', to: waId, skipped: gate.reason }
+
+  // Pre-send sanitization. Pure function. If it catches anything, log it.
+  const { sanitizeReply } = await import('./bot-guards/index.js')
+  const { CTH_BOT_GUARDS_CONFIG } = await import('./bot/guards-config.js')
+  const sanitized = sanitizeReply(body, CTH_BOT_GUARDS_CONFIG)
+  const sendBody = sanitized.body
+  if (sanitized.caught) {
+    try {
+      const { createAdminClient } = await import('./supabase/admin.js')
+      const db = createAdminClient()
+      await db.from('site_events').insert({
+        session_id: 'bot_pre_send_caught',
+        event_type: 'pre_send_caught_' + sanitized.caught.kind,
+        path: '/lib/whatsapp.sendText',
+        metadata: {
+          to: toE164(to),
+          pattern: sanitized.caught.pattern,
+          original: sanitized.caught.original,
+          replaced_with: sendBody,
+        },
+      })
+    } catch {
+      // Best-effort log; never block the send.
+    }
+  }
+
   const data = await waFetch(`${WA_PHONE_ID}/messages`, {
     messaging_product: 'whatsapp',
     to: waId,
     type: 'text',
-    text: { preview_url: false, body },
+    text: { preview_url: false, body: sendBody },
   })
   return extractMessageId(data, waId)
 }
@@ -197,9 +230,18 @@ export function verifyWebhook(mode: string | null, token: string | null, challen
 // --- Payload signature check (POST webhook) ---
 // Meta signs every POST with the app secret. Reject anything that doesn't match
 // so nobody can spoof inbound messages / opt-outs against the bot.
-// If no app secret is configured, returns true (dev) — set WHATSAPP_APP_SECRET in prod.
+// Audit C5: fail CLOSED in production. A missing WHATSAPP_APP_SECRET on a
+// preview deploy or after a Vercel env-var \n trim must NOT silently accept
+// every unsigned POST. In dev (NODE_ENV !== 'production'), accept-without-key
+// stays — useful for local webhook tests.
 export function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
-  if (!WA_APP_SECRET) return true
+  if (!WA_APP_SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[whatsapp] WHATSAPP_APP_SECRET missing in production — rejecting webhook')
+      return false
+    }
+    return true
+  }
   if (!signatureHeader?.startsWith('sha256=')) return false
   const expected = 'sha256=' + createHmac('sha256', WA_APP_SECRET).update(rawBody).digest('hex')
   const a = Buffer.from(expected)
