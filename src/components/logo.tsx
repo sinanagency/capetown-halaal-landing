@@ -22,14 +22,27 @@ export function Logo({ size = 'md', showText = true, className, light = false }:
 
   return (
     <div className={cn('flex items-center gap-2.5', className)}>
-      <Image
-        src="/logo.png"
-        alt="Young at Heart"
-        width={s.icon}
-        height={s.icon}
-        className="flex-shrink-0 translate-y-[11%]"
-        priority
-      />
+      <div className="relative flex-shrink-0" style={{ width: s.icon, height: s.icon }}>
+        {/* Spinning halo behind the logo. Conic-gradient ring rotates slowly with a soft blur. */}
+        <span
+          aria-hidden
+          className="absolute inset-0 -m-1.5 rounded-full opacity-60 blur-[6px] animate-spin [animation-duration:9s] pointer-events-none"
+          style={{
+            background:
+              'conic-gradient(from 0deg, #cd2653 0%, #f59e0b 25%, #cd2653 50%, #f59e0b 75%, #cd2653 100%)',
+          }}
+        />
+        {/* Faint inner glow sitting under the logo for depth */}
+        <span aria-hidden className="absolute inset-0 rounded-full bg-white" />
+        <Image
+          src="/logo.png"
+          alt="Young at Heart"
+          width={s.icon}
+          height={s.icon}
+          className="relative translate-y-[11%]"
+          priority
+        />
+      </div>
 
       {showText && (
         <div className="leading-tight">
