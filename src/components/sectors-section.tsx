@@ -200,7 +200,17 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
   const [vendorBio, setVendorBio] = useState<VendorFull | null>(null)
   const [loadingBio, setLoadingBio] = useState(false)
   const [bioError, setBioError] = useState<string | null>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
   const detailRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll the panel into view the moment it opens, so users don't have
+  // to hunt for the expanded section.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      drawerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+    return () => clearTimeout(t)
+  }, [])
 
   // Fetch vendor list when the drawer opens / sector changes.
   useEffect(() => {
@@ -252,11 +262,12 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
 
   return (
     <motion.div
+      ref={drawerRef}
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.45, ease: [0.215, 0.61, 0.355, 1] }}
-      className="overflow-hidden"
+      className="overflow-hidden scroll-mt-24"
     >
       <div className="mt-8 rounded-3xl border border-white/10 bg-gradient-to-br from-neutral-900/95 to-neutral-950/95 backdrop-blur-sm p-6 md:p-8">
         <div className="flex items-center justify-between gap-4 mb-6">
@@ -304,7 +315,7 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
                   </Link>
                 </div>
               ) : (
-                <ul className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {vendors.map((v) => {
                     const profSlug = slugifyName(v.business_name)
                     return (
@@ -312,18 +323,28 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
                         <button
                           type="button"
                           onClick={() => setSelected(profSlug)}
-                          className="w-full text-left p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-[#cd2653]/40 transition-colors group"
+                          className="relative w-full text-left p-6 rounded-2xl bg-neutral-900/80 backdrop-blur-sm border border-white/5 hover:border-[#cd2653]/40 transition-all duration-500 min-h-[200px] flex flex-col group"
                         >
-                          <h4 className="text-base font-semibold text-white group-hover:text-[#cd2653] transition-colors line-clamp-1">
+                          <div
+                            className={cn('w-14 h-14 rounded-2xl flex items-center justify-center mb-5 bg-gradient-to-br shadow-lg', sector.color)}
+                            style={{ boxShadow: `0 10px 40px ${sector.bgGlow}` }}
+                          >
+                            <sector.icon className="w-7 h-7 text-white" />
+                          </div>
+                          <h4 className="text-lg font-bold text-white group-hover:text-neutral-50 transition-colors line-clamp-1 mb-2">
                             {v.business_name}
                           </h4>
-                          {v.business_description && (
-                            <p className="text-sm text-neutral-400 mt-1 line-clamp-2">{v.business_description}</p>
+                          {v.business_description ? (
+                            <p className="text-sm text-neutral-500 group-hover:text-neutral-400 transition-colors leading-relaxed line-clamp-2">
+                              {v.business_description}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-neutral-600 italic">Profile coming soon</p>
                           )}
-                          <div className="flex items-center gap-3 mt-3 text-xs text-neutral-500">
-                            <span className="text-[#cd2653] font-medium">View profile →</span>
-                            {v.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Website</span>}
-                            {v.instagram && <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> Instagram</span>}
+                          <div className="flex items-center gap-3 mt-auto pt-4 text-xs text-neutral-500">
+                            <span className="text-[#cd2653] font-medium group-hover:text-[#ff7a9c] transition-colors">View profile →</span>
+                            {v.website && <span className="flex items-center gap-1"><Globe className="w-3 h-3" /> Web</span>}
+                            {v.instagram && <span className="flex items-center gap-1"><Instagram className="w-3 h-3" /> IG</span>}
                           </div>
                         </button>
                       </li>
@@ -574,8 +595,12 @@ export function SectorsSection() {
           className="text-center mt-12"
         >
           <p className="text-neutral-500">
-            <span className="text-2xl font-bold text-white">{totalLive !== null ? totalLive : '400+'}</span>{' '}
-            exhibitors confirmed across all sectors
+            {/* While approvals are still rolling in we keep the aspirational "400+" line.
+                Once Samreen flips NEXT_PUBLIC_SECTORS_SHOW_LIVE_TOTAL=1, the real count shows. */}
+            <span className="text-2xl font-bold text-white">
+              {totalLive !== null && process.env.NEXT_PUBLIC_SECTORS_SHOW_LIVE_TOTAL === '1' ? totalLive : '400+'}
+            </span>{' '}
+            exhibitors {totalLive !== null && process.env.NEXT_PUBLIC_SECTORS_SHOW_LIVE_TOTAL === '1' ? 'confirmed' : 'expected'} across all sectors
           </p>
         </motion.div>
       </div>
