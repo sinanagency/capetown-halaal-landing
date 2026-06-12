@@ -15,6 +15,8 @@ import {
   isStartKeyword,
 } from '@/lib/wa-consent'
 import { askFestivalBrain, FESTIVAL_SYSTEM_PROMPT } from '@/lib/festival-brain'
+import { detectHumanIntent, escalateToHuman, isInHandover } from '@/lib/bot/handover'
+import { notifyOwners } from '@/lib/bot/notify'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findAdmin } from '@/lib/bot/admins'
 import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
@@ -146,7 +148,7 @@ async function handleInbound(msg: {
     const adminResult = await handleAdminMessage(admin, msg.text)
     const reply = adminResult.reply ||
       (admin.role === 'festival_owner'
-        ? `Got it ${admin.name.split(' ')[0]} — passed to Taona. Ask me 'stats' for live numbers, or tell me who you want to email and I'll draft it.`
+        ? `Got it ${admin.name.split(' ')[0]}, passed to Taona. Ask me 'stats' for live numbers, or tell me who you want to email and I'll draft it.`
         : `Logged for you, ${admin.name}. Try 'stats' or 'email approved unpaid the payment reminder'.`)
     const res = await sendText(e164, reply)
     await logMessage({
@@ -163,7 +165,37 @@ async function handleInbound(msg: {
   }
 
   if (msg.type !== 'text' || !msg.text.trim()) {
-    await sendText(e164, "Hi! I'm the Young at Heart Festival assistant. Ask me about tickets, vendors, directions, or anything about the festival. Reply STOP to unsubscribe.")
+    await sendText(e164, "Hi! I'm the Young at Heart Festival assistant. Ask me about tickets, vendors, directions, or anything about the festival. Type 'talk to human' to reach our support team. Reply STOP to unsubscribe.")
+    return
+  }
+
+  // 3b) HUMAN HANDOVER intent — user explicitly wants a person.
+  if (detectHumanIntent(msg.text)) {
+    await escalateToHuman(e164, msg.text)
+    const ack = "Got it. I've passed your message to our support team. Someone will WhatsApp you back here shortly. While they're looking, keep adding context and I'll forward it through."
+    const res = await sendText(e164, ack)
+    await logMessage({ direction: 'out', wa_phone: e164, body: ack, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
+    try {
+      await notifyOwners({
+        event: 'vendor_support_message',
+        body: `${e164} asked to talk to a human: ${msg.text.slice(0, 240)}`,
+        audience: 'all',
+      })
+    } catch (e) { console.error('[bot] notifyOwners on handover failed:', (e as Error).message) }
+    return
+  }
+
+  // 3c) ALREADY IN HANDOVER — bot stays quiet, message gets forwarded to Samreen.
+  // Auto-releases after 24h of silence so the bot resumes naturally.
+  if (await isInHandover(e164)) {
+    try {
+      await notifyOwners({
+        event: 'vendor_support_message',
+        body: `[${e164}, ongoing handover] ${msg.text.slice(0, 240)}`,
+        audience: 'all',
+      })
+    } catch (e) { console.error('[bot] notifyOwners during handover failed:', (e as Error).message) }
+    // Don't auto-reply. Samreen replies through /admin/bot-inbox.
     return
   }
 
@@ -278,7 +310,20 @@ async function recentHistory(e164: string): Promise<Array<{ role: 'user' | 'assi
 // opted_out=true, so the normal sendText() gate would (correctly) block this.
 // A single opt-out confirmation is permitted and expected, so we bypass the gate
 // with a raw Graph call. Nothing else may use this path.
+//
+// WALL (2026-06-13): even on the gate-bypass path the bot-guards wall still
+// fires. The consent gate is a routing decision (may we talk?); the wall is a
+// content cleaner (is this fit to send?). Brand-leak / em-dash / urgency rules
+// must apply to every byte that leaves this process, including canned strings.
 async function sendRaw(e164: string, body: string) {
+  let sendBody = body
+  try {
+    const { sanitizeReply } = await import('@/lib/bot-guards/index.js')
+    const { CTH_BOT_GUARDS_CONFIG } = await import('@/lib/bot/guards-config')
+    sendBody = sanitizeReply(body, CTH_BOT_GUARDS_CONFIG).body
+  } catch {
+    // wall must never block the send
+  }
   try {
     await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
       method: 'POST',
@@ -290,7 +335,7 @@ async function sendRaw(e164: string, body: string) {
         messaging_product: 'whatsapp',
         to: e164.replace('+', ''),
         type: 'text',
-        text: { preview_url: false, body },
+        text: { preview_url: false, body: sendBody },
       }),
     })
   } catch (e) {
