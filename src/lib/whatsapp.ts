@@ -113,12 +113,12 @@ export async function sendText(to: string, body: string): Promise<SendResult> {
 
   // Pre-send sanitization. Pure function. If it catches anything, log it.
   const { sanitizeReply } = await import('./bot-guards/index.js')
-  const { CTH_BOT_GUARDS_CONFIG } = await import('./bot/guards-config.js')
+  const { CTH_BOT_GUARDS_CONFIG } = await import('./bot/guards-config')
   const sanitized = sanitizeReply(body, CTH_BOT_GUARDS_CONFIG)
   const sendBody = sanitized.body
   if (sanitized.caught) {
     try {
-      const { createAdminClient } = await import('./supabase/admin.js')
+      const { createAdminClient } = await import('./supabase/admin')
       const db = createAdminClient()
       await db.from('site_events').insert({
         session_id: 'bot_pre_send_caught',
