@@ -102,10 +102,26 @@ export async function askFestivalBrain(
     throw new Error('ANTHROPIC_API_KEY not configured')
   }
   const system = opts.system ?? FESTIVAL_SYSTEM_PROMPT
+  // CROSS-TURN PROMPT CACHE SPLIT (2026-06-12). The webhook passes
+  // `${FESTIVAL_SYSTEM_PROMPT}\n\n=== ABOUT THE SENDER ===\n${briefing}` as one
+  // string, so the per-sender briefing was busting the cache on every turn
+  // from every visitor. Splitting at the marker puts the big static festival
+  // prompt in its own cached block: Anthropic serves it at cache-read pricing
+  // across ALL visitors, and only the small briefing is fresh input. No
+  // marker → single cached block, identical to the old behavior.
+  const SENDER_MARKER = '\n\n=== ABOUT THE SENDER ==='
+  const splitAt = system.indexOf(SENDER_MARKER)
+  const systemBlocks =
+    splitAt > 0
+      ? [
+          { type: 'text' as const, text: system.slice(0, splitAt), cache_control: { type: 'ephemeral' as const } },
+          { type: 'text' as const, text: system.slice(splitAt) },
+        ]
+      : [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }]
   const payload = {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: opts.maxTokens ?? 300,
-    system: [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }],
+    system: systemBlocks,
     messages: messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
   }
 

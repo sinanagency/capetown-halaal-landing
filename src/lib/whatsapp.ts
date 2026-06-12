@@ -111,23 +111,26 @@ export async function sendText(to: string, body: string): Promise<SendResult> {
   const gate = await canSend(toE164(to), { type: 'text' })
   if (!gate.allowed) return { messageId: '', to: waId, skipped: gate.reason }
 
-  // Pre-send sanitization. Pure function. If it catches anything, log it.
+  // Pre-send sanitization. Pure function. v0.2 (2026-06-12): caught is now an
+  // ARRAY (strip-mode rules can fire several times without dropping) and
+  // `dropped` says whether the body was replaced wholesale (brand leak,
+  // urgency phrasing) or merely repaired (a stray dash stripped, answer kept).
   const { sanitizeReply } = await import('./bot-guards/index.js')
   const { CTH_BOT_GUARDS_CONFIG } = await import('./bot/guards-config')
   const sanitized = sanitizeReply(body, CTH_BOT_GUARDS_CONFIG)
   const sendBody = sanitized.body
-  if (sanitized.caught) {
+  if (sanitized.caught.length) {
     try {
       const { createAdminClient } = await import('./supabase/admin')
       const db = createAdminClient()
       await db.from('site_events').insert({
         session_id: 'bot_pre_send_caught',
-        event_type: 'pre_send_caught_' + sanitized.caught.kind,
+        event_type: sanitized.dropped ? 'pre_send_dropped' : 'pre_send_repaired',
         path: '/lib/whatsapp.sendText',
         metadata: {
           to: toE164(to),
-          pattern: sanitized.caught.pattern,
-          original: sanitized.caught.original,
+          catches: sanitized.caught.map((c) => ({ kind: c.kind, pattern: c.pattern, mode: c.mode })),
+          original: sanitized.caught[0]?.original || '',
           replaced_with: sendBody,
         },
       })
@@ -176,9 +179,21 @@ export async function sendTemplate(
   }
 
   if (bodyParams.length) {
+    // Template frames are Meta approved copy, but PARAMS are live text (names,
+    // order summaries) and can carry a leak. Sanitize each against the wall
+    // (2026-06-12): a brand inside a param drops THAT param to the reask
+    // phrase; a stray dash is stripped. The template frame itself never dies.
+    let cleanParams = bodyParams
+    try {
+      const { sanitizeReply } = await import('./bot-guards/index.js')
+      const { CTH_BOT_GUARDS_CONFIG } = await import('./bot/guards-config')
+      cleanParams = bodyParams.map((p) => sanitizeReply(String(p), CTH_BOT_GUARDS_CONFIG).body)
+    } catch {
+      // wall must never break delivery
+    }
     components.push({
       type: 'body',
-      parameters: bodyParams.map((text) => ({ type: 'text', text })),
+      parameters: cleanParams.map((text) => ({ type: 'text', text })),
     })
   }
 

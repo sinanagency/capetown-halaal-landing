@@ -28,14 +28,32 @@ interface ContactState {
   last_inbound_at: string | null
 }
 
+// CONTACT MEMO (efficiency, 2026-06-12). One inbound turn was paying the same
+// wa_contacts lookup up to three times: canSend for the reply, canSend for the
+// master notify, and the admin branch's double call. A 5 second TTL memo
+// inside the warm instance absorbs the repeats within a turn while staying
+// far too short to mask a real consent change — and every writer below
+// (recordConsent, recordOptOut, touchInbound) invalidates the entry anyway,
+// so a STOP takes effect on the very next read.
+const contactMemo = new Map<string, { c: ContactState | null; at: number }>()
+const CONTACT_MEMO_TTL_MS = 5000
+
+function invalidateContactMemo(waPhone: string): void {
+  contactMemo.delete(waPhone)
+}
+
 async function getContact(waPhone: string): Promise<ContactState | null> {
+  const hit = contactMemo.get(waPhone)
+  if (hit && Date.now() - hit.at < CONTACT_MEMO_TTL_MS) return hit.c
   const db = createAdminClient()
   const { data } = await db
     .from('wa_contacts')
     .select('opted_in, opted_out, is_buyer, last_inbound_at')
     .eq('wa_phone', waPhone)
     .maybeSingle()
-  return (data as ContactState) ?? null
+  const c = (data as ContactState) ?? null
+  contactMemo.set(waPhone, { c, at: Date.now() })
+  return c
 }
 
 export interface SendDecision {
@@ -94,6 +112,7 @@ export async function recordConsent(args: {
   isBuyer?: boolean
   profileName?: string
 }): Promise<void> {
+  invalidateContactMemo(args.waPhone)
   const db = createAdminClient()
   const now = new Date().toISOString()
 
@@ -126,6 +145,7 @@ export async function recordOptOut(args: {
   waPhone: string
   source: ConsentSource
 }): Promise<void> {
+  invalidateContactMemo(args.waPhone)
   const db = createAdminClient()
   const now = new Date().toISOString()
 
@@ -149,6 +169,7 @@ export async function recordOptOut(args: {
 
 // Inbound message arrived → open/refresh the 24h service window.
 export async function touchInbound(waPhone: string, profileName?: string): Promise<void> {
+  invalidateContactMemo(waPhone)
   const db = createAdminClient()
   const now = new Date().toISOString()
   await db.from('wa_contacts').upsert(
