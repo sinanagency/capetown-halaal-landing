@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Features
+
+- **E-signed Vendor Contracts**: Themed PDF generation with audit columns for compliance tracking.
+- **Unified Admin Inbox**: Central management for WhatsApp and email communications (WhatsApp + mail integration planned).
+- **Bulk Approval Flow**: Streamlined vendor approval process for scale (planned).
+- **Mass Outreach Engine**: Vendor broadcast and notification system (planned).
+- **Vendor Portal**: Application tracking, stall allocation, and status management via Supabase.
+- **Festival Website**: Public site for CTH 2026 and Young at Heart Festival on two domains.
+- **Ticket Integration**: Seamless FooEvents/WooCommerce layer without duplication.
+
 ## Getting Started
 
 First, run the development server:
