@@ -1,6 +1,8 @@
 'use client'
 
 // Force runtime SSR — page imports @supabase/ssr; deploy unblock 2026-06-13.
+// Also: createBrowserClient call below uses || '' fallback instead of ! to
+// avoid throwing at prerender time when env vars aren't scoped to this branch.
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
@@ -23,8 +25,8 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
 
   const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   )
 
   const handleSubmit = async (e: React.FormEvent) => {

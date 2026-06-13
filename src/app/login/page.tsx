@@ -17,9 +17,12 @@ export default function LoginPage() {
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
   const [error, setError] = useState('')
 
+  // Use empty-string fallback so the constructor does not throw at build time
+  // when env vars aren't scoped to the current preview branch. Runtime
+  // failure (when actually called) is preferable to build-time failure.
   const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   )
 
   const handleSubmit = async (e: React.FormEvent) => {
