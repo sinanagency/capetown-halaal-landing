@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 import { getExhibitorContext } from '@/lib/exhibitor'
 import PortalNav from '@/components/exhibitor/PortalNav'
 import { parsePortalState } from '@/lib/portal-state'
@@ -13,17 +12,10 @@ export default async function PortalLayout({ children }: { children: React.React
   if (!ctx) redirect('/exhibitor/login')
   if (ctx.mustChangePassword) redirect('/exhibitor/set-password')
 
-  // Contract sign gate: approved vendors who haven't signed yet must sign
-  // before they can use the rest of the portal. The /contract route itself
-  // is exempt (otherwise we redirect-loop).
-  const app = ctx.application as any
-  if (app?.status === 'approved' && !app?.contract_signed_at) {
-    const h = await headers()
-    const path = h.get('x-invoke-path') || h.get('next-url') || h.get('referer') || ''
-    if (!path.includes('/exhibitor/portal/contract')) {
-      redirect('/exhibitor/portal/contract')
-    }
-  }
+  // NOTE: contract-sign gate moved out of the layout into individual pages
+  // (Overview + paygate). Path-detection in Next 16 layouts is unreliable, so a
+  // layout-level redirect either silently fails or infinite-loops on /contract
+  // itself. See KT #248.
 
   const businessName = (ctx.application?.business_name as string) || ctx.email
   const state = parsePortalState((ctx.application?.admin_notes as string) || null)

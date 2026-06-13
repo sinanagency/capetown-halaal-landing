@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { parsePortalState } from '@/lib/portal-state'
 import { parseAllocation, tierLabel, TYPE_META, STALL_LIST, type StallType } from '@/lib/stalls'
@@ -30,6 +31,16 @@ function StatTile({ icon: Icon, value, label, href, accent }: { icon: LucideIcon
 }
 
 export default async function Overview() {
+  // Contract sign gate fires BEFORE paid-check. Sign comes before pay.
+  // Path-detection in Next 16 layouts is unreliable, so we gate here at the
+  // page boundary instead of in the layout. /portal/contract has no gate of
+  // its own, so the sign page is always reachable from the redirect.
+  const gateCtx = await getExhibitorContext()
+  const gateApp = gateCtx?.application as any
+  if (gateApp?.status === 'approved' && !gateApp?.contract_signed_at) {
+    redirect('/exhibitor/portal/contract')
+  }
+
   await requirePaid()
   const ctx = await getExhibitorContext()
   const app = ctx?.application ?? null
