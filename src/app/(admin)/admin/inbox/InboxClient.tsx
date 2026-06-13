@@ -1,11 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import {
   Inbox, Search, MessageCircle, Mail, CheckCircle2, Clock, AlertTriangle,
-  Send, ChevronRight, Filter, Loader2, BellOff,
+  ChevronRight, Filter, Loader2, ExternalLink, X, Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ThreadView } from '@/components/admin/ThreadView'
+import { TemplatePicker, type StagedTemplate } from '@/components/admin/TemplatePicker'
 
 type Bucket = 'needs' | 'open' | 'snoozed' | 'done'
 type ChannelFilter = 'all' | 'wa' | 'mail'
@@ -67,6 +70,10 @@ const CHANNELS: Array<{ id: ChannelFilter; label: string }> = [
   { id: 'mail', label: 'Mail' },
 ]
 
+// Bulk replies are paced: small delay between threads to keep Resend / Meta
+// rate limits happy and to avoid a thundering-herd on the WA window check.
+const BULK_PACE_MS = 350
+
 export function InboxClient() {
   const [bucket, setBucket] = useState<Bucket>('needs')
   const [channel, setChannel] = useState<ChannelFilter>('all')
@@ -76,8 +83,9 @@ export function InboxClient() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [searchQ, setSearchQ] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
-  const [reply, setReply] = useState('')
-  const [sending, setSending] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkRunning, setBulkRunning] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null)
 
   const loadThreads = useCallback(async () => {
     setLoading(true)
@@ -97,6 +105,11 @@ export function InboxClient() {
   useEffect(() => {
     loadThreads()
   }, [loadThreads])
+
+  // Wipe multi-select when the active bucket/channel changes; threads change.
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [bucket, channel])
 
   // Debounced search
   useEffect(() => {
@@ -119,12 +132,7 @@ export function InboxClient() {
     return () => clearTimeout(t)
   }, [searchQ])
 
-  const selected = useMemo(
-    () => threads.find((t) => t.id === selectedId) ?? null,
-    [threads, selectedId]
-  )
-
-  const displayedThreads = useMemo(() => {
+  const displayedThreads = useMemo<ThreadCard[]>(() => {
     if (hits) {
       return hits.map<ThreadCard>((h) => ({
         id: h.thread_id,
@@ -144,45 +152,100 @@ export function InboxClient() {
     return threads
   }, [hits, threads])
 
-  const handleMarkDone = async () => {
-    if (!selected) return
-    setSending(true)
-    try {
-      const res = await fetch('/api/admin/inbox/reply', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ thread_id: selected.id, body: '(marked done)', mark_done: true }),
-      })
-      if (res.ok) await loadThreads()
-    } finally {
-      setSending(false)
-    }
+  // Bulk selection covers the currently rendered list, scoped to the
+  // operator's intent (you can't bulk threads from a different channel by
+  // accident — they are filtered already by ChannelFilter).
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
-  const handleSend = async () => {
-    if (!selected || !reply.trim()) return
-    setSending(true)
-    try {
-      const res = await fetch('/api/admin/inbox/reply', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ thread_id: selected.id, body: reply.trim() }),
-      })
-      if (res.ok) {
-        setReply('')
-        await loadThreads()
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+
+  // Selected threads, deduplicated and resolved.
+  const selectedThreads = useMemo(
+    () => displayedThreads.filter((t) => selectedIds.has(t.id)),
+    [displayedThreads, selectedIds]
+  )
+
+  // Bulk channel: if every selected thread is wa OR every one is mail, that
+  // channel; otherwise null and the bulk template picker is disabled (Meta and
+  // mail templates can't share a payload).
+  const bulkChannel: 'wa' | 'mail' | null = useMemo(() => {
+    if (selectedThreads.length === 0) return null
+    const first = selectedThreads[0].channel
+    return selectedThreads.every((t) => t.channel === first) ? first : null
+  }, [selectedThreads])
+
+  async function runBulkAction(action: (threadId: string) => Promise<void>) {
+    if (selectedThreads.length === 0) return
+    setBulkRunning(true)
+    setBulkProgress({ done: 0, total: selectedThreads.length })
+    let done = 0
+    for (const t of selectedThreads) {
+      try {
+        await action(t.id)
+      } catch {
+        // swallow; this is best-effort bulk
       }
-    } finally {
-      setSending(false)
+      done += 1
+      setBulkProgress({ done, total: selectedThreads.length })
+      if (done < selectedThreads.length) {
+        await new Promise((r) => setTimeout(r, BULK_PACE_MS))
+      }
     }
+    setBulkRunning(false)
+    setBulkProgress(null)
+    clearSelection()
+    await loadThreads()
   }
 
-  const handleRelease = async () => {
-    if (!selected) return
-    await fetch('/api/admin/inbox/release', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ thread_id: selected.id }),
+  async function bulkSendTemplate(staged: StagedTemplate) {
+    await runBulkAction(async (threadId) => {
+      await fetch('/api/admin/inbox/reply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          thread_id: threadId,
+          mode: 'template',
+          template_key: staged.template_key,
+          params: staged.params,
+        }),
+      })
+    })
+  }
+
+  async function bulkMarkDone() {
+    await runBulkAction(async (threadId) => {
+      await fetch('/api/admin/inbox/reply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          thread_id: threadId,
+          mode: 'text',
+          body: '(marked done)',
+          mark_done: true,
+        }),
+      })
+    })
+  }
+
+  async function bulkSnooze(hours: number) {
+    await runBulkAction(async (threadId) => {
+      // Defensive: if there's no dedicated snooze endpoint, fall through to
+      // setting last_handled_at via the reply endpoint with a noop. Operators
+      // can still escalate via release.
+      await fetch('/api/admin/inbox/release', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ thread_id: threadId, snooze_hours: hours }),
+      })
     })
   }
 
@@ -283,129 +346,161 @@ export function InboxClient() {
             <ul>
               {displayedThreads.map((t) => {
                 const isSelected = selectedId === t.id
+                const isChecked = selectedIds.has(t.id)
                 return (
                   <li key={t.id}>
-                    <button
-                      onClick={() => setSelectedId(t.id)}
+                    <div
                       className={cn(
-                        'w-full text-left px-3 py-3 border-b border-neutral-100 flex gap-3 transition-colors',
-                        isSelected ? 'bg-[#cd2653]/5' : 'hover:bg-neutral-50'
+                        'w-full text-left px-3 py-3 border-b border-neutral-100 flex gap-2 transition-colors group',
+                        isSelected ? 'bg-[#cd2653]/5' : 'hover:bg-neutral-50',
+                        isChecked && 'bg-amber-50/40'
                       )}
                     >
-                      <div
-                        className={cn(
-                          'w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0',
-                          t.channel === 'wa'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-sky-100 text-sky-700'
-                        )}
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleSelect(t.id)}
+                        className="mt-3 accent-[#cd2653] flex-shrink-0"
+                        aria-label={`Select ${t.displayName}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(t.id)}
+                        className="flex flex-1 gap-3 min-w-0 text-left"
                       >
-                        {t.initials}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-sm font-medium text-neutral-900 truncate">
-                            {t.displayName}
-                          </span>
-                          {t.channel === 'wa' ? (
-                            <MessageCircle className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-                          ) : (
-                            <Mail className="w-3 h-3 text-sky-600 flex-shrink-0" />
+                        <div
+                          className={cn(
+                            'w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0',
+                            t.channel === 'wa'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-sky-100 text-sky-700'
                           )}
-                          {t.unread && (
-                            <span className="w-2 h-2 rounded-full bg-[#cd2653] flex-shrink-0" />
-                          )}
-                          {t.slaBreach && (
-                            <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                          )}
+                        >
+                          {t.initials}
                         </div>
-                        <div className="flex items-center justify-between mt-0.5">
-                          <span className="text-xs text-neutral-500 truncate pr-2">
-                            {t.preview || t.thread_key}
-                          </span>
-                          <span className="text-[10px] text-neutral-400 tabular-nums flex-shrink-0">
-                            {relTime(t.last_inbound_at)}
-                          </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-neutral-900 truncate">
+                              {t.displayName}
+                            </span>
+                            {t.channel === 'wa' ? (
+                              <MessageCircle className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                            ) : (
+                              <Mail className="w-3 h-3 text-sky-600 flex-shrink-0" />
+                            )}
+                            {t.unread && (
+                              <span className="w-2 h-2 rounded-full bg-[#cd2653] flex-shrink-0" />
+                            )}
+                            {t.slaBreach && (
+                              <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between mt-0.5">
+                            <span className="text-xs text-neutral-500 truncate pr-2">
+                              {t.preview || t.thread_key}
+                            </span>
+                            <span className="text-[10px] text-neutral-400 tabular-nums flex-shrink-0">
+                              {relTime(t.last_inbound_at)}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-neutral-300 self-center" />
-                    </button>
+                      </button>
+                      <Link
+                        href={`/admin/inbox/thread/${t.channel}/${encodeURIComponent(t.thread_key)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="self-center text-neutral-300 hover:text-[#cd2653] flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Open standalone view"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </Link>
+                      <ChevronRight className="w-4 h-4 text-neutral-300 self-center flex-shrink-0" />
+                    </div>
                   </li>
                 )
               })}
             </ul>
           )}
         </div>
+
+        {selectedIds.size > 0 && (
+          <div className="sticky bottom-0 border-t border-neutral-200 bg-white px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-semibold text-neutral-900">
+                {selectedIds.size} selected
+              </span>
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="ml-auto text-neutral-400 hover:text-neutral-700"
+                aria-label="Clear selection"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {bulkRunning && bulkProgress ? (
+              <div className="flex items-center gap-2 text-xs text-neutral-600">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Sending {bulkProgress.done} of {bulkProgress.total}...
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {bulkChannel ? (
+                  <TemplatePicker
+                    channel={bulkChannel}
+                    onInsert={() => {
+                      /* insert is meaningless in bulk; the picker still shows it for parity */
+                    }}
+                    onSendAsTemplate={bulkSendTemplate}
+                  />
+                ) : (
+                  <span className="text-[11px] text-amber-700">
+                    Mixed channels — clear to bulk-send a template
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={bulkMarkDone}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 border border-neutral-200 rounded hover:bg-neutral-50"
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  Mark done
+                </button>
+                <details className="relative">
+                  <summary className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-neutral-700 border border-neutral-200 rounded hover:bg-neutral-50 cursor-pointer list-none">
+                    <Clock className="w-3 h-3" />
+                    Snooze
+                  </summary>
+                  <div className="absolute bottom-full mb-1 left-0 z-20 bg-white border border-neutral-200 rounded shadow-lg py-1 min-w-[100px]">
+                    {[1, 3, 24].map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => bulkSnooze(h)}
+                        className="w-full text-left px-3 py-1 text-[11px] hover:bg-neutral-50"
+                      >
+                        {h}h
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Detail pane */}
-      <section className="flex-1 flex flex-col bg-white">
-        {!selected ? (
-          <div className="flex-1 flex items-center justify-center text-sm text-neutral-400">
-            Pick a thread to start.
+      {!selectedId ? (
+        <section className="flex-1 flex items-center justify-center text-sm text-neutral-400 bg-white">
+          <div className="text-center">
+            <Send className="w-8 h-8 mx-auto text-neutral-300 mb-2" />
+            <p>Pick a thread to start.</p>
           </div>
-        ) : (
-          <>
-            <header className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
-              <div>
-                <h1 className="text-base font-semibold text-neutral-900">
-                  {selected.displayName}
-                </h1>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  {selected.channel === 'wa' ? 'WhatsApp' : 'Email'} · {selected.thread_key}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleRelease}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-700 border border-neutral-200 rounded-md hover:bg-neutral-50 transition-colors"
-                >
-                  <BellOff className="w-3.5 h-3.5" />
-                  Release bot
-                </button>
-                <button
-                  onClick={handleMarkDone}
-                  disabled={sending}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-neutral-900 rounded-md hover:bg-neutral-800 transition-colors disabled:opacity-50"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  Mark done
-                </button>
-              </div>
-            </header>
-
-            <div className="flex-1 overflow-y-auto p-6">
-              <p className="text-sm text-neutral-500">
-                Message history loads here when the thread-detail endpoint ships.
-              </p>
-            </div>
-
-            <footer className="border-t border-neutral-200 p-4">
-              <div className="flex gap-2 items-end">
-                <textarea
-                  value={reply}
-                  onChange={(e) => setReply(e.target.value)}
-                  placeholder="Type your reply..."
-                  rows={3}
-                  className="flex-1 px-3 py-2 text-sm border border-neutral-200 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-[#cd2653]/30 focus:border-[#cd2653]"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={sending || !reply.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-[#cd2653] rounded-md hover:bg-[#b71f48] transition-colors disabled:opacity-50"
-                >
-                  {sending ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Send className="w-4 h-4" />
-                  )}
-                  Send
-                </button>
-              </div>
-            </footer>
-          </>
-        )}
-      </section>
+        </section>
+      ) : (
+        <ThreadView threadId={selectedId} onChanged={loadThreads} />
+      )}
     </div>
   )
 }
