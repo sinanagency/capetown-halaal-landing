@@ -139,6 +139,25 @@ async function handleInbound(msg: {
     }
   }
 
+  // 3-AUDIO) Voice / audio note rejection. The Meta Cloud API surfaces
+  // push-to-talk voice notes and audio file uploads as `type: 'audio'`.
+  // CTH does NOT transcribe. We send a single polite reply asking the user
+  // to type their message and STOP. No downstream brain/handover/admin
+  // routing. Order: AFTER STOP/START + dedup + maintenance (so opt-outs
+  // and maintenance windows still win), BEFORE admin/handover/brain.
+  if (msg.type === 'audio') {
+    const rejectMsg = "Hi! Voice notes aren't supported on this number yet. Please type your message and I'll help you out."
+    const res = await sendText(e164, rejectMsg)
+    await logMessage({
+      direction: 'out',
+      wa_phone: e164,
+      body: rejectMsg,
+      status: res.skipped ? 'failed' : 'sent',
+      providerMessageId: res.messageId,
+    })
+    return
+  }
+
   // 3a) ADMIN path — bypass the festival LLM and route through the admin chat
   // handler. The handler returns either a structured reply (intent matched —
   // stats query, blast proposal, confirmation, cancellation) or an empty reply
