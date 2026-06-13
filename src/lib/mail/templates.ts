@@ -222,8 +222,42 @@ export function findMailTemplate(key: string): MailTemplateSpec | undefined {
   return MAIL_TEMPLATES.find((t) => t.key === key)
 }
 
-/** Alias for renderTemplate so the picker can call mail + wa renderers with parallel names. */
-export const renderMailTemplate = renderTemplate
+/**
+ * Wrapper for renderTemplate that accepts either a TemplateKey (string) or a
+ * MailTemplateSpec (the object the picker holds). Mirrors the WA template
+ * picker's call shape so TemplatePicker can call mail + wa with parallel names.
+ */
+export async function renderMailTemplate(
+  specOrKey: MailTemplateSpec | TemplateKey,
+  vars: TemplateVars,
+): Promise<RenderedTemplate> {
+  const key: TemplateKey = typeof specOrKey === 'string' ? specOrKey : specOrKey.key
+  return renderTemplate(key, vars)
+}
+
+/**
+ * Synchronous text-only preview for the composer UI. Skips react-email HTML
+ * rendering (which is async), returns subject + body text shaped like the wa
+ * preview so the picker can render both channels uniformly.
+ */
+export function renderMailTemplatePreview(
+  spec: MailTemplateSpec,
+  vars: TemplateVars,
+): { subject: string; body: string } {
+  const tspec = SPECS[spec.key]
+  if (!tspec) return { subject: '', body: '' }
+  const subject = merge(tspec.subject, vars)
+  const lines: string[] = []
+  if (tspec.greeting) lines.push(merge(tspec.greeting, vars), '')
+  for (const p of tspec.paragraphs) {
+    const m = merge(p, vars).trim()
+    if (m) lines.push(m, '')
+  }
+  if (tspec.cta) lines.push(`${tspec.cta.label}: ${tspec.cta.href}`, '')
+  lines.push(tspec.signoff || 'Warm regards,')
+  lines.push('The Young at Heart Festival Team')
+  return { subject, body: lines.join('\n').trim() }
+}
 
 /**
  * Validate that every required merge tag for the given template has a non-empty
