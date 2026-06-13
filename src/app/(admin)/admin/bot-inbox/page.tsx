@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { BOT_ADMINS, adminPhones } from '@/lib/bot/admins'
-import { BotInboxClient, type AdminThread, type GuestThread } from './BotInboxClient'
+import { BotInboxClient, type AdminThread, type GuestThread, type MailThread } from './BotInboxClient'
 import { redirect } from 'next/navigation'
 
 export const dynamic = 'force-dynamic'
@@ -120,5 +120,66 @@ export default async function BotInboxPage() {
     .filter((t) => t.messages.length > 0)
     .sort((a, b) => (b.latestAt || '').localeCompare(a.latestAt || ''))
 
-  return <BotInboxClient adminThreads={adminThreads} guestThreads={guestThreads} />
+  // 3) Mail threads. support@youngatheart and any other inbound mail lands in
+  //    mail_messages via the IMAP mail-fetcher cron, and a row in wa_threads
+  //    is upserted per from_addr. Surface those as a third section so the
+  //    operator has every conversation in one place. Per Taona Message 12:
+  //    "support at young at heart must show up on the bot inbox."
+  let mailThreads: MailThread[] = []
+  try {
+    const { data: mailRows } = await db
+      .from('mail_messages')
+      .select('id, direction, from_addr, to_addr, subject, body_text, created_at, message_id')
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(500)
+    const rows = (mailRows || []) as Array<{
+      id: string; direction: 'in' | 'out'; from_addr: string; to_addr: string;
+      subject: string | null; body_text: string | null; created_at: string; message_id: string;
+    }>
+    // Group by counterpart address (the non-internal address)
+    const INTERNAL = new Set([
+      'support@youngatheart.co.za',
+      'hello@youngatheart.co.za',
+      'info@youngatheart.co.za',
+    ])
+    const byPeer = new Map<string, typeof rows>()
+    for (const r of rows) {
+      const peer = (r.direction === 'in' ? r.from_addr : r.to_addr).toLowerCase()
+      if (INTERNAL.has(peer)) continue
+      const arr = byPeer.get(peer) || []
+      arr.push(r)
+      byPeer.set(peer, arr)
+    }
+    mailThreads = Array.from(byPeer.entries()).map(([peer, msgs]) => {
+      const latest = msgs[0]
+      const lastIn = msgs.find((m) => m.direction === 'in')
+      const lastOutAt = msgs.find((m) => m.direction === 'out')?.created_at
+      const unread = lastOutAt
+        ? msgs.filter((m) => m.direction === 'in' && m.created_at > lastOutAt).length
+        : msgs.filter((m) => m.direction === 'in').length
+      return {
+        peer,
+        subject: latest?.subject || '(no subject)',
+        messages: msgs.map((m) => ({
+          id: m.id,
+          direction: m.direction,
+          from_addr: m.from_addr,
+          to_addr: m.to_addr,
+          subject: m.subject,
+          body: m.body_text,
+          created_at: m.created_at,
+        })),
+        latestAt: latest?.created_at || null,
+        latestPreview: (latest?.body_text || latest?.subject || '').slice(0, 140),
+        lastInboundAt: lastIn?.created_at || null,
+        unreadCount: unread,
+      }
+    }).sort((a, b) => (b.latestAt || '').localeCompare(a.latestAt || ''))
+  } catch {
+    // mail_messages table may not exist on stale environments — fail soft.
+    mailThreads = []
+  }
+
+  return <BotInboxClient adminThreads={adminThreads} guestThreads={guestThreads} mailThreads={mailThreads} />
 }

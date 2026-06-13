@@ -37,9 +37,30 @@ export interface GuestThread {
   unreadCount: number
 }
 
+export interface MailMsgRow {
+  id: string
+  direction: 'in' | 'out'
+  from_addr: string
+  to_addr: string
+  subject: string | null
+  body: string | null
+  created_at: string
+}
+
+export interface MailThread {
+  peer: string
+  subject: string
+  messages: MailMsgRow[]
+  latestAt: string | null
+  latestPreview: string
+  lastInboundAt: string | null
+  unreadCount: number
+}
+
 type Selection =
   | { kind: 'admin'; idx: number }
   | { kind: 'guest'; idx: number }
+  | { kind: 'mail'; idx: number }
 
 function fmt(iso: string | null): string {
   if (!iso) return ''
@@ -49,12 +70,16 @@ function fmt(iso: string | null): string {
 export function BotInboxClient({
   adminThreads,
   guestThreads,
+  mailThreads = [],
 }: {
   adminThreads: AdminThread[]
   guestThreads: GuestThread[]
+  mailThreads?: MailThread[]
 }) {
   const initialSelection: Selection | null = guestThreads.length > 0
     ? { kind: 'guest', idx: 0 }
+    : mailThreads.length > 0
+    ? { kind: 'mail', idx: 0 }
     : adminThreads.length > 0
     ? { kind: 'admin', idx: 0 }
     : null
@@ -70,15 +95,30 @@ export function BotInboxClient({
     return () => clearInterval(id)
   }, [router])
 
-  const active = useMemo<{ phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest'; handover?: 'human' | 'bot' } | null>(() => {
+  const active = useMemo<{ phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest' | 'mail'; handover?: 'human' | 'bot'; subject?: string } | null>(() => {
     if (!sel) return null
     if (sel.kind === 'admin') {
       const t = adminThreads[sel.idx]; if (!t) return null
       return { phone: t.admin.phone, label: t.admin.name, messages: t.messages, kind: 'admin' }
     }
+    if (sel.kind === 'mail') {
+      const t = mailThreads[sel.idx]; if (!t) return null
+      // Adapt MailMsgRow → MsgRow shape so ActiveThread renders without a
+      // second component. wa_phone holds the email peer; direction matches.
+      const messages: MsgRow[] = t.messages.map((m) => ({
+        id: m.id,
+        wa_phone: t.peer,
+        direction: m.direction,
+        body: m.body,
+        status: null,
+        created_at: m.created_at,
+        provider_message_id: null,
+      }))
+      return { phone: t.peer, label: t.peer, messages, kind: 'mail', subject: t.subject }
+    }
     const t = guestThreads[sel.idx]; if (!t) return null
     return { phone: t.phone, label: t.label, messages: t.messages, kind: 'guest', handover: t.handover }
-  }, [sel, adminThreads, guestThreads])
+  }, [sel, adminThreads, guestThreads, mailThreads])
 
   return (
     <PageShell>
@@ -118,6 +158,32 @@ export function BotInboxClient({
             </Card>
           )}
 
+          {mailThreads.length > 0 && (
+            <Card padded={false}>
+              <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1B6E8E]">Mail threads</p>
+                <span className="text-[11px] text-neutral-500">{mailThreads.length}</span>
+              </div>
+              <div className="divide-y divide-neutral-100 max-h-[360px] overflow-y-auto">
+                {mailThreads.map((t, i) => (
+                  <button
+                    key={t.peer}
+                    onClick={() => setSel({ kind: 'mail', idx: i })}
+                    className={`w-full text-left p-3 hover:bg-neutral-50 transition-colors ${sel?.kind === 'mail' && sel.idx === i ? 'bg-[#1B6E8E]/5' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <p className="text-sm font-semibold text-neutral-900 truncate">{t.peer}</p>
+                      {t.unreadCount > 0 && <span className="text-[10px] font-bold bg-[#1B6E8E] text-white rounded-full px-1.5 py-0.5">{t.unreadCount}</span>}
+                    </div>
+                    <p className="text-[11px] text-neutral-500 truncate italic">{t.subject}</p>
+                    <p className="text-xs text-neutral-600 truncate mt-1">{t.latestPreview}</p>
+                    <p className="text-[10px] text-neutral-400 mt-1">{fmt(t.latestAt)}</p>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
           {adminThreads.length > 0 && (
             <Card padded={false}>
               <div className="px-4 py-3 border-b border-neutral-200">
@@ -143,7 +209,7 @@ export function BotInboxClient({
             </Card>
           )}
 
-          {guestThreads.length === 0 && adminThreads.length === 0 && (
+          {guestThreads.length === 0 && adminThreads.length === 0 && mailThreads.length === 0 && (
             <Card>
               <div className="flex items-center gap-3 text-neutral-500 text-sm">
                 <MessageCircle className="w-5 h-5" />
@@ -171,7 +237,7 @@ export function BotInboxClient({
 // -------------------- ActiveThread (right pane) --------------------
 
 interface ActiveThreadProps {
-  active: { phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest'; handover?: 'human' | 'bot' }
+  active: { phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest' | 'mail'; handover?: 'human' | 'bot'; subject?: string }
 }
 
 function ActiveThread({ active }: ActiveThreadProps) {
