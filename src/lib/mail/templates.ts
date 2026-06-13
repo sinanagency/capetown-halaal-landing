@@ -315,16 +315,18 @@ export function renderMailTemplatePreview(
  * this to enable/disable the "Send" button.
  */
 export function validateMailTemplate(
-  key: TemplateKey,
+  specOrKey: MailTemplateSpec | TemplateKey,
   vars: TemplateVars,
-): { ok: true } | { ok: false; missing: string[] } {
+): { ok: true } | { ok: false; error: string; missing: string[] } {
+  const key: TemplateKey = typeof specOrKey === 'string' ? specOrKey : specOrKey.key
   const spec = findMailTemplate(key)
-  if (!spec) return { ok: false, missing: ['(template not found)'] }
-  // custom_message is optional in general_announcement; everything else required.
+  if (!spec) return { ok: false, error: 'Template not found', missing: ['(template not found)'] }
+  // custom_message + unsubscribe_url are optional everywhere.
   const required = spec.vars.filter((v) => v !== 'custom_message' && v !== 'unsubscribe_url')
   const missing = required.filter((v) => {
     const val = vars[v]
     return val == null || String(val).trim() === ''
-  })
-  return missing.length === 0 ? { ok: true } : { ok: false, missing: missing.map(String) }
+  }).map(String)
+  if (missing.length === 0) return { ok: true }
+  return { ok: false, error: `Missing: ${missing.join(', ')}`, missing }
 }
