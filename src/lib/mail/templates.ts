@@ -188,3 +188,59 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   stall_allocation_notice: 'Stall allocation notice',
   general_announcement: 'General announcement',
 }
+
+// ============================================================================
+// Compatibility shim exports — Stream D's TemplatePicker.tsx expects these
+// shapes from this module. Added here so the two streams converge without
+// either side rewriting (both shipped on parallel branches). Names mirror
+// the WA template registry at /lib/templates/wa-meta.ts so TemplatePicker
+// can render both channels through a uniform interface.
+// ============================================================================
+
+export interface MailTemplateSpec {
+  key: TemplateKey
+  label: string
+  /** Merge tags this template uses (declared so the picker can render param inputs). */
+  vars: Array<keyof TemplateVars>
+}
+
+const TEMPLATE_VARS: Record<TemplateKey, Array<keyof TemplateVars>> = {
+  doc_chase: ['first_name', 'business_name'],
+  payment_reminder: ['first_name', 'business_name', 'amount_due', 'due_date'],
+  contract_sign_reminder: ['first_name', 'business_name'],
+  stall_allocation_notice: ['first_name', 'business_name', 'stall_code'],
+  general_announcement: ['first_name', 'business_name', 'custom_message'],
+}
+
+export const MAIL_TEMPLATES: MailTemplateSpec[] = TEMPLATE_KEYS.map((key) => ({
+  key,
+  label: TEMPLATE_LABELS[key],
+  vars: TEMPLATE_VARS[key],
+}))
+
+export function findMailTemplate(key: string): MailTemplateSpec | undefined {
+  return MAIL_TEMPLATES.find((t) => t.key === key)
+}
+
+/** Alias for renderTemplate so the picker can call mail + wa renderers with parallel names. */
+export const renderMailTemplate = renderTemplate
+
+/**
+ * Validate that every required merge tag for the given template has a non-empty
+ * value. Returns { ok: true } or { ok: false, missing: string[] }. The picker uses
+ * this to enable/disable the "Send" button.
+ */
+export function validateMailTemplate(
+  key: TemplateKey,
+  vars: TemplateVars,
+): { ok: true } | { ok: false; missing: string[] } {
+  const spec = findMailTemplate(key)
+  if (!spec) return { ok: false, missing: ['(template not found)'] }
+  // custom_message is optional in general_announcement; everything else required.
+  const required = spec.vars.filter((v) => v !== 'custom_message' && v !== 'unsubscribe_url')
+  const missing = required.filter((v) => {
+    const val = vars[v]
+    return val == null || String(val).trim() === ''
+  })
+  return missing.length === 0 ? { ok: true } : { ok: false, missing: missing.map(String) }
+}
