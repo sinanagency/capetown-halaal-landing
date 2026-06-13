@@ -12,17 +12,21 @@ export const dynamic = 'force-dynamic'
 
 type EventCategory = 'all' | 'approvals' | 'messages' | 'documents' | 'payments' | 'mass_send'
 
-const CATEGORY_FILTERS: Record<EventCategory, string[] | null> = {
-  all: null,
-  approvals: ['application_approved', 'application_rejected', 'application_info_requested', 'apply_submit'],
-  messages: ['chat_open', 'chat_message', 'inbox_reply'],
-  documents: ['document_upload', 'document_download', 'contract_signed'],
-  payments: ['checkout_start', 'checkout_complete', 'payment_failed', 'payment_refunded'],
-  mass_send: ['mass_email_sent', 'mass_whatsapp_sent', 'verification_blast'],
+// Prefix-matched (Postgres ILIKE) categories. Each category lists one or more
+// prefixes to match the event_type against. Covers both the documented
+// prefix scheme (vendor_application_*, wa_*, mail_*, vendor_doc_*, payment_*,
+// broadcast_*) AND the existing emitted event types (application_*, chat_*,
+// inbox_*, mass_*, etc.) so the feed renders real data in production.
+const CATEGORY_PREFIXES: Record<Exclude<EventCategory, 'all'>, string[]> = {
+  approvals:  ['vendor_application_', 'application_', 'contract_signed', 'apply_'],
+  messages:   ['wa_', 'mail_', 'chat_', 'inbox_', 'vendor_portal_reply', 'bot_reply'],
+  documents:  ['vendor_doc_', 'document_'],
+  payments:   ['payment_', 'checkout_'],
+  mass_send:  ['broadcast_', 'mass_', 'verification_blast'],
 }
 
 function isCategory(v: string | null): v is EventCategory {
-  return !!v && Object.prototype.hasOwnProperty.call(CATEGORY_FILTERS, v)
+  return v === 'all' || (!!v && Object.prototype.hasOwnProperty.call(CATEGORY_PREFIXES, v))
 }
 
 interface SiteEventRow {
@@ -68,9 +72,13 @@ export async function GET(request: Request) {
       .order('created_at', { ascending: false })
       .limit(limit)
 
-    const types = CATEGORY_FILTERS[category]
-    if (types && types.length > 0) {
-      query = query.in('event_type', types)
+    if (category !== 'all') {
+      const prefixes = CATEGORY_PREFIXES[category]
+      // PostgREST `or` with comma-separated ilike filters: prefix matching.
+      const orExpr = prefixes
+        .map(p => `event_type.ilike.${p}%`)
+        .join(',')
+      query = query.or(orExpr)
     }
 
     const { data: events, error } = await query
