@@ -46,20 +46,49 @@ export async function sendVendorPaymentEmail(args: {
   businessName: string
   amount: number
   providerRef: string
+  reference?: string
+  paidDate?: string
+  pricing?: import('@/lib/payments/pricing').VendorPricing
 }): Promise<{ sent: boolean; error?: string }> {
+  // No PDF attachment by design. Invoice PDFs from a first-touch sender are the
+  // dominant Gmail/Outlook spam signal (phishing pattern). The full itemised
+  // receipt is rendered inline in the email body and the printable copy lives
+  // behind auth at /exhibitor/portal/invoice. See knowledge-tree node on
+  // attachment-vs-link deliverability.
   try {
+    const invoiceUrl = `${SITE}/exhibitor/portal/invoice`
+    const portalUrl = `${SITE}/exhibitor/login`
     await sendEmail({
       to: args.to,
-      subject: `Payment confirmed, ${args.businessName}, YAH Festival 2026`,
+      subject: `Payment confirmed, ${args.businessName}, Young at Heart Festival 2026`,
       react: VendorPaymentConfirmation({
         contactName: args.contactName,
         businessName: args.businessName,
         amount: args.amount,
         providerRef: args.providerRef,
-        invoiceUrl: `${SITE}/exhibitor/portal/invoice`,
-        portalUrl: `${SITE}/exhibitor/login`,
+        reference: args.reference,
+        paidDate: args.paidDate,
+        pricing: args.pricing,
+        invoiceUrl,
+        portalUrl,
       }),
-      text: `Hi ${args.contactName},\n\nWe've received your payment of ${formatRand(args.amount)} for ${args.businessName}. Reference: ${args.providerRef || 'manual'}. Your invoice is in your portal: ${SITE}/exhibitor/portal/invoice. Log in: ${SITE}/exhibitor/login.\n\nWelcome aboard.\nThe YAH Festival Team`,
+      text: [
+        `Hi ${args.contactName},`,
+        '',
+        `We've received your payment of ${formatRand(args.amount)} for ${args.businessName}. Your trading spot at Young at Heart Festival 2026 is confirmed.`,
+        '',
+        `Reference: ${args.providerRef || 'manual'}`,
+        `Paid: ${args.paidDate || 'today'}`,
+        '',
+        `View and download your printable invoice from your portal:`,
+        invoiceUrl,
+        '',
+        `Log in here:`,
+        portalUrl,
+        '',
+        `Welcome to the family.`,
+        `The Young at Heart Festival Team`,
+      ].join('\n'),
     })
     return { sent: true }
   } catch (e) {
@@ -71,12 +100,16 @@ export async function sendVendorPaymentEmail(args: {
 
 export async function confirmPayment(input: ConfirmPaymentInput): Promise<ConfirmPaymentResult> {
   const admin = createAdminClient()
-  const { data: app } = await admin
+  const { data: app, error: appErr } = await admin
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, phone, wa_phone, admin_notes, special_requirements, preferred_booth_tier')
+    .select('id, business_name, contact_name, email, phone, admin_notes, special_requirements, preferred_booth_tier')
     .eq('id', input.applicationId)
     .maybeSingle()
 
+  if (appErr) {
+    console.error('[confirmPayment] lookup failed:', appErr.message)
+    return { ok: false, alreadyPaid: false, amount: 0, error: `lookup: ${appErr.message}` }
+  }
   if (!app) return { ok: false, alreadyPaid: false, amount: 0, error: 'application not found' }
 
   const before = parsePortalState(app.admin_notes as string)
@@ -109,12 +142,19 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
   const businessName = (app.business_name as string) || 'your business'
   const providerRef = input.providerRef || ''
 
+  const paidIso = new Date().toISOString()
+  const paidDate = new Date(paidIso).toLocaleDateString('en-GB', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  })
   await sendVendorPaymentEmail({
     to: app.email as string,
     contactName,
     businessName,
     amount,
     providerRef: providerRef || input.method,
+    reference: before.payment?.reference || input.applicationId.slice(0, 8).toUpperCase(),
+    paidDate,
+    pricing,
   })
 
   try {
@@ -128,7 +168,7 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
     console.error('[confirmPayment] notify owners failed:', (e as Error).message)
   }
 
-  const waPhone = (app.wa_phone as string) || (app.phone as string) || ''
+  const waPhone = (before.wa?.phone as string) || (app.phone as string) || ''
   if (waPhone) {
     try {
       const res = await sendTemplate(

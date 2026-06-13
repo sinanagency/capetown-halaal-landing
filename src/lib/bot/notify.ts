@@ -44,7 +44,14 @@ async function deliverOne(admin: BotAdmin, args: NotifyArgs) {
   const lastIn = last?.[0]?.created_at as string | undefined
   const inWindow = lastIn && Date.now() - new Date(lastIn).getTime() < 24 * 3600 * 1000
 
-  const text = `🛎️ ${args.event.replace(/_/g, ' ')}\n\n${args.body}\n\nOpen /admin/bot-inbox or reply here.`
+  // If args.body starts with a "+<digits>" or "[+<digits>...", we can extract
+  // the user's phone and append a copy-paste reply command for the owner.
+  // Samreen just edits the message after "to <phone>" and sends.
+  const phoneMatch = args.body.match(/(?:^|\[)(\+\d{8,16})/)
+  const replyHint = phoneMatch
+    ? `\n\nReply with:\nto ${phoneMatch[1]} <your message>`
+    : '\n\nOpen /admin/bot-inbox or reply here.'
+  const text = `🛎️ ${args.event.replace(/_/g, ' ')}\n\n${args.body}${replyHint}`
   try {
     let res
     if (inWindow) {

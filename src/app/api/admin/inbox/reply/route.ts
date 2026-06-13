@@ -212,13 +212,13 @@ export async function POST(req: Request) {
       if (!spec) {
         return NextResponse.json({ error: 'unknown mail template' }, { status: 400 })
       }
-      const v = validateMailTemplate(spec, payload.params ?? {})
+      const v = validateMailTemplate(spec.key, payload.params ?? {})
       if (!v.ok) {
-        return NextResponse.json({ error: v.error }, { status: 400 })
+        return NextResponse.json({ error: `missing required fields: ${v.missing.join(', ')}` }, { status: 400 })
       }
-      const rendered = renderMailTemplate(spec, payload.params ?? {})
+      const rendered = await renderMailTemplate(spec.key, payload.params ?? {})
       subject = rendered.subject
-      body = rendered.body
+      body = rendered.body_text
     }
 
     try {

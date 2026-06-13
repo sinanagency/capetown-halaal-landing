@@ -1,15 +1,15 @@
 'use client'
 
 // =============================================================================
-// /admin/broadcast — mass outreach console.
+// /admin/broadcast, mass outreach console.
 //
 // Layout (top to bottom):
-//   1. Filter chip rail — status, sector, booth tier, document, contract, paid.
-//   2. Channel toggle — Email / WhatsApp / Both.
-//   3. Template picker — dropdown from TEMPLATE_LABELS.
-//   4. Optional custom message — appended as {{custom_message}}.
+//   1. Filter chip rail, status, sector, booth tier, document, contract, paid.
+//   2. Channel toggle, Email / WhatsApp / Both.
+//   3. Template picker, dropdown from TEMPLATE_LABELS.
+//   4. Optional custom message, appended as {{custom_message}}.
 //   5. Live count (fetched from GET ?counts=1 as filters change).
-//   6. Send button → confirmation modal showing exact mail_count + wa_count.
+//   6. Send button, confirmation modal showing exact mail_count + wa_count.
 //
 // Design language: white canvas, neutral grays, festival red accents
 // (#cd2653 borrowed from the admin sidebar), tight typography. No glassmorphism.

@@ -63,7 +63,16 @@ export async function POST() {
       failureUrl: `${SITE}/exhibitor/payment-return?status=failed`,
     })
     await updatePortalState(applicationId, (s) => ({
-      ...s, payment: { ...(s.payment || {}), status: 'pending', amount, reference, provider_ref: providerRef },
+      ...s,
+      payment: {
+        ...(s.payment || {}),
+        status: 'pending',
+        amount,
+        reference,
+        provider_ref: providerRef,
+        attempted_at: new Date().toISOString(),
+        attempts: ((s.payment?.attempts as number) || 0) + 1,
+      },
     }))
     return NextResponse.json({ url })
   } catch (e) {

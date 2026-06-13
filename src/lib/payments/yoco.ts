@@ -68,7 +68,7 @@ export const yoco: PaymentProvider = {
 
     const data = (await res.json().catch(() => ({}))) as YocoCheckoutResponse & { errorMessage?: string }
     if (!res.ok || !data.redirectUrl) {
-      throw new Error(`Yoco createCheckout failed: ${res.status} — ${data.errorMessage || JSON.stringify(data)}`)
+      throw new Error(`Yoco createCheckout failed: ${res.status}, ${data.errorMessage || JSON.stringify(data)}`)
     }
     return { url: data.redirectUrl, providerRef: data.id }
   },

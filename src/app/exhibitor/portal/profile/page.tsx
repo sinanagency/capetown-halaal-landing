@@ -2,6 +2,10 @@ import { getExhibitorContext } from '@/lib/exhibitor'
 import { parsePortalState } from '@/lib/portal-state'
 import ProfileEditor from '@/components/exhibitor/ProfileEditor'
 import { vendorSlug } from '@/lib/slugify'
+import { requirePaid } from '@/lib/exhibitor-paygate'
+import {
+  PageShell, PageHeader, Card
+} from '@/components/chrome/PageChrome'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +25,7 @@ function publicUrl(path: string): string {
 }
 
 export default async function ProfilePage() {
+  await requirePaid()
   const ctx = await getExhibitorContext()
   const app = ctx?.application as Record<string, unknown> | undefined
   const state = parsePortalState(app?.admin_notes as string)
@@ -59,15 +64,15 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[#cd2653] font-semibold">Profile</p>
-        <h1 className="font-serif text-3xl text-neutral-900 mt-1">{businessName}</h1>
-        <p className="text-neutral-500 text-sm mt-1">
-          This is what festival-goers see when they browse {sectorLabel || 'your sector'} vendors.
-        </p>
-      </div>
-      <ProfileEditor initial={initial} publication={publication} />
-    </div>
+    <PageShell>
+      <Card className="max-w-3xl mx-auto">
+        <PageHeader
+          kicker="Profile"
+          title={businessName}
+          subtitle={`This is what festival-goers see when they browse ${sectorLabel || 'your sector'} vendors.`}
+        />
+        <ProfileEditor initial={initial} publication={publication} />
+      </Card>
+    </PageShell>
   )
 }

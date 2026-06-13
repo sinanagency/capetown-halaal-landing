@@ -24,7 +24,7 @@ export function ApplicationConfirmation({
   email,
 }: ApplicationConfirmationProps) {
   return (
-    <EmailLayout preview="Application received — Young at Heart Festival 2026">
+    <EmailLayout preview="Application received, Young at Heart Festival 2026">
       <Heading>Application received</Heading>
 
       <Paragraph>Hi {contactName},</Paragraph>
@@ -39,7 +39,7 @@ export function ApplicationConfirmation({
       <Steps
         items={[
           'Our team is reviewing your application. No further action is needed from you for now.',
-          'From 1 June 2026, every applicant receives a personal email with the outcome — whether approved or not.',
+          'From 1 June 2026, every applicant receives a personal email with the outcome, whether approved or not.',
           'If approved, that email includes your login details and payment instructions.',
         ]}
       />

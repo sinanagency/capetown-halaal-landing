@@ -62,7 +62,7 @@ export async function GET() {
       contact_name: (row.contact_name as string) || null,
       email: (row.email as string) || null,
       phone: (row.phone as string) || null,
-      wa_phone: (row.wa_phone as string) || null,
+      wa_phone: null,
       app_status: (row.app_status as string) || null,
       messages,
       latest_at: latest?.at || null,

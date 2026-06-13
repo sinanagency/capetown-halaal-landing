@@ -14,15 +14,17 @@
  *     cached_at: string         // ISO; client uses for "synced N min ago" badge
  *   }
  *
- * Drives off `askFestivalBrain` so DGX-first + Anthropic fallback wiring is
- * inherited. NEVER mentions Claude / Anthropic / OpenAI; the system prompt
- * scopes the assistant to an internal ops aide.
+ * Calls Anthropic directly with a tight ops-only system prompt. The festival
+ * brain is for vendor / visitor chat and owns FAQ + intent routing, which is
+ * the wrong shape for structured operator JSON. NEVER mentions Claude /
+ * Anthropic / OpenAI; the system prompt scopes the assistant to an internal
+ * ops aide.
  */
 
 import { NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { askFestivalBrain } from '@/lib/festival-brain'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -178,10 +180,19 @@ Return JSON with "summary" and "suggested_replies" (3 short chips).`
 
   let raw: string
   try {
-    raw = await askFestivalBrain([{ role: 'user', content: user }], {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ error: 'summary engine offline' }, { status: 503 })
+    }
+    const client = new Anthropic({ apiKey })
+    const resp = await client.messages.create({
+      model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
+      max_tokens: 400,
       system: OPS_SYSTEM,
-      maxTokens: 400,
+      messages: [{ role: 'user', content: user }],
     })
+    const block = resp.content[0]
+    raw = block && block.type === 'text' ? block.text : ''
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
   }

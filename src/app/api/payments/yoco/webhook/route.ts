@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'missing applicationId in metadata' }, { status: 400 })
   }
 
-  // Failed: keep status as pending unless already paid (never downgrade).
+  // Failed: bump the failed_attempts counter so the UI can escalate to
+  // "WhatsApp support" after repeated failures. Never downgrade a paid status.
   if (result.status === 'failed') {
     const admin = createAdminClient()
     const { data: app } = await admin
@@ -49,6 +50,9 @@ export async function POST(req: NextRequest) {
         ...(s.payment || {}),
         status: alreadyPaid ? 'paid' : 'pending',
         provider_ref: result.providerRef || s.payment?.provider_ref,
+        failed_attempts: alreadyPaid
+          ? (s.payment?.failed_attempts || 0)
+          : ((s.payment?.failed_attempts as number) || 0) + 1,
       },
     }))
     return NextResponse.json({ ok: true })

@@ -38,7 +38,7 @@ function pickSubject(template: BlastTemplate, customSubject?: string): string {
   if (template === 'custom') return customSubject || 'A message from Young at Heart Festival 2026'
   if (template === 'application_rejected') return 'An update on your Young at Heart Festival 2026 application'
   if (template === 'application_approved') return 'Your stall application is approved · Young at Heart Festival 2026'
-  if (template === 'application_info_requested') return 'A little more information needed — Young at Heart Festival 2026'
+  if (template === 'application_info_requested') return 'A little more information needed, Young at Heart Festival 2026'
   if (template === 'application_delay_notice') return 'Quick update on your vendor application'
   return 'Young at Heart Festival 2026'
 }

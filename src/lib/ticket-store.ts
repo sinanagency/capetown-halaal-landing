@@ -50,7 +50,7 @@ interface TicketStore {
 const TICKET_TYPES: TicketType[] = [
   {
     id: 'friday-entry',
-    name: 'Entry Ticket — Friday 11th December — Young at Heart Festival 2026',
+    name: 'Entry Ticket, Friday 11th December, Young at Heart Festival 2026',
     date: 'Friday, 11 December 2026',
     dayLabel: 'DAY 1',
     dayNumber: 1,
@@ -59,7 +59,7 @@ const TICKET_TYPES: TicketType[] = [
   },
   {
     id: 'saturday-entry',
-    name: 'Entry Ticket — Saturday 12th December — Young at Heart Festival 2026',
+    name: 'Entry Ticket, Saturday 12th December, Young at Heart Festival 2026',
     date: 'Saturday, 12 December 2026',
     dayLabel: 'DAY 2',
     dayNumber: 2,
@@ -68,7 +68,7 @@ const TICKET_TYPES: TicketType[] = [
   },
   {
     id: 'sunday-entry',
-    name: 'Entry Ticket — Sunday 13th December — Young at Heart Festival 2026',
+    name: 'Entry Ticket, Sunday 13th December, Young at Heart Festival 2026',
     date: 'Sunday, 13 December 2026',
     dayLabel: 'DAY 3',
     dayNumber: 3,
@@ -77,7 +77,7 @@ const TICKET_TYPES: TicketType[] = [
   },
   {
     id: 'weekend-pass',
-    name: 'Weekend Pass — All 3 Days — Young at Heart Festival 2026',
+    name: 'Weekend Pass, All 3 Days, Young at Heart Festival 2026',
     date: '11–13 December 2026',
     dayLabel: 'ALL 3 DAYS',
     dayNumber: 0,

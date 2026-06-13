@@ -1,10 +1,12 @@
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { parseAllocation } from '@/lib/stalls'
 import MapVersions from '@/components/exhibitor/MapVersions'
+import { requirePaid } from '@/lib/exhibitor-paygate'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MapVersionsPage() {
+  await requirePaid()
   const ctx = await getExhibitorContext()
   const mine = parseAllocation((ctx?.application?.admin_notes as string) || '').stall
 

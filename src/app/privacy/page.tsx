@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Navbar } from '@/components/navbar'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy — Young at Heart Festival',
+  title: 'Privacy Policy, Young at Heart Festival',
   description:
     'How the Young at Heart Festival collects, uses, and protects your personal information, including WhatsApp and email communications.',
 }

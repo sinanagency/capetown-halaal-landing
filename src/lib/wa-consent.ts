@@ -88,7 +88,7 @@ export async function canSend(
     const open = last > 0 && Date.now() - last < SERVICE_WINDOW_MS
     return open
       ? { allowed: true, reason: 'within 24h service window' }
-      : { allowed: false, reason: 'outside 24h window — use an approved template' }
+      : { allowed: false, reason: 'outside 24h window, use an approved template' }
   }
 
   // Template path.

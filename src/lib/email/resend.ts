@@ -59,11 +59,14 @@ export async function sendEmail({
   subject,
   react,
   text,
+  attachments,
 }: {
   to: string
   subject: string
   react?: ReactElement
   text?: string
+  /** Optional file attachments. content can be a base64 string or a Buffer. */
+  attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>
 }): Promise<SendResult> {
   let html: string | undefined
   if (react) {
@@ -72,7 +75,7 @@ export async function sendEmail({
 
   const resend = getResend()
   if (!resend) {
-    const error = 'RESEND_API_KEY missing — no email channel available'
+    const error = 'RESEND_API_KEY missing, no email channel available'
     console.error(`Email FAILED for ${to} ("${subject}"): ${error}`)
     return { ok: false, error }
   }
@@ -85,6 +88,9 @@ export async function sendEmail({
       replyTo: 'support@youngatheart.co.za',
       subject,
       headers: mailHeaders,
+      ...(attachments && attachments.length
+        ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
+        : {}),
     }
     if (html) {
       await resend.emails.send({ ...common, html })

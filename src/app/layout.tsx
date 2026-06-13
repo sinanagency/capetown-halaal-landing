@@ -24,11 +24,20 @@ const fraunces = Fraunces({
   style: ["normal", "italic"],
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://cthalaal.co.za";
+
 export const metadata: Metadata = {
-  title: "Young at Heart Festival 2026 | Cape Town",
-  description: "Cape Town's premier lifestyle festival. 350+ vendors, 25,000+ visitors. December 11-13, 2026 at Youngsfield Military Base.",
-  keywords: ["young at heart festival", "cape town festival", "lifestyle exhibition", "south africa", "vendor", "december 2026"],
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    template: "%s | Young at Heart 2026",
+  },
+  description: "Cape Town's premier halal lifestyle exhibition. 11 to 13 December 2026 at Youngsfield Military Base. Food, fashion, beauty, travel and more.",
+  keywords: ["young at heart festival", "cape town halaal", "halal festival", "cape town festival", "lifestyle exhibition", "youngsfield military base", "south africa", "december 2026"],
   authors: [{ name: "Samreen Kumandan" }],
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: [
       { url: "/icon.svg?v=2", type: "image/svg+xml" },
@@ -39,10 +48,21 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png?v=2",
   },
   openGraph: {
-    title: "Young at Heart Festival 2026 | Cape Town",
-    description: "Cape Town's premier lifestyle festival. December 11-13, 2026.",
+    title: "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    description: "Cape Town's premier halal lifestyle exhibition. 11 to 13 December 2026 at Youngsfield Military Base.",
+    url: "/",
+    siteName: "Young at Heart Festival",
     type: "website",
     locale: "en_ZA",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Young at Heart Festival 2026 | Cape Town",
+    description: "Cape Town's premier halal lifestyle exhibition. 11 to 13 December 2026.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 

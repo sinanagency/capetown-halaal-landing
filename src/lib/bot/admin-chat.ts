@@ -15,6 +15,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { matchSegment, segmentCount, SEGMENT_LABELS, type SegmentKey } from './segments'
 import { runBlast, type BlastTemplate } from './blast'
 import type { BotAdmin } from './admins'
+import { sendText, toE164 } from '@/lib/whatsapp'
+import { escalateToHuman } from './handover'
 
 export interface PendingBlast {
   kind: 'blast'
@@ -100,7 +102,7 @@ async function consumePending(adminPhone: string, code: string): Promise<void> {
 
 export interface AdminChatResult {
   reply: string
-  action?: 'proposed_blast' | 'executed_blast' | 'cancelled' | 'stats' | 'none'
+  action?: 'proposed_blast' | 'executed_blast' | 'cancelled' | 'stats' | 'none' | 'replied_to_user' | 'released_user'
 }
 
 // Public entrypoint — handle one inbound admin message.
@@ -152,11 +154,11 @@ export async function handleAdminMessage(admin: BotAdmin, text: string): Promise
     const tpl = templateMatch(lower)
     const count = await segmentCount(seg)
     if (count === 0) {
-      return { reply: `Nobody matches "${SEGMENT_LABELS[seg]}" right now — nothing to send.`, action: 'none' }
+      return { reply: `Nobody matches "${SEGMENT_LABELS[seg]}" right now, nothing to send.`, action: 'none' }
     }
     if (tpl === 'custom') {
       return {
-        reply: `Got it — you want to email ${count} recipient${count === 1 ? '' : 's'} in: ${SEGMENT_LABELS[seg]}. I don't have a matching standard template, so please send me the SUBJECT and BODY in your next message, like:\n\nSUBJECT: ...\nBODY: ...\n\nThen I'll draft the send and ask you to confirm.`,
+        reply: `Got it, you want to email ${count} recipient${count === 1 ? '' : 's'} in: ${SEGMENT_LABELS[seg]}. I don't have a matching standard template, so please send me the SUBJECT and BODY in your next message, like:\n\nSUBJECT: ...\nBODY: ...\n\nThen I'll draft the send and ask you to confirm.`,
         action: 'none',
       }
     }
@@ -199,7 +201,50 @@ export async function handleAdminMessage(admin: BotAdmin, text: string): Promise
     }
   }
 
-  // (5) Fallthrough — let the brain answer. Signal to caller to invoke the LLM
+  // (4.5) DIRECT REPLY TO A USER. Admin types: "to +27721234567 hello there".
+  // The bot relays that exact text to the named user via the WABA endpoint and
+  // logs it on the user's thread so /admin/bot-inbox shows it inline. Lets
+  // Samreen handle multiple cases from her own WhatsApp without touching the
+  // admin portal. Keeps the handover marker on so the bot stays quiet.
+  const toMatch = t.match(/^to\s+(\+?\d{8,16})\s+([\s\S]+)$/i)
+  if (toMatch) {
+    const targetRaw = toMatch[1]
+    const message = toMatch[2].trim()
+    if (!message) {
+      return { reply: 'Add the message after the number. Example:\n\nto +27721234567 Hi Salma, pay at cthalaal.co.za/exhibitor/portal/payments', action: 'none' }
+    }
+    try {
+      const targetE164 = toE164(targetRaw)
+      const res = await sendText(targetE164, message)
+      const db = createAdminClient()
+      await db.from('wa_messages').insert({
+        direction: 'out',
+        wa_phone: targetE164,
+        body: message,
+        status: res.skipped ? 'failed' : 'sent',
+        provider_message_id: res.messageId || null,
+      })
+      await escalateToHuman(targetE164, `replied by ${admin.name}`)
+      if (res.skipped) return { reply: `Could not send to ${targetE164}, reason: ${res.skipped}.`, action: 'none' }
+      return {
+        reply: `Sent to ${targetE164}. The user sees a normal WhatsApp message from the festival bot. I'll stay out of your way for that conversation. Type "release ${targetE164}" to hand it back to the auto-bot, or it auto-releases after 24h of silence.`,
+        action: 'replied_to_user',
+      }
+    } catch (e) {
+      return { reply: `Send failed: ${(e as Error).message}`, action: 'none' }
+    }
+  }
+
+  // (4.6) RELEASE: hand a user back to the auto-bot. "release +27721234567"
+  const relMatch = t.match(/^release\s+(\+?\d{8,16})\s*$/i)
+  if (relMatch) {
+    const targetE164 = toE164(relMatch[1])
+    const { releaseToBot } = await import('./handover')
+    await releaseToBot(targetE164, `released by ${admin.name}`)
+    return { reply: `Released ${targetE164} back to the auto-bot.`, action: 'released_user' }
+  }
+
+  // (5) Fallthrough, let the brain answer. Signal to caller to invoke the LLM
   // with the master/festival_owner identity briefing.
   return { reply: '', action: 'none' }
 }

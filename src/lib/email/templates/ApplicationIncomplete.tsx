@@ -28,7 +28,7 @@ export function ApplicationIncomplete({
   applyUrl = 'https://cthalaal.co.za/apply',
 }: ApplicationIncompleteProps) {
   return (
-    <EmailLayout preview="You're almost there — finish your Young at Heart Festival 2026 application">
+    <EmailLayout preview="You're almost there, finish your Young at Heart Festival 2026 application">
       <Heading>You&apos;re almost there</Heading>
 
       <Paragraph>Hi {contactName || 'there'},</Paragraph>

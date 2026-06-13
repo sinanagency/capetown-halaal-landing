@@ -51,7 +51,7 @@ export function ApplicationRejected({
         items={[
           'There is nothing further you need to do for the 2026 festival.',
           'Your details stay on file, and we would warmly welcome a fresh application for future events.',
-          'You are still very welcome to join us as a visitor — it is going to be a special three days.',
+          'You are still very welcome to join us as a visitor, it is going to be a special three days.',
         ]}
       />
 

@@ -78,7 +78,7 @@ export function WaOptInBanner({ prefillPhone, firstName }: Props) {
             <div className="flex items-center justify-between flex-wrap gap-3">
               <p className="text-sm">
                 <strong>Get festival updates on WhatsApp{firstName ? `, ${firstName}` : ''}.</strong>{' '}
-                <span className="text-white/85">Setup reminders, payment receipts, your stall number — all on WhatsApp.</span>
+                <span className="text-white/85">Setup reminders, payment receipts, your stall number, all on WhatsApp.</span>
               </p>
               <div className="flex items-center gap-2">
                 <button

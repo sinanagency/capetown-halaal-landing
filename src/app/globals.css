@@ -165,9 +165,13 @@
   animation: glow 2s ease-in-out infinite;
 }
 
-/* Smooth scrolling */
-html {
+/* Smooth scrolling + mobile horizontal-overflow guard.
+   `overflow-x: clip` contains decorative blurs/parallax without breaking
+   `position: sticky` ancestors the way `overflow: hidden` does. */
+html,
+body {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 /* Custom scrollbar */

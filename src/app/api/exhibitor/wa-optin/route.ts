@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     await db.from('wa_messages').insert({
       direction: 'out',
       wa_phone: e164,
-      body: `[vendor_application_approved] Welcome WA for ${contactName} — stall: ${stallLabel}`,
+      body: `[vendor_application_approved] Welcome WA for ${contactName}, stall: ${stallLabel}`,
       status: res.skipped ? 'failed' : 'sent',
       provider_message_id: res.messageId || null,
       error: res.skipped || null,

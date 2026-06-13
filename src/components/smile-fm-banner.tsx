@@ -10,7 +10,7 @@ export function SmileFMBanner() {
       href="https://www.smile904.fm"
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Smile 90.4 FM — Official Media Partner"
+      aria-label="Smile 90.4 FM, Official Media Partner"
       className="block relative w-full overflow-hidden bg-[#1AA3E8] group"
     >
       {/* Yellow accent strips */}

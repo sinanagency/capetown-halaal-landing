@@ -30,27 +30,27 @@ async function authorize(request: NextRequest): Promise<boolean> {
 
 const SAMPLES = {
   confirmation: () => ({
-    subject: '[Preview] Application received — Young at Heart Festival 2026',
+    subject: '[Preview] Application received, Young at Heart Festival 2026',
     react: ApplicationConfirmation({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen', email: 'aisha@example.com' }),
   }),
   approved: () => ({
-    subject: '[Preview] Your application has been approved — Young at Heart Festival 2026',
+    subject: '[Preview] Your application has been approved, Young at Heart Festival 2026',
     react: ApplicationApproved({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen', email: 'aisha@example.com', boothTier: 'Premium Food Stall (3m × 3m)', tempPassword: 'YAH-7K2P' }),
   }),
   delay: () => ({
-    subject: '[Preview] An update on your application — Young at Heart Festival 2026',
+    subject: '[Preview] An update on your application, Young at Heart Festival 2026',
     react: ApplicationDelayNotice({ firstName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
   }),
   rejected: () => ({
-    subject: '[Preview] An update on your application — Young at Heart Festival 2026',
+    subject: '[Preview] An update on your application, Young at Heart Festival 2026',
     react: ApplicationRejected({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
   }),
   info_requested: () => ({
-    subject: '[Preview] A little more information needed — Young at Heart Festival 2026',
+    subject: '[Preview] A little more information needed, Young at Heart Festival 2026',
     react: ApplicationInfoRequested({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
   }),
   incomplete: () => ({
-    subject: '[Preview] You’re almost there — Young at Heart Festival 2026',
+    subject: '[Preview] You’re almost there, Young at Heart Festival 2026',
     react: ApplicationIncomplete({ contactName: 'Aisha', businessName: 'Spice & Soul Kitchen' }),
   }),
   password_reset: () => ({
@@ -58,13 +58,13 @@ const SAMPLES = {
     react: PasswordReset({ contactName: 'Aisha', resetUrl: 'https://cthalaal.co.za/exhibitor/set-password#example-token' }),
   }),
   campaign: () => ({
-    subject: '[Preview] You’re invited — Young at Heart Festival 2026',
+    subject: '[Preview] You’re invited, Young at Heart Festival 2026',
     react: Campaign({
-      preview: 'Three days of food, fashion and family — 11–13 December 2026.',
+      preview: 'Three days of food, fashion and family, 11–13 December 2026.',
       heading: 'The countdown is on',
       greeting: 'Hi Aisha,',
       paragraphs: [
-        'We can’t wait to welcome you to the third Young at Heart Festival — three days of the finest halaal food, fashion, and family entertainment Cape Town has to offer.',
+        'We can’t wait to welcome you to the third Young at Heart Festival, three days of the finest halaal food, fashion, and family entertainment Cape Town has to offer.',
         'Over 350 vendors, live entertainment, and 25,000+ visitors across one unforgettable weekend at Youngsfield Military Base.',
       ],
       cta: { label: 'Get Your Tickets →', href: 'https://tickets.youngatheart.co.za' },

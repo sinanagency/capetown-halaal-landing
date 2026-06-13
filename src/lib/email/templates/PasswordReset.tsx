@@ -42,7 +42,7 @@ export function PasswordReset({ resetUrl, contactName }: PasswordResetProps) {
       <Divider />
 
       <Paragraph>
-        If you didn&apos;t request this, you can safely ignore this email — your password will not
+        If you didn&apos;t request this, you can safely ignore this email, your password will not
         change. For anything else, reach us at{' '}
         <InlineLink href={`mailto:${brand.contact.email}`}>{brand.contact.email}</InlineLink>.
       </Paragraph>

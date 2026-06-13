@@ -37,7 +37,7 @@ export function ApplicationInfoRequested({
         ]
 
   return (
-    <EmailLayout preview="A little more information needed — Young at Heart Festival 2026">
+    <EmailLayout preview="A little more information needed, Young at Heart Festival 2026">
       <Heading>We need a little more information</Heading>
 
       <Paragraph>Hi {contactName},</Paragraph>

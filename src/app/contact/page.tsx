@@ -3,7 +3,7 @@ import { Navbar } from '@/components/navbar'
 import { MapPin, Mail, Phone, Clock } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Contact Us — Young at Heart Festival',
+  title: 'Contact Us | Young at Heart Festival',
   description:
     'Customer service contact details for the Young at Heart Festival: physical address, email and phone. Youngsfield Military Base, Cape Town, South Africa.',
 }

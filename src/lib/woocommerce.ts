@@ -69,17 +69,31 @@ async function wcFetch<T>(endpoint: string, params: Record<string, string> = {})
   return res.json()
 }
 
+// Doctrine Law 6: every orders.list call MUST carry `after=` scoped to the
+// current festival cycle, or it silently includes last year's data.
+const FESTIVAL_CYCLE_AFTER = '2026-01-01T00:00:00'
+
+// Audit finding #16: getOrders previously fetched only the first 100 orders,
+// which silently truncated ticket dashboards once sales crossed 100 in week 1.
+// Now paginates with `page=` until the response is shorter than per_page.
 export async function getOrders(params: Record<string, string> = {}): Promise<WCOrder[]> {
-  return wcFetch<WCOrder[]>('/orders', { per_page: '100', ...params })
+  const perPage = 100
+  const merged: Record<string, string> = { after: FESTIVAL_CYCLE_AFTER, ...params, per_page: String(perPage) }
+  const all: WCOrder[] = []
+  for (let page = 1; page <= 50; page++) { // hard cap at 5000 orders so a runaway loop never hangs
+    const batch = await wcFetch<WCOrder[]>('/orders', { ...merged, page: String(page) })
+    all.push(...batch)
+    if (batch.length < perPage) break
+  }
+  return all
 }
 
+// Audit finding #16: /reports/orders/totals returns all-time data with no
+// date filter (the endpoint doesn't accept `after=`). For festival-cycle
+// counts, paginate through /orders with the cycle filter and sum.
 export async function getOrdersCount(): Promise<number> {
-  const res = await fetch(`${WC_BASE}/reports/orders/totals?consumer_key=${WC_KEY}&consumer_secret=${WC_SECRET}`, {
-    next: { revalidate: 60 },
-  })
-  if (!res.ok) return 0
-  const data = await res.json()
-  return data.reduce((sum: number, item: { total: number }) => sum + item.total, 0)
+  const orders = await getOrders({ status: 'completed,processing,on-hold,pending' })
+  return orders.length
 }
 
 export async function getProducts(): Promise<WCProduct[]> {

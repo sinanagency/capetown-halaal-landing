@@ -143,7 +143,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Applications</span>
             <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-amber-600" />
+              <TrendingUp className="w-4 h-4 text-[#cd2653]" />
             </div>
           </div>
           <p className="text-2xl font-bold text-neutral-900">{overview.totalApplications}</p>

@@ -58,12 +58,18 @@ export async function POST(req: NextRequest) {
   const contactName = (app.contact_name as string) || 'there'
   const businessName = (app.business_name as string) || 'your business'
 
+  const paidDate = state.payment.paid_at
+    ? new Date(state.payment.paid_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+    : undefined
   const result = await sendVendorPaymentEmail({
     to: app.email as string,
     contactName,
     businessName,
     amount,
     providerRef,
+    reference: state.payment.reference || applicationId.slice(0, 8).toUpperCase(),
+    paidDate,
+    pricing,
   })
   if (!result.sent) {
     return NextResponse.json({ ok: false, error: result.error || 'Email send failed' }, { status: 502 })

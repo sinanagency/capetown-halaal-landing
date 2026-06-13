@@ -37,6 +37,12 @@ export interface BrainContext {
   signOff?: boolean
   /** Recent conversation turns to give the LLM context. Newest last. */
   history?: Array<{ role: 'user' | 'assistant'; content: string }>
+  /**
+   * Optional extra system context appended to the LLM step only.
+   * Used for per-caller personalisation (vendor name, ticket count, etc.).
+   * Never overrides the hard identity / style / sign-off rules.
+   */
+  extraSystem?: string
 }
 
 export interface BrainResult {
@@ -265,7 +271,10 @@ export async function askFestivalBrain(
   }
 
   const grounding = buildGroundingContext(intentFaqKeys(intent.intent))
-  const system = buildSystemPrompt(intent.intent, grounding)
+  let system = buildSystemPrompt(intent.intent, grounding)
+  if (context.extraSystem && context.extraSystem.trim()) {
+    system = `${system}\n\n=== ABOUT THE SENDER ===\n${context.extraSystem.trim()}`
+  }
 
   const history = (context.history ?? []).slice(-8)
   const llmMessages = [

@@ -149,7 +149,7 @@ export function CountdownSection() {
           <a href="https://tickets.youngatheart.co.za" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3 px-4 md:px-6 py-3 bg-amber-50 border border-amber-200 rounded-full hover:bg-amber-100 transition-colors cursor-pointer">
             <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
             <span className="text-amber-700 font-medium text-sm md:text-base">
-              Tickets On Sale Now — Secure Your Spot
+              Tickets On Sale Now, Secure Your Spot
             </span>
           </a>
         </motion.div>

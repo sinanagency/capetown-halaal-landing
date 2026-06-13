@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { Navbar } from '@/components/navbar'
 
 export const metadata: Metadata = {
-  title: 'Refund & Cancellation Policy — Young at Heart Festival',
+  title: 'Refund & Cancellation Policy, Young at Heart Festival',
   description:
     'Return, refund and cancellation terms for Young at Heart Festival tickets and vendor / exhibitor stall fees. All transactions in South African Rand (ZAR).',
 }
@@ -33,7 +33,7 @@ export default function RefundPolicyPage() {
               <li>Tickets are generally <strong>non-refundable</strong> once purchased, except as set out below or where required by South African consumer law.</li>
               <li>If the Festival is <strong>cancelled</strong> by the organisers, valid ticket holders will be refunded the ticket price to the original payment method.</li>
               <li>If the Festival is <strong>postponed</strong>, tickets remain valid for the rescheduled dates. If you cannot attend the new dates, contact us to discuss a refund.</li>
-              <li>Tickets may be transferred to another person at no charge — contact us with the new attendee&rsquo;s details before the event.</li>
+              <li>Tickets may be transferred to another person at no charge, contact us with the new attendee&rsquo;s details before the event.</li>
             </ul>
           </Section>
 

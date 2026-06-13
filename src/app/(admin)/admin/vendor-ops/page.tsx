@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { Map, Banknote, FileCheck, Megaphone, Sparkles, Loader2, Search, X, MapPin, Phone, Mail, Tag, CheckCircle2, Send } from 'lucide-react'
 import StallMap, { type MapStall } from '@/components/admin/StallMap'
+import FloorCommand, { type FloorBooth, type FloorApp } from '@/components/floor/FloorCommand'
 import { TYPE_META, TIER_META, type StallType } from '@/lib/stalls'
 
 interface AppRow {
@@ -172,18 +173,20 @@ export default function VendorOpsPage() {
   const placedCount = data?.applications.filter((a) => a.stall).length || 0
 
   return (
-    <div className="p-6 sm:p-8 max-w-6xl">
+    <div className="p-6 sm:p-8 max-w-7xl">
       <div className="mb-1 flex items-center gap-2">
-        <h1 className="text-2xl font-bold text-neutral-900">Vendor Ops</h1>
-        <span className="text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded">live data</span>
+        <div>
+          <p className="text-xs font-semibold text-[#cd2653] uppercase tracking-[0.2em]">VENDOR OPS</p>
+                  </div>
+        <span className="text-[10px] font-bold tracking-[0.16em] uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">live data</span>
       </div>
-      <p className="text-sm text-neutral-500 mb-5">Stall allocation, payments and broadcasts — driven by your real applications.</p>
+      <p className="text-sm text-neutral-500 mb-5">Stall allocation, payments and broadcasts, driven by your real applications.</p>
 
-      <div className="flex flex-wrap gap-1 border-b border-neutral-200 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6 bg-[#FFFFFF]/92 backdrop-blur-md p-1 rounded-full">
         {TABS.map((t) => {
           const Icon = t.icon; const active = tab === t.k
           return (
-            <button key={t.k} onClick={() => setTab(t.k)} className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${active ? 'border-[#cd2653] text-[#cd2653]' : 'border-transparent text-neutral-500 hover:text-neutral-800'}`}>
+            <button key={t.k} onClick={() => setTab(t.k)} className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-full transition-colors ${active ? 'bg-[#cd2653] text-white' : 'bg-transparent text-neutral-600 hover:text-neutral-900'}`}>
               <Icon className="w-4 h-4" />{t.label}
             </button>
           )
@@ -192,116 +195,54 @@ export default function VendorOpsPage() {
 
       {loading && <div className="flex items-center gap-2 text-neutral-400 text-sm py-10"><Loader2 className="w-4 h-4 animate-spin" /> Loading live allocation…</div>}
 
-      {!loading && tab === 'allocation' && data && (
-        <div>
-          {/* live slot counter */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            {(Object.keys(TYPE_META) as StallType[]).map((t) => {
-              const a = av![t]; const full = a.available <= 0
-              return (
-                <div key={t} className={`rounded-xl border p-3.5 ${full ? 'border-red-200 bg-red-50' : 'border-neutral-200 bg-white'}`}>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: TYPE_META[t].color }} />
-                    <span className="text-xs font-semibold text-neutral-600">{TYPE_META[t].label}</span>
-                  </div>
-                  <p className={`text-2xl font-bold ${full ? 'text-red-600' : 'text-neutral-900'}`}>{a.available}<span className="text-sm font-medium text-neutral-400"> / {a.total} left</span></p>
-                  <p className="text-[11px] text-neutral-500">{a.allocated} allocated · {a.held} held{full ? ' · FULL' : ''}</p>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="grid lg:grid-cols-3 gap-5">
-            <div className="lg:col-span-2 bg-white border border-neutral-200 rounded-xl p-4">
-              <div className="flex flex-wrap gap-3 text-[11px] text-neutral-500 mb-3 items-center">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-neutral-300 bg-white inline-block" />Available</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-300 inline-block" />Held</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500 inline-block" />Allocated</span>
-                <span className="ml-auto">{placedCount} placed · {approvedCount} approved awaiting</span>
-              </div>
-              <StallMap stalls={data.stalls} grid={data.grid} zones={data.zones} mode="admin" selected={sel} onSelect={pick} />
-              <p className="text-[10px] text-neutral-400 mt-2 italic">Layout per the official festival site map. Click a stall to allocate. Numbering is fixed (never changes).</p>
-            </div>
-
-            {/* allocation panel */}
-            <div className="bg-white border border-neutral-200 rounded-xl p-5 h-fit lg:sticky lg:top-24">
-              {!selStall ? (
-                <div className="text-center text-neutral-400 py-12 text-sm">Select a stall on the plan to allocate it</div>
-              ) : (
-                <div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-neutral-500 font-medium">Selected stall</p>
-                      <p className="text-2xl font-bold">{selStall.code}</p>
-                      <p className="text-xs text-neutral-500">{TYPE_META[selStall.type].label} · {av![selStall.type].available} left in zone</p>
-                    </div>
-                    <button onClick={() => setSel(null)} className="text-neutral-400 hover:text-neutral-700"><X className="w-4 h-4" /></button>
-                  </div>
-
-                  {av![selStall.type].available <= 0 && selStall.status === 'available' && (
-                    <div className="mt-3 text-[11px] bg-red-50 border border-red-200 text-red-700 rounded-lg p-2">
-                      This zone is fully booked. Allocating here exceeds the plan.
-                    </div>
-                  )}
-
-                  {/* current occupant */}
-                  {occupant ? (
-                    <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3">
-                      <p className="text-[11px] font-semibold text-green-700 uppercase tracking-wide mb-1">Currently {selStall.status}</p>
-                      <p className="font-bold text-neutral-900">{occupant.business_name}</p>
-                      <p className="text-xs text-neutral-600 flex items-center gap-1 mt-1"><Tag className="w-3 h-3" />{occupant.tier_label}</p>
-                      {occupant.contact_name && <p className="text-xs text-neutral-600 mt-0.5">{occupant.contact_name}</p>}
-                      <div className="flex gap-3 mt-1 text-xs text-neutral-500">
-                        {occupant.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{occupant.phone}</span>}
-                        {occupant.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{occupant.email}</span>}
-                      </div>
-                      <button disabled={saving} onClick={() => post({ stall_code: selStall.code, status: 'clear' })} className="mt-3 text-xs font-semibold text-red-600 hover:underline disabled:opacity-50">Clear this stall</button>
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-xs text-neutral-500">Stall is available. Assign an approved vendor:</p>
-                  )}
-
-                  {/* assign / move */}
-                  <div className="mt-4">
-                    <label className="text-xs font-semibold text-neutral-600">{occupant ? 'Reassign to another vendor' : 'Assign vendor'}</label>
-                    <div className="relative mt-1">
-                      <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
-                      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search approved vendors…" className="w-full rounded-lg border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:border-[#cd2653]" />
-                    </div>
-                    <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-neutral-100 divide-y divide-neutral-100">
-                      {filteredApps.length === 0 && <p className="text-xs text-neutral-400 p-3">No matching approved vendors.</p>}
-                      {filteredApps.map((a) => (
-                        <button key={a.id} onClick={() => setChosenApp(a)} className={`w-full text-left px-3 py-2 hover:bg-neutral-50 ${chosenApp?.id === a.id ? 'bg-[#cd2653]/5' : ''}`}>
-                          <p className="text-sm font-medium text-neutral-900 truncate">{a.business_name}</p>
-                          <p className="text-[11px] text-neutral-500 truncate">{a.tier_label}{a.stall ? ` · currently ${a.stall}` : ''}</p>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* chosen vendor business info + actions */}
-                  {chosenApp && (
-                    <div className="mt-4 rounded-lg border border-neutral-200 p-3">
-                      <p className="font-bold text-neutral-900">{chosenApp.business_name}</p>
-                      <p className="text-xs text-neutral-600 flex items-center gap-1 mt-1"><Tag className="w-3 h-3" />Chosen booth: <b>{chosenApp.tier_label}</b>{chosenApp.tier && TIER_META[chosenApp.tier] ? ` · suggest ${TYPE_META[TIER_META[chosenApp.tier].suggestZone].label}` : ''}</p>
-                      {chosenApp.categories?.length > 0 && <p className="text-xs text-neutral-500 mt-1">{chosenApp.categories.join(', ')}</p>}
-                      {chosenApp.contact_name && <p className="text-xs text-neutral-600 mt-1">{chosenApp.contact_name}</p>}
-                      <div className="flex gap-3 mt-1 text-xs text-neutral-500">
-                        {chosenApp.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{chosenApp.phone}</span>}
-                        {chosenApp.email && <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{chosenApp.email}</span>}
-                      </div>
-                      <div className="flex gap-2 mt-3">
-                        <button disabled={saving} onClick={() => post({ stall_code: selStall.code, application_id: chosenApp.id, status: 'allocated' })} className="flex-1 bg-[#cd2653] hover:bg-[#b01f45] text-white font-semibold rounded-lg py-2 text-sm disabled:opacity-50">{saving ? '…' : 'Allocate'}</button>
-                        <button disabled={saving} onClick={() => post({ stall_code: selStall.code, application_id: chosenApp.id, status: 'held' })} className="px-3 bg-amber-100 hover:bg-amber-200 text-amber-800 font-semibold rounded-lg py-2 text-sm disabled:opacity-50">Hold</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {!loading && tab === 'allocation' && data && (() => {
+        // adapt /api/admin/stalls payload to the FloorCommand booth shape
+        const booths: FloorBooth[] = [
+          ...data.stalls.map((s) => ({
+            code: s.code,
+            type: s.type as FloorBooth['type'],
+            col: s.col,
+            row: s.row,
+            w: s.w,
+            h: s.h,
+            zone: data.zones.find((z) => s.col >= z.col && s.col < z.col + z.w && s.row >= z.row && s.row < z.row + z.h)?.label || '',
+            status: (s.status === 'held' ? 'reserved' : (s.status || 'available')) as FloorBooth['status'],
+            vendor: (s.occupant as { business_name?: string } | null)?.business_name || null,
+            applicationId: (s.occupant as { id?: string } | null)?.id || null,
+          })),
+          ...data.zones.map((z) => ({
+            code: `Z-${z.label.replace(/\s+/g, '-')}`,
+            type: 'facility' as const,
+            col: z.col,
+            row: z.row,
+            w: z.w,
+            h: z.h,
+            zone: z.label,
+            status: 'facility' as const,
+            vendor: null,
+            applicationId: null,
+          })),
+        ]
+        const apps: FloorApp[] = data.applications.map((a) => ({
+          id: a.id, business_name: a.business_name, tier_label: a.tier_label, stall: a.stall,
+        }))
+        return (
+          <FloorCommand hideModeSwitch={true}
+            mode="admin"
+            booths={booths}
+            grid={data.grid}
+            applications={apps}
+            onAllocate={async (boothCode, vendorName) => {
+              const matched = apps.find((a) => a.business_name === vendorName)
+              if (!matched) throw new Error(`Vendor ${vendorName} not in approved list`)
+              await post({ stall_code: boothCode, application_id: matched.id, status: 'allocated' })
+            }}
+            onRelease={async (boothCode) => {
+              await post({ stall_code: boothCode, status: 'clear' })
+            }}
+          />
+        )
+      })()}
 
       {!loading && tab === 'payments' && data && (() => {
         const rows = data.applications.filter((a) => a.app_status === 'approved' || a.stall)
@@ -316,42 +257,42 @@ export default function VendorOpsPage() {
           if (s === 'paid') return 'bg-green-50 text-green-700 border-green-200'
           if (s === 'pending') return 'bg-blue-50 text-blue-700 border-blue-200'
           if (s === 'deferred') return 'bg-neutral-50 text-neutral-600 border-neutral-200'
-          return 'bg-amber-50 text-amber-700 border-amber-200'
+          return 'bg-[#F8DCE3] text-[#cd2653] border-[#cd2653]/30'
         }
         return (
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
-              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Paid</p><p className="text-2xl font-bold text-green-600">R{paidSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{paidRows.length} vendor{paidRows.length === 1 ? '' : 's'}</p></div>
-              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Pending checkout</p><p className="text-2xl font-bold text-blue-600">R{pendingSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{pendingRows.length} vendor{pendingRows.length === 1 ? '' : 's'}</p></div>
-              <div className="bg-white border border-neutral-200 rounded-xl p-4"><p className="text-xs text-neutral-500">Outstanding</p><p className="text-2xl font-bold text-amber-600">R{dueSum.toLocaleString()}</p><p className="text-[11px] text-neutral-400 mt-0.5">{dueRows.length} vendor{dueRows.length === 1 ? '' : 's'}</p></div>
+              <div className="bg-[#FFFFFF]/92 border border-[#E5E5E5] rounded-xl p-4 backdrop-blur-md"><p className="text-xs text-[#1B1A17]/60">Paid</p><p className="text-2xl font-bold text-green-600">R{paidSum.toLocaleString()}</p><p className="text-[11px] text-[#1B1A17]/40 mt-0.5">{paidRows.length} vendor{paidRows.length === 1 ? '' : 's'}</p></div>
+              <div className="bg-[#FFFFFF]/92 border border-[#E5E5E5] rounded-xl p-4 backdrop-blur-md"><p className="text-xs text-[#1B1A17]/60">Pending checkout</p><p className="text-2xl font-bold text-blue-600">R{pendingSum.toLocaleString()}</p><p className="text-[11px] text-[#1B1A17]/40 mt-0.5">{pendingRows.length} vendor{pendingRows.length === 1 ? '' : 's'}</p></div>
+              <div className="bg-[#FFFFFF]/92 border border-[#E5E5E5] rounded-xl p-4 backdrop-blur-md"><p className="text-xs text-[#1B1A17]/60">Outstanding</p><p className="text-2xl font-bold text-[#cd2653]">R{dueSum.toLocaleString()}</p><p className="text-[11px] text-[#1B1A17]/40 mt-0.5">{dueRows.length} vendor{dueRows.length === 1 ? '' : 's'}</p></div>
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800"><b>Policy:</b> no deposit, full settlement confirms the stall. Full refund if cancelled 8+ weeks before, none after. Payments process via Yoco (card).</div>
+            <div className="bg-[#F8DCE3] border border-[#cd2653]/30 rounded-xl p-4 text-sm text-[#cd2653]"><b>Policy:</b> no deposit, full settlement confirms the stall. Full refund if cancelled 8+ weeks before, none after. Payments process via Yoco (card).</div>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900">
               <p className="font-semibold mb-1">Yoco card payments confirm automatically.</p>
               <p className="text-blue-800">When a vendor pays through their portal, the bank webhook flips them to <b>paid</b> in seconds, no action needed here. The <i>Confirm manually</i> link is only for special cases: vendor messaged Support because the card flow failed, paid by EFT off-platform, paid cash at the door, or the fee was waived.</p>
             </div>
-            <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+            <div className="bg-[#FFFFFF] border border-[#E5E5E5] rounded-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead><tr className="text-left text-xs text-neutral-500 border-b border-neutral-200"><th className="p-3 font-semibold">Vendor</th><th className="p-3 font-semibold">Chosen booth</th><th className="p-3 font-semibold">Stall</th><th className="p-3 font-semibold">Amount</th><th className="p-3 font-semibold">Payment</th><th className="p-3 font-semibold">Yoco ref</th><th className="p-3 font-semibold text-right">Actions</th></tr></thead>
+                  <thead><tr className="text-left text-xs text-[#1B1A17]/60 border-b border-[#E5E5E5]"><th className="p-3 font-semibold">Vendor</th><th className="p-3 font-semibold">Chosen booth</th><th className="p-3 font-semibold">Stall</th><th className="p-3 font-semibold">Amount</th><th className="p-3 font-semibold">Payment</th><th className="p-3 font-semibold">Yoco ref</th><th className="p-3 font-semibold text-right">Actions</th></tr></thead>
                   <tbody>
                     {rows.map((r) => (
-                      <tr key={r.id} className="border-b border-neutral-100">
-                        <td className="p-3 font-semibold">{r.business_name}</td>
-                        <td className="p-3 text-neutral-600">{r.tier_label}</td>
-                        <td className="p-3">{r.stall || '—'}</td>
-                        <td className="p-3">{amountOf(r) ? `R${amountOf(r).toLocaleString()}` : '—'}</td>
+                      <tr key={r.id} className="border-b border-[#E5E5E5]/30">
+                        <td className="p-3 font-semibold text-[#1B1A17]">{r.business_name}</td>
+                        <td className="p-3 text-[#1B1A17]/60">{r.tier_label}</td>
+                        <td className="p-3 text-[#1B1A17]">{r.stall || '·'}</td>
+                        <td className="p-3 text-[#1B1A17]">{amountOf(r) ? `R${amountOf(r).toLocaleString()}` : '·'}</td>
                         <td className="p-3"><span className={`text-[11px] font-semibold border px-2 py-0.5 rounded ${pillFor(r.payment_status)}`}>{r.payment_status || 'none'}</span></td>
-                        <td className="p-3 text-xs text-neutral-500 font-mono">{r.payment_ref || '—'}</td>
+                        <td className="p-3 text-xs text-[#1B1A17]/60 font-mono">{r.payment_ref || '·'}</td>
                         <td className="p-3 text-right">
                           {r.payment_status === 'paid' ? (
                             <div className="inline-flex items-center gap-3 justify-end">
-                              <span className="text-[11px] text-neutral-400 inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-500" />confirmed</span>
+                              <span className="text-[11px] text-[#1B1A17]/40 inline-flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-green-500" />confirmed</span>
                               <button
                                 onClick={() => resendInvoice(r)}
                                 disabled={resendingFor === r.id}
                                 title="Resend the payment confirmation + invoice link to the vendor's email"
-                                className="text-[11px] font-semibold text-neutral-500 hover:text-[#cd2653] hover:underline inline-flex items-center gap-1 disabled:opacity-60"
+                                className="text-[11px] font-semibold text-[#1B1A17]/60 hover:text-[#cd2653] hover:underline inline-flex items-center gap-1 disabled:opacity-60"
                               >
                                 {resendingFor === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
                                 {resendingFor === r.id ? 'Sending…' : 'Resend invoice'}
@@ -361,7 +302,7 @@ export default function VendorOpsPage() {
                             <button
                               onClick={() => { setMarkPaidFor(r); setPaidMethod('manual_card'); setPaidRef(''); setPaidAmountOverride('') }}
                               title="Use only for off-platform payments (EFT, cash, waived). Yoco card payments confirm themselves."
-                              className="text-[11px] font-semibold text-neutral-500 hover:text-[#cd2653] hover:underline"
+                              className="text-[11px] font-semibold text-[#1B1A17]/60 hover:text-[#cd2653] hover:underline"
                             >
                               Confirm manually
                             </button>
@@ -381,15 +322,15 @@ export default function VendorOpsPage() {
         const foodWords = ['food', 'beverage', 'drink', 'dessert', 'meat', 'bak', 'cater', 'snack', 'restaurant', 'coffee']
         const food = data.applications.filter((a) => (a.categories || []).some((c) => foodWords.some((w) => c.toLowerCase().includes(w))))
         return (
-          <div className="bg-white border border-neutral-200 rounded-xl p-6 max-w-2xl">
+          <div className="bg-[#FFFFFF]/92 border border-[#E5E5E5] rounded-xl p-6 max-w-2xl backdrop-blur-md">
             <p className="font-bold mb-1">Food vendor compliance (COA)</p>
             <p className="text-sm text-neutral-500 mb-4">All food is strictly halaal (vendors vetted). Food vendors must submit a <b>Certificate of Acceptability</b>. {food.length} food vendors detected from real applications.</p>
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {food.length === 0 && <p className="text-sm text-neutral-400">No food vendors found.</p>}
               {food.map((v) => (
-                <div key={v.id} className="flex items-center justify-between p-3 rounded-lg border border-neutral-200">
-                  <div><p className="text-sm font-semibold">{v.business_name}</p><p className="text-xs text-neutral-500">{(v.categories || []).join(', ')}{v.stall ? ` · ${v.stall}` : ''}</p></div>
-                  <span className="text-[11px] font-semibold border px-2 py-0.5 rounded bg-neutral-50 text-neutral-500 border-neutral-200">COA required</span>
+                <div key={v.id} className="flex items-center justify-between p-3 rounded-lg border border-[#E5E5E5] bg-[#FFFFFF]">
+                  <div><p className="text-sm font-semibold text-[#1B1A17]">{v.business_name}</p><p className="text-xs text-[#1B1A17]/60">{(v.categories || []).join(', ')}{v.stall ? ` · ${v.stall}` : ''}</p></div>
+                  <span className="text-[11px] font-semibold border px-2 py-0.5 rounded bg-[#FFFFFF] text-[#1B1A17]/60 border-[#E5E5E5]">COA required</span>
                 </div>
               ))}
             </div>
@@ -398,19 +339,19 @@ export default function VendorOpsPage() {
       })()}
 
       {markPaidFor && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !markingPaid && setMarkPaidFor(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md" onClick={() => !markingPaid && setMarkPaidFor(null)}>
+          <div className="bg-[#FFFFFF] rounded-2xl border border-[#E5E5E5] shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h3 className="text-lg font-bold text-neutral-900">Confirm payment manually</h3>
-                <p className="text-sm text-neutral-500 mt-0.5">{markPaidFor.business_name}</p>
-                <p className="text-[11px] text-neutral-400 mt-1">Only for off-platform payments. Yoco card pays confirm themselves.</p>
+                <h3 className="text-lg font-bold text-[#1B1A17]">Confirm payment manually</h3>
+                <p className="text-sm text-[#1B1A17]/60 mt-0.5">{markPaidFor.business_name}</p>
+                <p className="text-[11px] text-[#1B1A17]/40 mt-1">Only for off-platform payments. Yoco card pays confirm themselves.</p>
               </div>
               <button onClick={() => setMarkPaidFor(null)} className="text-neutral-400 hover:text-neutral-700"><X className="w-4 h-4" /></button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-neutral-600">How was this paid?</label>
+                <label className="text-xs font-semibold text-[#1B1A17]/60">How was this paid?</label>
                 <div className="mt-1 grid grid-cols-2 gap-2">
                   {([
                     { v: 'manual_card', l: 'Yoco card (manual)' },
@@ -421,7 +362,7 @@ export default function VendorOpsPage() {
                     <button
                       key={opt.v}
                       onClick={() => setPaidMethod(opt.v)}
-                      className={`px-3 py-2 text-sm rounded-lg border text-left ${paidMethod === opt.v ? 'border-[#cd2653] bg-[#cd2653]/5 font-semibold text-[#cd2653]' : 'border-neutral-200 text-neutral-700 hover:border-neutral-300'}`}
+                      className={`px-3 py-2 text-sm rounded-lg border text-left ${paidMethod === opt.v ? 'border-[#cd2653] bg-[#cd2653]/10 font-semibold text-[#cd2653]' : 'border-[#E5E5E5] text-[#1B1A17] hover:border-[#E5DCC4]'}`}
                     >
                       {opt.l}
                     </button>
@@ -429,16 +370,16 @@ export default function VendorOpsPage() {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-semibold text-neutral-600">Reference (optional)</label>
+                <label className="text-xs font-semibold text-[#1B1A17]/60">Reference (optional)</label>
                 <input
                   value={paidRef}
                   onChange={(e) => setPaidRef(e.target.value)}
                   placeholder="FNB ref, Yoco ID, slip number, etc"
-                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-[#cd2653]"
+                  className="mt-1 w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm outline-none focus:border-[#cd2653] bg-[#FFFFFF]"
                 />
               </div>
               <div>
-                <label className="text-xs font-semibold text-neutral-600">Override amount (optional)</label>
+                <label className="text-xs font-semibold text-[#1B1A17]/60">Override amount (optional)</label>
                 <input
                   value={paidAmountOverride}
                   onChange={(e) => setPaidAmountOverride(e.target.value)}
@@ -446,10 +387,10 @@ export default function VendorOpsPage() {
                     const a = markPaidFor.payment_amount ?? (markPaidFor.tier ? TIER_META[markPaidFor.tier]?.price || 0 : 0)
                     return a ? `Leave blank to use R${a.toLocaleString()}` : 'Required if no quoted amount'
                   })()}
-                  className="mt-1 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-[#cd2653]"
+                  className="mt-1 w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm outline-none focus:border-[#cd2653] bg-[#FFFFFF]"
                 />
               </div>
-              <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3">
+              <div className="rounded-lg bg-[#F8DCE3] border border-[#cd2653]/30 text-[#bf3026] text-xs p-3">
                 This sends the vendor a payment-confirmation email and WhatsApp template. Reversible from this row.
               </div>
             </div>
@@ -457,14 +398,14 @@ export default function VendorOpsPage() {
               <button
                 onClick={() => setMarkPaidFor(null)}
                 disabled={markingPaid}
-                className="flex-1 px-4 py-2.5 rounded-lg border border-neutral-200 text-sm font-semibold text-neutral-700 hover:bg-neutral-50 disabled:opacity-50"
+                className="flex-1 px-4 py-2.5 rounded-lg border border-[#E5E5E5] text-sm font-semibold text-[#1B1A17] hover:bg-[#FFFFFF] disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmMarkPaid}
                 disabled={markingPaid}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-[#cd2653] hover:bg-[#b01f45] text-white text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 rounded-lg bg-[#cd2653] hover:bg-[#bf3026] text-white text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2 shadow-[0_8px_28px_rgba(184,146,74,.25)]"
               >
                 {markingPaid ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                 Confirm paid
@@ -476,28 +417,28 @@ export default function VendorOpsPage() {
 
       {!loading && tab === 'broadcast' && data && (
         <div className="grid lg:grid-cols-2 gap-5">
-          <div className="bg-white border border-neutral-200 rounded-xl p-6">
-            <p className="font-bold mb-3">Compose broadcast</p>
+          <div className="bg-[#FFFFFF]/92 border border-[#E5E5E5] rounded-xl p-6 backdrop-blur-md">
+            <p className="font-bold mb-3 text-[#1B1A17]">Compose broadcast</p>
             <label className="text-xs font-semibold text-neutral-600">Audience</label>
-            <select className="mt-1 mb-3 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm"><option>All approved vendors ({approvedCount})</option><option>Placed vendors ({placedCount})</option></select>
+            <select className="mt-1 mb-3 w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm bg-[#FFFFFF]"><option>All approved vendors ({approvedCount})</option><option>Placed vendors ({placedCount})</option></select>
             <div className="relative">
-              <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={5} className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-[#cd2653]" />
-              <button onClick={polish} disabled={polishing} className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-[#cd2653] to-[#7c1d3a] text-white rounded-lg px-2.5 py-1.5 hover:opacity-90 disabled:opacity-60">
+              <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={5} className="w-full rounded-lg border border-[#E5E5E5] px-3 py-2 text-sm outline-none focus:border-[#cd2653] bg-[#FFFFFF]" />
+              <button onClick={polish} disabled={polishing} className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-[#cd2653] to-[#bf3026] text-white rounded-lg px-2.5 py-1.5 hover:opacity-90 disabled:opacity-60">
                 {polishing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}{polishing ? 'Polishing…' : 'Polish with AI'}
               </button>
             </div>
-            <p className="text-[11px] text-neutral-400 mt-1.5">AI (Claude) corrects spelling, grammar and standardises tone before you send.</p>
-            <button onClick={() => toast.success(`Queued to ${approvedCount} approved vendors`)} className="mt-3 w-full bg-[#cd2653] hover:bg-[#b01f45] text-white font-semibold rounded-lg py-2.5 text-sm">Queue broadcast</button>
-            <p className="text-[11px] text-neutral-400 mt-2">WhatsApp delivery activates once the Meta WABA number is approved.</p>
+            <p className="text-[11px] text-[#1B1A17]/40 mt-1.5">AI (Claude) corrects spelling, grammar and standardises tone before you send.</p>
+            <button onClick={() => toast.success(`Queued to ${approvedCount} approved vendors`)} className="mt-3 w-full bg-[#cd2653] hover:bg-[#bf3026] text-white font-semibold rounded-lg py-2.5 text-sm shadow-[0_8px_28px_rgba(184,146,74,.25)]">Queue broadcast</button>
+            <p className="text-[11px] text-[#1B1A17]/40 mt-2">WhatsApp delivery activates once the Meta WABA number is approved.</p>
           </div>
-          <div className="bg-white border border-neutral-200 rounded-xl p-6">
-            <p className="font-bold mb-1 flex items-center gap-2"><MapPin className="w-4 h-4 text-[#cd2653]" />Allocation snapshot</p>
-            <p className="text-sm text-neutral-500 mb-4">Live from the plan.</p>
+          <div className="bg-[#FFFFFF]/92 border border-[#E5E5E5] rounded-xl p-6 backdrop-blur-md">
+            <p className="font-bold mb-1 flex items-center gap-2 text-[#1B1A17]"><MapPin className="w-4 h-4 text-[#cd2653]" />Allocation snapshot</p>
+            <p className="text-sm text-[#1B1A17]/60 mb-4">Live from the plan.</p>
             <div className="space-y-2">
               {(Object.keys(TYPE_META) as StallType[]).map((t) => (
                 <div key={t} className="flex items-center justify-between text-sm">
                   <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full" style={{ background: TYPE_META[t].color }} />{TYPE_META[t].label}</span>
-                  <span className="text-neutral-500">{av![t].allocated + av![t].held}/{av![t].total} taken</span>
+                  <span className="text-[#1B1A17]/60">{av![t].allocated + av![t].held}/{av![t].total} taken</span>
                 </div>
               ))}
             </div>

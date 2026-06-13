@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendText, toE164 } from '@/lib/whatsapp'
 import { isAdmin } from '@/lib/bot/admins'
+import { escalateToHuman } from '@/lib/bot/handover'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, channel: 'portal' })
   }
 
-  // Bot-admin-only WhatsApp replies (the original inbox use case) — kept on
+  // Bot-admin-only WhatsApp replies (the original inbox use case), kept on
   // the same admin allowlist as before. Replies to vendors via WA need a
   // template (24h window), handled by other admin endpoints.
   if (!isAdminRecipient) {
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
       provider_message_id: res.messageId || null,
       error: res.skipped || null,
     })
+    try { await escalateToHuman(e164, 'reply from /admin/bot-inbox') } catch {}
     if (res.skipped) {
       return NextResponse.json({ ok: false, error: 'Send blocked: ' + res.skipped }, { status: 422 })
     }

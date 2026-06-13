@@ -1,224 +1,322 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Send, Clock, Crown, Star } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Send, Sparkles, Loader2, MessageCircle, Crown, Star, ArrowRight } from 'lucide-react'
 import type { BotAdmin } from '@/lib/bot/admins'
+import { PageShell, PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
+
+interface MsgRow {
+  id: string
+  wa_phone: string
+  direction: 'in' | 'out'
+  body: string | null
+  status: string | null
+  created_at: string
+  provider_message_id: string | null
+}
 
 export interface AdminThread {
   admin: BotAdmin
-  messages: Array<{
-    id: string
-    wa_phone: string
-    direction: 'in' | 'out'
-    body: string | null
-    status: string | null
-    created_at: string
-    provider_message_id: string | null
-  }>
+  messages: MsgRow[]
   latestAt: string | null
   latestPreview: string
   lastInboundAt: string | null
   unreadCount: number
 }
 
-function formatTime(iso: string | null): string {
+export interface GuestThread {
+  phone: string
+  label: string
+  sublabel: string
+  messages: MsgRow[]
+  handover: 'human' | 'bot'
+  latestAt: string | null
+  latestPreview: string
+  lastInboundAt: string | null
+  unreadCount: number
+}
+
+type Selection =
+  | { kind: 'admin'; idx: number }
+  | { kind: 'guest'; idx: number }
+
+function fmt(iso: string | null): string {
   if (!iso) return ''
-  const d = new Date(iso)
-  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
-function hoursSince(iso: string | null): number | null {
-  if (!iso) return null
-  return (Date.now() - new Date(iso).getTime()) / 3.6e6
-}
+export function BotInboxClient({
+  adminThreads,
+  guestThreads,
+}: {
+  adminThreads: AdminThread[]
+  guestThreads: GuestThread[]
+}) {
+  const initialSelection: Selection | null = guestThreads.length > 0
+    ? { kind: 'guest', idx: 0 }
+    : adminThreads.length > 0
+    ? { kind: 'admin', idx: 0 }
+    : null
+  const [sel, setSel] = useState<Selection | null>(initialSelection)
+  const router = useRouter()
 
-export function BotInboxClient({ threads }: { threads: AdminThread[] }) {
-  const [activeIdx, setActiveIdx] = useState(0)
-  const active = threads[activeIdx]
+  // Poll for new messages every 15 s. router.refresh() re-runs the page's
+  // server function which re-fetches wa_messages, so we get every new inbound
+  // without a hard reload. Pauses when the tab is hidden.
+  useEffect(() => {
+    const tick = () => { if (!document.hidden) router.refresh() }
+    const id = setInterval(tick, 15000)
+    return () => clearInterval(id)
+  }, [router])
+
+  const active = useMemo<{ phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest'; handover?: 'human' | 'bot' } | null>(() => {
+    if (!sel) return null
+    if (sel.kind === 'admin') {
+      const t = adminThreads[sel.idx]; if (!t) return null
+      return { phone: t.admin.phone, label: t.admin.name, messages: t.messages, kind: 'admin' }
+    }
+    const t = guestThreads[sel.idx]; if (!t) return null
+    return { phone: t.phone, label: t.label, messages: t.messages, kind: 'guest', handover: t.handover }
+  }, [sel, adminThreads, guestThreads])
 
   return (
-    <div className="flex h-screen">
-      {/* Thread list */}
-      <aside className="w-80 border-r border-neutral-200 bg-white">
-        <div className="px-6 py-5 border-b border-neutral-200">
-          <h1 className="text-xl font-bold text-neutral-900">Bot Inbox</h1>
-          <p className="text-xs text-neutral-500 mt-0.5">Admin conversations only — vendors/customers don't show here.</p>
-        </div>
-        <div>
-          {threads.map((t, i) => (
-            <button
-              key={t.admin.phone}
-              onClick={() => setActiveIdx(i)}
-              className={`w-full text-left px-6 py-4 border-b border-neutral-100 transition-colors ${
-                i === activeIdx ? 'bg-[#cd2653]/5 border-l-4 border-l-[#cd2653]' : 'hover:bg-neutral-50'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
-                  {t.admin.role === 'master' ? (
-                    <Crown className="w-3.5 h-3.5 text-amber-500" />
-                  ) : (
-                    <Star className="w-3.5 h-3.5 text-[#cd2653]" />
-                  )}
-                  <span className="font-semibold text-neutral-900 text-sm">{t.admin.name}</span>
-                </div>
-                {t.unreadCount > 0 && (
-                  <span className="bg-[#cd2653] text-white text-[10px] font-bold rounded-full px-2 py-0.5">
-                    {t.unreadCount}
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-neutral-500 truncate">{t.latestPreview || '(no messages yet)'}</p>
-              <p className="text-[10px] text-neutral-400 mt-1">{formatTime(t.latestAt)}</p>
-            </button>
-          ))}
-        </div>
-      </aside>
+    <PageShell>
+      <PageHeader
+        kicker="WhatsApp"
+        title="Bot Inbox"
+        subtitle="Every conversation with the YAH WhatsApp bot, in one place. Click a thread to read it, see the AI summary, pick a suggested reply or type your own."
+      />
 
-      {/* Conversation pane */}
-      <main className="flex-1 flex flex-col bg-[#f8f8f8]">
-        {active ? <ConversationPane thread={active} /> : <EmptyState />}
-      </main>
-    </div>
+      <div className="grid lg:grid-cols-[340px_1fr] gap-5">
+        {/* LEFT: thread list */}
+        <div className="space-y-5">
+          {guestThreads.length > 0 && (
+            <Card padded={false}>
+              <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#cd2653]">Vendor / guest threads</p>
+                <span className="text-[11px] text-neutral-500">{guestThreads.length}</span>
+              </div>
+              <div className="divide-y divide-neutral-100 max-h-[480px] overflow-y-auto">
+                {guestThreads.map((t, i) => (
+                  <button
+                    key={t.phone}
+                    onClick={() => setSel({ kind: 'guest', idx: i })}
+                    className={`w-full text-left p-3 hover:bg-neutral-50 transition-colors ${sel?.kind === 'guest' && sel.idx === i ? 'bg-[#cd2653]/5' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <p className="text-sm font-semibold text-neutral-900 truncate">{t.label}</p>
+                      {t.handover === 'human' && <Pill tone="brand">human</Pill>}
+                      {t.unreadCount > 0 && <span className="text-[10px] font-bold bg-[#cd2653] text-white rounded-full px-1.5 py-0.5">{t.unreadCount}</span>}
+                    </div>
+                    <p className="text-[11px] text-neutral-500 truncate font-mono">{t.phone}</p>
+                    <p className="text-xs text-neutral-600 truncate mt-1">{t.latestPreview}</p>
+                    <p className="text-[10px] text-neutral-400 mt-1">{fmt(t.latestAt)}</p>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {adminThreads.length > 0 && (
+            <Card padded={false}>
+              <div className="px-4 py-3 border-b border-neutral-200">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-neutral-600">Admin threads</p>
+              </div>
+              <div className="divide-y divide-neutral-100">
+                {adminThreads.map((t, i) => (
+                  <button
+                    key={t.admin.phone}
+                    onClick={() => setSel({ kind: 'admin', idx: i })}
+                    className={`w-full text-left p-3 hover:bg-neutral-50 transition-colors ${sel?.kind === 'admin' && sel.idx === i ? 'bg-[#cd2653]/5' : ''}`}
+                  >
+                    <div className="flex items-center gap-2 mb-0.5">
+                      {t.admin.role === 'master' ? <Crown className="w-3.5 h-3.5 text-[#cd2653]" /> : <Star className="w-3.5 h-3.5 text-[#cd2653]" />}
+                      <p className="text-sm font-semibold text-neutral-900">{t.admin.name}</p>
+                      {t.unreadCount > 0 && <span className="ml-auto text-[10px] font-bold bg-[#cd2653] text-white rounded-full px-1.5 py-0.5">{t.unreadCount}</span>}
+                    </div>
+                    <p className="text-xs text-neutral-600 truncate mt-1">{t.latestPreview}</p>
+                    <p className="text-[10px] text-neutral-400 mt-1">{fmt(t.latestAt)}</p>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {guestThreads.length === 0 && adminThreads.length === 0 && (
+            <Card>
+              <div className="flex items-center gap-3 text-neutral-500 text-sm">
+                <MessageCircle className="w-5 h-5" />
+                No conversations yet.
+              </div>
+            </Card>
+          )}
+        </div>
+
+        {/* RIGHT: active thread */}
+        <div>
+          {active ? (
+            <ActiveThread key={active.phone} active={active} />
+          ) : (
+            <Card>
+              <p className="text-sm text-neutral-500">Pick a thread on the left.</p>
+            </Card>
+          )}
+        </div>
+      </div>
+    </PageShell>
   )
 }
 
-function ConversationPane({ thread }: { thread: AdminThread }) {
-  const sorted = useMemo(
-    () => [...thread.messages].sort((a, b) => a.created_at.localeCompare(b.created_at)),
-    [thread]
-  )
-  const windowHours = hoursSince(thread.lastInboundAt)
-  const inWindow = windowHours !== null && windowHours < 24
-  const [reply, setReply] = useState('')
-  const [sending, setSending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [optimistic, setOptimistic] = useState<typeof sorted>([])
+// -------------------- ActiveThread (right pane) --------------------
 
-  async function handleSend() {
-    if (!reply.trim() || sending) return
+interface ActiveThreadProps {
+  active: { phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest'; handover?: 'human' | 'bot' }
+}
+
+function ActiveThread({ active }: ActiveThreadProps) {
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const [summary, setSummary] = useState<{ summary: string; context: string; suggestions: string[] } | null>(null)
+  const [summarizing, setSummarizing] = useState(false)
+  const sorted = useMemo(() => [...active.messages].sort((a, b) => a.created_at.localeCompare(b.created_at)), [active.messages])
+
+  async function doSend() {
+    if (!text.trim()) return
     setSending(true)
-    setError(null)
-    const body = reply.trim()
     try {
       const res = await fetch('/api/admin/bot-inbox/reply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: thread.admin.phone, body }),
+        body: JSON.stringify({ to: active.phone, body: text }),
       })
-      const json = await res.json()
-      if (!res.ok || !json.ok) throw new Error(json.error || `HTTP ${res.status}`)
-      setOptimistic((prev) => [
-        ...prev,
-        {
-          id: `local-${Date.now()}`,
-          wa_phone: thread.admin.phone,
-          direction: 'out',
-          body,
-          status: 'sent',
-          created_at: new Date().toISOString(),
-          provider_message_id: null,
-        },
-      ])
-      setReply('')
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'send failed')
+      setText('')
+      // hard reload to pick up the new outbound row
+      window.location.reload()
     } catch (e) {
-      setError((e as Error).message)
+      alert(e instanceof Error ? e.message : 'send failed')
     } finally {
       setSending(false)
     }
   }
 
-  const all = [...sorted, ...optimistic]
+  async function fetchSummary() {
+    setSummarizing(true)
+    try {
+      const res = await fetch('/api/admin/bot-inbox/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: active.phone }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || 'summary failed')
+      setSummary({ summary: j.summary || '', context: j.context || '', suggestions: j.suggestions || [] })
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'summary failed')
+    } finally {
+      setSummarizing(false)
+    }
+  }
+
+  useEffect(() => {
+    setSummary(null)
+    if (active.kind === 'guest' && sorted.length > 0) {
+      // auto-summarize on thread switch (one shot, cheap)
+      fetchSummary()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active.phone])
 
   return (
-    <>
-      <header className="px-8 py-5 bg-white border-b border-neutral-200">
-        <div className="flex items-center justify-between">
+    <div className="space-y-4">
+      <Card>
+        <div className="flex items-center gap-3 flex-wrap">
           <div>
-            <h2 className="text-lg font-bold text-neutral-900">{thread.admin.name}</h2>
-            <p className="text-xs text-neutral-500">
-              {thread.admin.role === 'master' ? 'Master admin' : 'Festival owner'} · {thread.admin.phone}
-            </p>
+            <p className="text-xs text-neutral-500 uppercase tracking-wider font-semibold">Thread</p>
+            <p className="font-serif text-2xl text-neutral-900">{active.label}</p>
+            <p className="text-xs text-neutral-500 font-mono mt-0.5">{active.phone}</p>
           </div>
-          <div className="text-right">
-            <div className="flex items-center gap-1.5 text-xs">
-              <Clock className="w-3.5 h-3.5 text-neutral-400" />
-              {windowHours === null ? (
-                <span className="text-neutral-500">No inbound yet</span>
-              ) : inWindow ? (
-                <span className="text-emerald-600">24h window open ({windowHours.toFixed(1)}h ago)</span>
-              ) : (
-                <span className="text-amber-600">Outside 24h window — use a template</span>
+          <div className="ml-auto flex items-center gap-2">
+            {active.kind === 'guest' && active.handover === 'human' && <Pill tone="brand">human handling</Pill>}
+            {active.kind === 'guest' && active.handover === 'bot' && <Pill tone="neutral">auto-bot</Pill>}
+            {active.kind === 'admin' && <Pill tone="neutral">admin</Pill>}
+          </div>
+        </div>
+      </Card>
+
+      {/* AI summary + suggestions (guest threads only) */}
+      {active.kind === 'guest' && (
+        <Card>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-[#cd2653]" />
+            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#cd2653]">AI summary &amp; suggested replies</p>
+            <button
+              onClick={fetchSummary}
+              disabled={summarizing}
+              className="ml-auto text-[11px] font-semibold text-[#cd2653] hover:underline disabled:opacity-50 flex items-center gap-1"
+            >
+              {summarizing ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+              {summarizing ? 'Thinking…' : 'Refresh'}
+            </button>
+          </div>
+          {summary ? (
+            <div className="space-y-3">
+              <p className="text-sm text-neutral-900 font-medium">{summary.summary || 'No summary.'}</p>
+              {summary.context && <p className="text-xs text-neutral-600">{summary.context}</p>}
+              {summary.suggestions.length > 0 && (
+                <div className="space-y-2">
+                  {summary.suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setText(s)}
+                      className="w-full text-left bg-neutral-50 hover:bg-[#cd2653]/5 border border-neutral-200 hover:border-[#cd2653]/40 rounded-lg px-3 py-2 text-sm text-neutral-700 transition-colors flex items-start gap-2 group"
+                    >
+                      <ArrowRight className="w-3.5 h-3.5 mt-0.5 text-neutral-400 group-hover:text-[#cd2653]" />
+                      <span className="flex-1">{s}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-        </div>
-      </header>
+          ) : (
+            <p className="text-xs text-neutral-500 italic">{summarizing ? 'Thinking…' : 'No summary yet.'}</p>
+          )}
+        </Card>
+      )}
 
-      <div className="flex-1 overflow-auto px-8 py-6 space-y-3">
-        {all.length === 0 && (
-          <div className="text-center text-neutral-400 text-sm py-12">No messages yet.</div>
-        )}
-        {all.map((m) => (
-          <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[70%] rounded-2xl px-4 py-2.5 text-sm ${
-                m.direction === 'out'
-                  ? 'bg-[#cd2653] text-white'
-                  : 'bg-white border border-neutral-200 text-neutral-900'
-              }`}
-            >
-              <p className="whitespace-pre-wrap">{m.body}</p>
-              <p
-                className={`text-[10px] mt-1 ${
-                  m.direction === 'out' ? 'text-white/70' : 'text-neutral-400'
-                }`}
-              >
-                {formatTime(m.created_at)} · {m.status}
-              </p>
+      {/* Conversation */}
+      <Card padded={false}>
+        <div className="p-4 max-h-[55vh] overflow-y-auto space-y-2">
+          {sorted.length === 0 && <p className="text-sm text-neutral-500 italic">No messages.</p>}
+          {sorted.map((m) => (
+            <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm ${m.direction === 'out' ? 'bg-[#cd2653] text-white' : 'bg-neutral-100 text-neutral-900'}`}>
+                <p className="whitespace-pre-wrap">{m.body}</p>
+                <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-white/60' : 'text-neutral-400'}`}>{fmt(m.created_at)}</p>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
-
-      <footer className="px-8 py-4 bg-white border-t border-neutral-200">
-        {!inWindow && (
-          <p className="text-xs text-amber-600 mb-2">
-            Their last inbound was over 24h ago — free-form sends will be blocked by Meta. Send an
-            approved template from Broadcast to re-open the window.
-          </p>
-        )}
-        <div className="flex gap-3">
-          <textarea
-            value={reply}
-            onChange={(e) => setReply(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSend()
-            }}
-            placeholder={inWindow ? 'Reply to ' + thread.admin.name.split(' ')[0] + '… (⌘↵ to send)' : 'Window closed'}
-            disabled={!inWindow || sending}
-            rows={2}
-            className="flex-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#cd2653]/30 disabled:bg-neutral-50 disabled:text-neutral-400"
+          ))}
+        </div>
+        <div className="border-t border-neutral-200 p-3 flex items-center gap-2">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend() } }}
+            placeholder="Type your reply…"
+            className="flex-1 rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-[#cd2653]"
           />
           <button
-            onClick={handleSend}
-            disabled={!inWindow || sending || !reply.trim()}
-            className="bg-[#cd2653] text-white rounded-lg px-5 py-2 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
+            onClick={doSend}
+            disabled={sending || !text.trim()}
+            className="bg-[#cd2653] hover:bg-[#bf3026] text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-50"
           >
-            <Send className="w-4 h-4" />
-            {sending ? 'Sending…' : 'Send'}
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Send
           </button>
         </div>
-        {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-      </footer>
-    </>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">
-      Pick an admin on the left to see the conversation.
+      </Card>
     </div>
   )
 }

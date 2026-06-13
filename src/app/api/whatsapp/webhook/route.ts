@@ -14,7 +14,7 @@ import {
   isStopKeyword,
   isStartKeyword,
 } from '@/lib/wa-consent'
-import { askFestivalBrain, FESTIVAL_SYSTEM_PROMPT } from '@/lib/festival-brain'
+import { askFestivalBrain } from '@/lib/festival-brain'
 import { detectHumanIntent, escalateToHuman, isInHandover } from '@/lib/bot/handover'
 import { notifyOwners } from '@/lib/bot/notify'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -203,13 +203,19 @@ async function handleInbound(msg: {
   // count, etc.). Admins are already handled above; resolution here is for
   // vendors / ticket buyers / unknowns.
   const identity = await resolveIdentity(e164)
-  const personalisedSystem = `${FESTIVAL_SYSTEM_PROMPT}\n\n=== ABOUT THE SENDER ===\n${identityBriefing(identity)}`
 
   const history = await recentHistory(e164)
-  history.push({ role: 'user', content: msg.text })
+  // New brain shape: pass the latest user turn as the message, prior turns as
+  // history, and per-caller identity briefing as extraSystem. The brain owns
+  // the system prompt, intent routing, FAQ short-circuit, and sign-off rule.
   let reply = ''
   try {
-    reply = await askFestivalBrain(history, { system: personalisedSystem })
+    const result = await askFestivalBrain(msg.text, {
+      waId: e164,
+      history,
+      extraSystem: identityBriefing(identity),
+    })
+    reply = result.message
   } catch (e) {
     console.error('brain error', e)
     reply = identity.firstName

@@ -1,12 +1,18 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { randomBytes } from 'crypto'
 
 // Readable-but-random temp password, e.g. "Khcd4821!"
+// Audit L1: CSPRNG via crypto.randomBytes instead of Math.random so the
+// temporary creds can't be guessed by an attacker who knows the time of
+// account provisioning.
 function genPassword(): string {
   const lower = 'abcdefghijkmnpqrstuvwxyz'
   const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ'
-  let s = upper[Math.floor(Math.random() * upper.length)]
-  for (let i = 0; i < 4; i++) s += lower[Math.floor(Math.random() * lower.length)]
-  s += Math.floor(1000 + Math.random() * 9000)
+  const buf = randomBytes(9)
+  let s = upper[buf[0] % upper.length]
+  for (let i = 1; i <= 4; i++) s += lower[buf[i] % lower.length]
+  const digits = (buf.readUInt16BE(5) % 9000) + 1000
+  s += String(digits)
   return s + '!'
 }
 

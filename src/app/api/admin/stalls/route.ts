@@ -143,6 +143,30 @@ export async function POST(req: NextRequest) {
     const { error } = await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', applicationId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+    // Best-effort: fire the vendor_stall_allocation WhatsApp template ONLY on
+    // a fresh allocation (not on hold). Vendor learns their stall + zone.
+    if (action === 'allocated') {
+      try {
+        const { data: full } = await admin
+          .from('vendor_applications')
+          .select('phone, contact_name')
+          .eq('id', applicationId).single()
+        const phone = full?.phone as string | undefined
+        if (phone && full) {
+          const stallMeta = STALL_LIST.find((s) => s.code === stallCode)
+          const zone = STALL_ZONES.find((z) =>
+            stallMeta && stallMeta.col >= z.col && stallMeta.col < z.col + z.w
+            && stallMeta.row >= z.row && stallMeta.row < z.row + z.h
+          )?.label || 'Main marquee'
+          const firstName = (full.contact_name as string || '').trim().split(/\s+/)[0] || 'there'
+          const { sendTemplate, toE164 } = await import('@/lib/whatsapp')
+          await sendTemplate(toE164(phone), 'vendor_stall_allocation', [firstName, stallCode, zone], { category: 'utility' })
+        }
+      } catch (e) {
+        console.error('[stalls] vendor_stall_allocation WA failed:', (e as Error).message)
+      }
+    }
+
     return NextResponse.json({ ok: true, message: `${stallCode} → ${app.business_name} (${action})` })
   } catch (e) {
     console.error('stalls POST', e)

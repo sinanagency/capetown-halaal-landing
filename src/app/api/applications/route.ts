@@ -156,6 +156,19 @@ export async function POST(request: NextRequest) {
       console.error('[applications] notify owner failed:', notifyError)
     }
 
+    // Best-effort: instant ack to the vendor on WhatsApp.
+    try {
+      const phone = (validated.phone || '') as string
+      if (phone) {
+        const { sendTemplate, toE164 } = await import('@/lib/whatsapp')
+        const firstName = (validated.contact_name as string).trim().split(/\s+/)[0] || 'there'
+        const wa = await sendTemplate(toE164(phone), 'vendor_application_received', [firstName], { category: 'utility' })
+        if (wa.skipped) console.warn('[applications] WA ack skipped:', wa.skipped)
+      }
+    } catch (e) {
+      console.error('[applications] WA ack failed:', (e as Error).message)
+    }
+
     return NextResponse.json({ success: true, application: data, emailSent })
   } catch (error) {
     if (error instanceof z.ZodError) {
