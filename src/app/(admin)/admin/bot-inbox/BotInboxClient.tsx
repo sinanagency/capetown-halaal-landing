@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Sparkles, Loader2, MessageCircle, Crown, Star, ArrowRight } from 'lucide-react'
+import { Send, Sparkles, Loader2, MessageCircle, Crown, Star, ArrowRight, Clock, UserCheck, CheckCircle2, RotateCcw } from 'lucide-react'
 import type { BotAdmin } from '@/lib/bot/admins'
 import { PageShell, PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
 
@@ -244,6 +244,7 @@ function ActiveThread({ active }: ActiveThreadProps) {
             {active.kind === 'admin' && <Pill tone="neutral">admin</Pill>}
           </div>
         </div>
+        <ThreadActions threadKey={active.phone} channel="wa" />
       </Card>
 
       {/* AI summary + suggestions (guest threads only) */}
@@ -317,6 +318,96 @@ function ActiveThread({ active }: ActiveThreadProps) {
           </button>
         </div>
       </Card>
+    </div>
+  )
+}
+
+// Multi-tool thread actions per Taona Message 12. Wire-up to wa_threads via
+// /api/admin/bot-inbox/thread/action. Each button posts an action and
+// re-fetches the row to keep the status pill honest. Kept inline because the
+// state is per-thread and the parent already owns the active thread.
+function ThreadActions({ threadKey, channel }: { threadKey: string; channel: 'wa' | 'mail' }) {
+  const [status, setStatus] = useState<'open' | 'snoozed' | 'done' | null>(null)
+  const [snoozedUntil, setSnoozedUntil] = useState<string | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [assignee, setAssignee] = useState<string | null>(null)
+
+  async function refresh() {
+    try {
+      const res = await fetch(`/api/admin/bot-inbox/thread/action?channel=${channel}&threadKey=${encodeURIComponent(threadKey)}`)
+      const j = await res.json()
+      const t = j?.thread
+      setStatus((t?.status as 'open' | 'snoozed' | 'done') ?? 'open')
+      setSnoozedUntil(t?.snoozed_until ?? null)
+      setAssignee(t?.assignee_id ?? null)
+    } catch {
+      // silent — actions still work, just no pill state
+    }
+  }
+  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [threadKey, channel])
+
+  async function act(action: string, snoozeHours?: number) {
+    setBusy(action)
+    try {
+      const res = await fetch('/api/admin/bot-inbox/thread/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadKey, channel, action, snoozeHours }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `${action} failed`)
+      const t = j.thread
+      setStatus((t?.status as 'open' | 'snoozed' | 'done') ?? 'open')
+      setSnoozedUntil(t?.snoozed_until ?? null)
+      setAssignee(t?.assignee_id ?? null)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'action failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const Btn = (props: { onClick: () => void; disabled?: boolean; children: React.ReactNode; active?: boolean }) => (
+    <button
+      onClick={props.onClick}
+      disabled={props.disabled}
+      className={`text-xs font-medium px-3 py-1.5 rounded-full border flex items-center gap-1.5 disabled:opacity-50 transition-colors ${
+        props.active
+          ? 'bg-[#cd2653] border-[#cd2653] text-white'
+          : 'bg-white border-neutral-200 text-neutral-700 hover:border-[#cd2653]/40 hover:text-[#cd2653]'
+      }`}
+    >
+      {props.children}
+    </button>
+  )
+
+  return (
+    <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center gap-2 flex-wrap">
+      {status === 'snoozed' && snoozedUntil && (
+        <Pill tone="brand">snoozed until {new Date(snoozedUntil).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</Pill>
+      )}
+      {status === 'done' && <Pill tone="neutral">done</Pill>}
+      {assignee && <Pill tone="neutral">assigned</Pill>}
+
+      <Btn onClick={() => act('snooze', 4)} disabled={busy === 'snooze'} active={status === 'snoozed'}>
+        {busy === 'snooze' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
+        Snooze 4h
+      </Btn>
+      <Btn onClick={() => act('assign_me')} disabled={busy === 'assign_me'} active={!!assignee}>
+        {busy === 'assign_me' ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
+        Assign me
+      </Btn>
+      {status !== 'done' ? (
+        <Btn onClick={() => act('done')} disabled={busy === 'done'}>
+          {busy === 'done' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+          Mark done
+        </Btn>
+      ) : (
+        <Btn onClick={() => act('reopen')} disabled={busy === 'reopen'}>
+          {busy === 'reopen' ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+          Reopen
+        </Btn>
+      )}
     </div>
   )
 }
