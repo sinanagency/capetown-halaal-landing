@@ -7,6 +7,7 @@ import { ApplicationApproved } from '@/lib/email/templates/ApplicationApproved'
 import { ApplicationRejected } from '@/lib/email/templates/ApplicationRejected'
 import { ApplicationInfoRequested } from '@/lib/email/templates/ApplicationInfoRequested'
 import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
+import { sendTemplate, toE164 } from '@/lib/whatsapp'
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -126,13 +127,16 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
     }
 
-    // On approval, reserve the booth and defer payment to September.
-    // Best-effort: payment_status/payment_due_date ship in migration v5.
-    // If the migration isn't applied yet, this no-ops instead of breaking approval.
+    // On approval, reserve the booth and set payment_due_date = approved_at + 30 days.
+    // Vendors are approved on different days, so each has their own 30-day window.
+    // Weekly reminders fire from /api/cron/payment-reminders.
     if (validated.status === 'approved') {
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + 30)
+      const dueDateIso = dueDate.toISOString().slice(0, 10) // YYYY-MM-DD
       const { error: payErr } = await admin
         .from('vendor_applications')
-        .update({ payment_status: 'deferred', payment_due_date: '2026-09-01' })
+        .update({ payment_status: 'deferred', payment_due_date: dueDateIso })
         .eq('id', id)
       if (payErr) console.error('Payment defaults skipped (migration v5 pending?):', payErr.message)
     }
@@ -166,6 +170,12 @@ export async function PATCH(
             console.error('[approve] account provisioning failed:', (e as Error).message)
           }
 
+          const dueDate = new Date()
+          dueDate.setDate(dueDate.getDate() + 30)
+          const dueDateLabel = dueDate.toLocaleDateString('en-GB', {
+            day: '2-digit', month: 'long', year: 'numeric',
+          })
+
           res = await sendEmail({
             to: data.email,
             subject: 'You\'re Approved! Welcome to Young at Heart Festival 2026',
@@ -177,9 +187,56 @@ export async function PATCH(
               applicationId: id,
               tempPassword,
               loginUrl: 'https://cthalaal.co.za/exhibitor/login',
-              paymentDueDate: '1 September 2026',
+              paymentDueDate: dueDateLabel,
             }),
           })
+
+          // Fire approval WhatsApp template (vendor_application_approved).
+          // Meta-approved template body is:
+          //   "Great news {{1}}! Your stall application for the Young at Heart
+          //    Festival 2026 has been approved. Your stall: {{2}}"
+          // So EXACTLY 2 params: name + stall code (or placeholder if not yet
+          // allocated). Was previously passing 3 params, which Meta rejected
+          // silently — root cause of zero approval messages ever delivered
+          // (2026-06-13 audit). Stall code extracted from admin_notes
+          // ⟦STALL:code⟧ marker per CTH-DOCTRINE Law 8.
+          try {
+            const phone = (data.phone || data.whatsapp_number) as string | null
+            if (phone) {
+              const firstName = String(data.contact_name || '').trim().split(/\s+/)[0] || 'there'
+              const stallMatch = String(data.admin_notes || '').match(/⟦STALL:([^⟧]+)⟧/)
+              const stallCode = stallMatch ? stallMatch[1].trim() : 'to be confirmed shortly'
+              const e164 = toE164(phone)
+              const wa = await sendTemplate(
+                e164,
+                'vendor_application_approved',
+                [firstName, stallCode],
+                { category: 'utility' }
+              )
+              // Paper-trail log: write to wa_messages so the auto-send is
+              // visible alongside broadcasts (was silent before — no way to
+              // tell if Meta actually delivered).
+              try {
+                await admin.from('wa_messages').insert({
+                  direction: 'out',
+                  wa_phone: e164.replace(/^\+/, ''),
+                  template_name: 'vendor_application_approved',
+                  category: 'utility',
+                  body: `Great news ${firstName}! Your stall application... Your stall: ${stallCode}`,
+                  status: wa.skipped ? 'failed' : 'sent',
+                  error: wa.skipped || null,
+                  provider_message_id: wa.messageId || null,
+                })
+              } catch (logErr) {
+                console.error('[approve] wa_messages log failed:', (logErr as Error).message)
+              }
+              if (wa.skipped) {
+                console.warn('[approve] WA template skipped:', wa.skipped)
+              }
+            }
+          } catch (e) {
+            console.error('[approve] WA template send failed:', (e as Error).message)
+          }
         } else if (validated.status === 'rejected') {
           res = await sendEmail({
             to: data.email,
@@ -190,10 +247,21 @@ export async function PATCH(
             }),
             text: `Hi ${data.contact_name},\n\nThank you for applying to trade at Young at Heart Festival 2026 with ${data.business_name}, and for your patience while our selection committee reviewed every submission.\n\nWe received an overwhelming number of vendor applications this year, far beyond the spaces we have available. After a careful and fair review, we are not able to offer ${data.business_name} a trading spot at this year's festival.\n\nPlease know this is not a reflection of your business. With limited stalls and so many strong applications, many wonderful vendors could not be accommodated this time. Your details stay on file, and we would warmly welcome a fresh application for future events.\n\nIf you'd like any feedback, simply reply to this email. Questions? support@youngatheart.co.za or +27 65 943 5012.\n\nWarm regards,\nThe Young at Heart Festival Team`,
           })
+          // WhatsApp: vendor_application_declined template. Best-effort.
+          try {
+            const phone = (data.phone || data.whatsapp_number) as string | null
+            if (phone) {
+              const firstName = String(data.contact_name || '').trim().split(/\s+/)[0] || 'there'
+              const wa = await sendTemplate(toE164(phone), 'vendor_application_declined', [firstName], { category: 'utility' })
+              if (wa.skipped) console.warn('[reject] WA template skipped:', wa.skipped)
+            }
+          } catch (e) {
+            console.error('[reject] WA template send failed:', (e as Error).message)
+          }
         } else if (validated.status === 'info_requested') {
           res = await sendEmail({
             to: data.email,
-            subject: 'A little more information needed — Young at Heart Festival 2026',
+            subject: 'A little more information needed, Young at Heart Festival 2026',
             react: ApplicationInfoRequested({
               contactName: data.contact_name,
               businessName: data.business_name,
