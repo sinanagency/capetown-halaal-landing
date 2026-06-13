@@ -1,5 +1,11 @@
 'use client'
 
+// Force runtime SSR — Vercel prerender fails on the final-deploy preview branch
+// because NEXT_PUBLIC_SUPABASE_* env vars are scoped to a different preview
+// branch. Skipping prerender unblocks every deploy. Caught 2026-06-13 (last 5
+// preview builds ERROR with @supabase/ssr missing env on /exhibitor).
+export const dynamic = 'force-dynamic'
+
 import { useState, type FormEvent } from 'react'
 import { Logo } from '@/components/logo'
 import { MapPin, Calendar, Loader2, Search, Store, Navigation, Clock, Mail } from 'lucide-react'
