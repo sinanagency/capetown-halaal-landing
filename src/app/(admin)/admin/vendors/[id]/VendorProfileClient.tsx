@@ -205,6 +205,12 @@ function DocumentsTab({ app, docs }: { app: any; docs: Doc[] }) {
 function MessagesTab({ e164 }: { e164: string }) {
   const [msgs, setMsgs] = useState<Msg[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [reload, setReload] = useState(0)
+  const [draft, setDraft] = useState('')
+  const [channel, setChannel] = useState<'whatsapp' | 'portal'>('whatsapp')
+  const [sending, setSending] = useState(false)
+  const [sendErr, setSendErr] = useState<string | null>(null)
+
   useEffect(() => {
     let cancelled = false
     fetch(`/api/admin/vendor-thread?phone=${encodeURIComponent(e164)}`)
@@ -212,11 +218,67 @@ function MessagesTab({ e164 }: { e164: string }) {
       .then((d) => { if (!cancelled) setMsgs(d.messages || []) })
       .catch((e) => { if (!cancelled) setError(String(e?.message || e)) })
     return () => { cancelled = true }
-  }, [e164])
+  }, [e164, reload])
 
-  if (error) return <Card title="Messages"><p className="text-sm text-red-600">Failed: {error}</p></Card>
-  if (!msgs) return <Card title="Messages"><p className="text-sm text-neutral-500">Loading thread…</p></Card>
-  if (msgs.length === 0) return <Card title="Messages"><p className="text-sm text-neutral-500">No WhatsApp activity yet.</p></Card>
+  async function onSend(e: React.FormEvent) {
+    e.preventDefault()
+    if (!draft.trim() || sending) return
+    setSending(true)
+    setSendErr(null)
+    try {
+      const res = await fetch('/api/admin/bot-inbox/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: e164, body: draft, channel }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setSendErr(String(j.error || 'Send failed'))
+        return
+      }
+      setDraft('')
+      setReload((n) => n + 1)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const Composer = (
+    <form onSubmit={onSend} className="mt-4 border-t border-neutral-200 pt-4 flex flex-col gap-2">
+      <div className="flex items-center gap-2 text-xs text-neutral-500">
+        <span>Send via</span>
+        <select
+          value={channel}
+          onChange={(e) => setChannel(e.target.value as 'whatsapp' | 'portal')}
+          className="border border-neutral-200 rounded-md px-2 py-1 text-xs"
+        >
+          <option value="whatsapp">WhatsApp</option>
+          <option value="portal">Portal note (no WA send)</option>
+        </select>
+      </div>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Reply to the vendor..."
+        rows={3}
+        className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm outline-none focus:border-[#cd2653] resize-none"
+      />
+      {sendErr && <p className="text-xs text-red-600">{sendErr}</p>}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={sending || !draft.trim()}
+          className="bg-[#cd2653] hover:bg-[#b01f45] text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-60"
+        >
+          {sending ? 'Sending...' : 'Send reply'}
+        </button>
+      </div>
+    </form>
+  )
+
+  if (error) return <Card title="Messages"><p className="text-sm text-red-600">Failed: {error}</p>{Composer}</Card>
+  if (!msgs) return <Card title="Messages"><p className="text-sm text-neutral-500">Loading thread...</p></Card>
+  if (msgs.length === 0) return <Card title="Messages"><p className="text-sm text-neutral-500">No WhatsApp activity yet.</p>{Composer}</Card>
 
   return (
     <Card title={`Conversation with ${e164} (${msgs.length} messages)`}>
@@ -245,6 +307,7 @@ function MessagesTab({ e164 }: { e164: string }) {
           </li>
         ))}
       </ol>
+      {Composer}
     </Card>
   )
 }

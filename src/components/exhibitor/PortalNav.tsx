@@ -32,7 +32,7 @@ function initials(name: string) {
   return (clean[0] || 'Y').toUpperCase()
 }
 
-export default function PortalNav({ businessName }: { businessName: string }) {
+export default function PortalNav({ businessName, inboxUnread = false }: { businessName: string; inboxUnread?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -71,10 +71,14 @@ export default function PortalNav({ businessName }: { businessName: string }) {
             {MAIN.map((i) => {
               const active = pathname === i.href
               const Icon = i.icon
+              const showDot = inboxUnread && (i.href === '/exhibitor/portal/support' || i.href === '/exhibitor/portal')
               return (
                 <a key={i.href} href={i.href}
-                  className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
+                  className={`relative flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
                   <Icon className="w-4 h-4" />{i.label}
+                  {showDot && (
+                    <span aria-label="unread reply" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />
+                  )}
                 </a>
               )
             })}

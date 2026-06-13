@@ -4,6 +4,7 @@ import { getExhibitorContext } from '@/lib/exhibitor'
 import PortalNav from '@/components/exhibitor/PortalNav'
 import { parsePortalState } from '@/lib/portal-state'
 import { WaOptInBanner } from '@/components/exhibitor/WaOptInBanner'
+import { hasUnreadAdminReply } from '@/components/exhibitor/InboxCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,10 +31,11 @@ export default async function PortalLayout({ children }: { children: React.React
   const contactName = (ctx.application?.contact_name as string) || ctx.email
   const firstName = (contactName || '').trim().split(/\s+/)[0] || ''
   const prefillPhone = (ctx.application?.phone as string) || ''
+  const inboxUnread = await hasUnreadAdminReply({ vendorPhone: prefillPhone })
 
   return (
     <div className="min-h-screen bg-[#F6F2E8] text-[#1B1A17]">
-      <PortalNav businessName={businessName} />
+      <PortalNav businessName={businessName} inboxUnread={inboxUnread} />
       {showWaBanner && <WaOptInBanner prefillPhone={prefillPhone} firstName={firstName} />}
       <main>{children}</main>
     </div>

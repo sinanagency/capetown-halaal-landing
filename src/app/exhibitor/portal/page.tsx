@@ -9,12 +9,13 @@ import {
 import { Gauge } from '@/components/exhibitor/Gauge'
 import { PageShell, PageHeader, Card } from '@/components/chrome/PageChrome'
 import { requirePaid } from '@/lib/exhibitor-paygate'
+import { getRequiredDocs } from '@/lib/exhibitor/required-docs'
+import InboxCard from '@/components/exhibitor/InboxCard'
 
 export const dynamic = 'force-dynamic'
 
 const STAGES = ['approved', 'invoiced', 'paid', 'docs', 'show_ready'] as const
 const STAGE_LABEL: Record<string, string> = { approved: 'Approved', invoiced: 'Invoiced', paid: 'Paid', docs: 'Documents', show_ready: 'Show-ready' }
-const REQUIRED_DOCS = ['halaal_cert', 'public_liability', 'health_permit']
 
 function daysUntil(d: string) { return Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)) }
 
@@ -41,7 +42,14 @@ export default async function Overview() {
   const stall = parseAllocation(notes).stall
   const stallZone = stall ? TYPE_META[(STALL_LIST.find((s) => s.code === stall)?.type || 'FS') as StallType].label : null
   const docTypes = new Set((state.docs || []).map((d) => d.type))
-  const docsUploaded = REQUIRED_DOCS.filter((t) => docTypes.has(t)).length
+  const productCategories = Array.isArray(app?.product_categories) ? (app!.product_categories as string[]) : []
+  const requiredDocs = getRequiredDocs({
+    productCategories,
+    boothTier: (app?.preferred_booth_tier as string) || null,
+  })
+  const docsUploaded = requiredDocs.length === 0 ? 0 : requiredDocs.filter((t) => docTypes.has(t)).length
+  const docsLabel = requiredDocs.length === 0 ? 'no docs required' : 'documents in'
+  const docsTileValue = requiredDocs.length === 0 ? '—' : `${docsUploaded}/${requiredDocs.length}`
   const staffCount = (state.staff || []).length
   const isPaid = state.payment?.status === 'paid' || app?.payment_status === 'paid'
   const profileLive = !!(state.profile?.logo_path || state.profile?.description)
@@ -53,7 +61,12 @@ export default async function Overview() {
     { done: termsAccepted, label: 'Accept terms & conditions', sub: termsAccepted ? 'Recorded against your account' : 'Required before payment', href: '/exhibitor/portal/terms' },
     { done: isPaid, label: 'Pay your stall fee', sub: isPaid ? 'Received, thank you' : `Due ${paymentDue}`, href: '/exhibitor/portal/payments' },
     { done: !!stall, label: 'Stall allocated', sub: stall ? `${stall} · ${stallZone}` : 'Organisers will place you', href: '/exhibitor/portal/stand' },
-    { done: docsUploaded === REQUIRED_DOCS.length, label: 'Upload compliance documents', sub: `${docsUploaded} of ${REQUIRED_DOCS.length} uploaded`, href: '/exhibitor/portal/documents' },
+    {
+      done: requiredDocs.length === 0 || docsUploaded === requiredDocs.length,
+      label: 'Upload compliance documents',
+      sub: requiredDocs.length === 0 ? 'None required for your category' : `${docsUploaded} of ${requiredDocs.length} uploaded`,
+      href: '/exhibitor/portal/documents',
+    },
     { done: staffCount > 0, label: 'Register your gate staff', sub: staffCount ? `${staffCount} on the manifest` : 'Names, phone, vehicle', href: '/exhibitor/portal/staff' },
   ]
   const doneCount = steps.filter((s) => s.done).length
@@ -84,7 +97,7 @@ export default async function Overview() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 content-start">
             <StatTile icon={Calendar} value={`${dDay}`} label="days to opening" href="/exhibitor/portal/resources" accent />
             <StatTile icon={MapPin} value={stall || 'Pending'} label={stall ? (stallZone || 'your stall') : 'stall not set'} href="/exhibitor/portal/stand" />
-            <StatTile icon={FileCheck} value={`${docsUploaded}/${REQUIRED_DOCS.length}`} label="documents in" href="/exhibitor/portal/documents" />
+            <StatTile icon={FileCheck} value={docsTileValue} label={docsLabel} href="/exhibitor/portal/documents" />
             <StatTile icon={Users} value={`${staffCount}`} label="team registered" href="/exhibitor/portal/staff" />
             <StatTile icon={CreditCard} value={isPaid ? 'Paid' : 'Due'} label={isPaid ? 'stall fee' : paymentDue} href="/exhibitor/portal/payments" />
             <StatTile icon={Store} value={profileLive ? 'Live' : 'Set up'} label="public profile" href="/exhibitor/portal/profile" />
@@ -112,25 +125,32 @@ export default async function Overview() {
           </div>
         </Card>
 
-        {/* next steps + announcement */}
+        {/* next steps + announcement + inbox */}
         <div className="grid md:grid-cols-5 gap-6">
-          <Card className="md:col-span-3">
-            <p className="font-semibold text-[#1B1A17] mb-4">What to do next</p>
-            <ul className="space-y-1">
-              {steps.map((a) => (
-                <li key={a.label}>
-                  <a href={a.href} className="flex items-start gap-3 -mx-2 px-2 py-2 rounded-lg hover:bg-[#F2EBD8]/60 group">
-                    {a.done ? <CheckCircle2 className="w-5 h-5 text-[#cd2653] mt-0.5 shrink-0" /> : <Circle className="w-5 h-5 text-[#1B1A17]/25 mt-0.5 shrink-0" />}
-                    <div className="flex-1">
-                      <p className={`text-sm font-medium ${a.done ? 'text-[#1B1A17]/40 line-through' : 'text-[#1B1A17]'}`}>{a.label}</p>
-                      <p className="text-xs text-[#1B1A17]/55">{a.sub}</p>
-                    </div>
-                    {!a.done && <ArrowRight className="w-4 h-4 text-[#1B1A17]/25 group-hover:text-[#cd2653] mt-0.5" />}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </Card>
+          <div className="md:col-span-3 space-y-6">
+            <Card>
+              <p className="font-semibold text-[#1B1A17] mb-4">What to do next</p>
+              <ul className="space-y-1">
+                {steps.map((a) => (
+                  <li key={a.label}>
+                    <a href={a.href} className="flex items-start gap-3 -mx-2 px-2 py-2 rounded-lg hover:bg-[#F2EBD8]/60 group">
+                      {a.done ? <CheckCircle2 className="w-5 h-5 text-[#cd2653] mt-0.5 shrink-0" /> : <Circle className="w-5 h-5 text-[#1B1A17]/25 mt-0.5 shrink-0" />}
+                      <div className="flex-1">
+                        <p className={`text-sm font-medium ${a.done ? 'text-[#1B1A17]/40 line-through' : 'text-[#1B1A17]'}`}>{a.label}</p>
+                        <p className="text-xs text-[#1B1A17]/55">{a.sub}</p>
+                      </div>
+                      {!a.done && <ArrowRight className="w-4 h-4 text-[#1B1A17]/25 group-hover:text-[#cd2653] mt-0.5" />}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+            <InboxCard
+              vendorPhone={(app?.phone as string) || null}
+              vendorEmail={(app?.email as string) || null}
+              applicationId={(app?.id as string) || null}
+            />
+          </div>
 
           <div className="md:col-span-2 space-y-4">
             <Card>

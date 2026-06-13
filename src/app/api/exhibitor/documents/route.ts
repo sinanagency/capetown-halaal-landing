@@ -64,5 +64,24 @@ export async function POST(req: NextRequest) {
     docs: [...(s.docs || []).filter((d) => d.type !== docType), record],
   }))
 
+  // Activity timeline + admin notification fanout. site_events drives both
+  // the admin inbox feed and the vendor profile Activity tab.
+  try {
+    await admin.from('site_events').insert({
+      session_id: `vendor-${applicationId}`,
+      event_type: 'vendor_doc_uploaded',
+      path: '/exhibitor/portal/documents',
+      metadata: {
+        vendor_application_id: applicationId,
+        doc_type: docType,
+        file_name: file.name,
+        storage_path: path,
+        created_at: record.uploaded_at,
+      },
+    })
+  } catch (e) {
+    console.warn('[documents] site_events insert failed:', (e as Error).message)
+  }
+
   return NextResponse.json({ success: true, document: record })
 }
