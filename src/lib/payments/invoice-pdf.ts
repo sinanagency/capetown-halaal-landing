@@ -80,7 +80,11 @@ function buildInvoiceHtml(data: InvoiceData): string {
   tbody td .sub { font-size: 11px; color: #737373; margin-top: 2px; }
   .totals { margin-top: 24px; padding-top: 16px; border-top: 2px solid #171717; display: flex; justify-content: flex-end; gap: 24px; align-items: baseline; }
   .totals .label { font-weight: 600; }
-  .totals .amount { font-family: Georgia, 'Times New Roman', serif; font-size: 28px; color: #7a2d8e; font-weight: 600; }
+  .totals .amount { font-family: Georgia, 'Times New Roman', serif; font-size: 28px; color: #cd2653; font-weight: 600; }
+  .marks { display: flex; gap: 18px; justify-content: center; align-items: center; margin: 0 0 12px; }
+  .marks .badge { width: 64px; height: 64px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 600; font-size: 9pt; padding: 4px; text-align: center; line-height: 1.1; }
+  .marks .badge.cth { background: #2BAFB0; }
+  .marks .badge.yah { background: #000; }
   .payment { margin-top: 28px; padding: 16px 20px; border-radius: 12px; background: #ecfdf5; border: 1px solid #a7f3d0; }
   .payment .label { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #047857; font-weight: 700; }
   .payment .line { font-size: 13px; color: #404040; margin-top: 4px; }
@@ -88,10 +92,12 @@ function buildInvoiceHtml(data: InvoiceData): string {
 </style></head>
 <body>
   <div class="brand">
-    <img class="logo" src="${brand.url.logo}" alt="Young at Heart Festival"/>
-    <div class="wordmark">Young at Heart Festival</div>
-    <div class="kicker-dates">${escapeHtml(brand.contact.dates)} &middot; Cape Town</div>
-    <img class="accent" src="${brand.url.accent}" alt=""/>
+    <div class="marks">
+      <div class="badge cth">Cape Town<br/>Halaal</div>
+      <div class="badge yah">Young at<br/>Heart</div>
+    </div>
+    <div class="wordmark">Cape Town Halaal &middot; Young at Heart Festival</div>
+    <div class="kicker-dates">${escapeHtml(brand.contact.dates)} &middot; ${escapeHtml(brand.contact.venue)}</div>
   </div>
 
   <div class="header">
