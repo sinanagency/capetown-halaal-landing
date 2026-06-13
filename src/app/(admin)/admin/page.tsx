@@ -12,6 +12,7 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts'
+import { ActivityFeed } from '@/components/admin/ActivityFeed'
 
 interface Stats {
   total: number
@@ -457,6 +458,9 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* Activity Feed */}
+      <ActivityFeed />
 
       {/* Bottom Row: Recent Orders + Pending Apps */}
       <div className="grid lg:grid-cols-2 gap-6">
