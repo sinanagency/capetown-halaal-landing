@@ -11,7 +11,6 @@ import { Gauge } from '@/components/exhibitor/Gauge'
 import { PageShell, PageHeader, Card } from '@/components/chrome/PageChrome'
 import { requirePaid } from '@/lib/exhibitor-paygate'
 import { getRequiredDocs } from '@/lib/exhibitor/required-docs'
-import InboxCard from '@/components/exhibitor/InboxCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -136,7 +135,7 @@ export default async function Overview() {
           </div>
         </Card>
 
-        {/* next steps + announcement + inbox */}
+        {/* next steps + announcement */}
         <div className="grid md:grid-cols-5 gap-6">
           <div className="md:col-span-3 space-y-6">
             <Card>
@@ -156,11 +155,6 @@ export default async function Overview() {
                 ))}
               </ul>
             </Card>
-            <InboxCard
-              vendorPhone={(app?.phone as string) || null}
-              vendorEmail={(app?.email as string) || null}
-              applicationId={(app?.id as string) || null}
-            />
           </div>
 
           <div className="md:col-span-2 space-y-4">
