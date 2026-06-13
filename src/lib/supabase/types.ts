@@ -55,10 +55,13 @@ export interface WaMessage {
   metadata: Record<string, unknown> | null
 }
 
+export type AdminRole = 'owner' | 'operator' | 'viewer'
+
 export interface AdminUser {
   id: string
   email: string
   name: string
+  role: AdminRole
   created_at: string
 }
 
