@@ -10,6 +10,18 @@ export async function middleware(request: NextRequest) {
   const inboundHeaders = new Headers(request.headers)
   inboundHeaders.set('x-pathname', pathname)
 
+  // ---- Cron auth gate. Every /api/cron/* route requires
+  // `Authorization: Bearer ${CRON_SECRET}`. Vercel's scheduled invoker is
+  // configured to send this header. Manual triggers (curl, ops scripts)
+  // must include it too. We fail closed if CRON_SECRET is unset.
+  if (pathname.startsWith('/api/cron/')) {
+    const cronSecret = (process.env.CRON_SECRET || '').trim()
+    const auth = request.headers.get('authorization') || ''
+    if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
+
   // ---- Maintenance gate (runs FIRST so admin subdomain rewrites still get gated) ----
   if (isMaintenanceEnabled() && !isPathAlwaysOpen(pathname)) {
     const expected = bypassTokenFromEnv()
