@@ -262,10 +262,10 @@ export function findMailTemplate(key: string): MailTemplateSpec | undefined {
 export function renderMailTemplate(
   specOrKey: MailTemplateSpec | TemplateKey,
   vars: TemplateVars,
-): { subject: string; body: string } {
+): { subject: string; body: string; body_text: string; body_html: string } {
   const key: TemplateKey = typeof specOrKey === 'string' ? specOrKey : specOrKey.key
   const spec = SPECS[key]
-  if (!spec) return { subject: '(unknown template)', body: '' }
+  if (!spec) return { subject: '(unknown template)', body: '', body_text: '', body_html: '' }
   const subject = merge(spec.subject, vars)
   const paragraphs = spec.paragraphs
     .map((p) => merge(p, vars))
@@ -277,7 +277,12 @@ export function renderMailTemplate(
   if (spec.cta) lines.push(`${spec.cta.label}: ${spec.cta.href}`, '')
   lines.push(spec.signoff || 'Warm regards,')
   lines.push('The Young at Heart Festival Team')
-  return { subject, body: lines.join('\n').trim() }
+  const text = lines.join('\n').trim()
+  // For the SYNC preview path we expose body_html === body_text (plain text
+  // wrapped in <pre>). The actual SEND path calls renderTemplate(key, vars)
+  // which goes through react-email Campaign for the real HTML.
+  const html = `<pre style="font-family:sans-serif;white-space:pre-wrap">${text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))}</pre>`
+  return { subject, body: text, body_text: text, body_html: html }
 }
 
 /**
