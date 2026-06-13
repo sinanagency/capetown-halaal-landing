@@ -114,23 +114,23 @@ export function ActivityFeed() {
           type="button"
           onClick={() => load(filter, true)}
           disabled={refreshing}
-          className="text-sm text-neutral-500 hover:text-neutral-900 flex items-center gap-1.5 disabled:opacity-50 min-h-[44px] min-w-[44px] px-2"
+          className="text-xs text-neutral-500 hover:text-neutral-900 flex items-center gap-1 disabled:opacity-50"
           aria-label="Refresh activity"
         >
-          <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
-          <span className="hidden sm:inline">Refresh</span>
+          <RefreshCw className={cn('w-3.5 h-3.5', refreshing && 'animate-spin')} />
+          Refresh
         </button>
       </div>
 
-      {/* Filter chips: ≥44px tap targets for mobile, stacks on small screens */}
-      <div className="px-3 py-3 border-b border-neutral-100 flex flex-wrap gap-2 overflow-x-auto">
+      {/* Filter chips */}
+      <div className="px-3 py-3 border-b border-neutral-100 flex flex-wrap gap-1.5 overflow-x-auto">
         {FILTERS.map(f => (
           <button
             key={f.key}
             type="button"
             onClick={() => setFilter(f.key)}
             className={cn(
-              'px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center',
+              'px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors min-h-[32px]',
               filter === f.key
                 ? 'bg-neutral-900 text-white'
                 : 'bg-neutral-50 text-neutral-600 hover:bg-neutral-100'
@@ -158,7 +158,7 @@ export function ActivityFeed() {
             const verb = v.verb || humanizeEventType(ev.event_type)
             const displayName = ev.vendor_name || ev.contact_name
             return (
-              <li key={ev.id} className="px-4 sm:px-5 py-3 flex items-start gap-3 min-h-[56px]">
+              <li key={ev.id} className="px-5 py-3 flex items-start gap-3">
                 <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0', v.bg)}>
                   <Icon className={cn('w-4 h-4', v.color)} />
                 </div>

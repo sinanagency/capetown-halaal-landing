@@ -204,7 +204,7 @@ function ContactModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-white mb-2">Get In Touch</h3>
               <p className="text-neutral-400 text-sm">
-                Have questions about Young at Heart Festival 2026? We'd love to hear from you.
+                Have questions about Young at Heart Festival 2026? We&apos;d love to hear from you.
               </p>
             </div>
 
@@ -705,7 +705,7 @@ export default function HomePage() {
                 <GradientText from="#cd2653" to="#f59e0b">Join Us?</GradientText>
               </h2>
               <p className="text-neutral-400 text-base md:text-xl mb-8 md:mb-10 px-2">
-                Secure your booth today and be part of South Africa's biggest lifestyle event.
+                Secure your booth today and be part of South Africa&apos;s biggest lifestyle event.
               </p>
 
               <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 md:gap-4 px-4">

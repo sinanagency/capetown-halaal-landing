@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 import { Loader2, AlertCircle, LogIn } from 'lucide-react'
 import { Logo } from '@/components/logo'
@@ -40,8 +41,8 @@ export default function LoginPage() {
     <div className="min-h-screen bg-neutral-50">
       <header className="bg-white border-b border-neutral-200">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/"><Logo size="md" showText={true} /></a>
-          <a href="/register" className="text-sm text-[#cd2653] font-medium hover:underline">Create an account</a>
+          <Link href="/"><Logo size="md" showText={true} /></Link>
+          <Link href="/register" className="text-sm text-[#cd2653] font-medium hover:underline">Create an account</Link>
         </div>
       </header>
 

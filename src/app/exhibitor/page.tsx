@@ -7,6 +7,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, type FormEvent } from 'react'
+import Link from 'next/link'
 import { Logo } from '@/components/logo'
 import { MapPin, Calendar, Loader2, Search, Store, Navigation, Clock, Mail } from 'lucide-react'
 import StallMap, { type MapStall } from '@/components/admin/StallMap'
@@ -46,7 +47,7 @@ export default function ExhibitorPortal() {
     <div className="min-h-screen bg-neutral-50">
       <header className="bg-white border-b border-neutral-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/"><Logo size="md" showText={true} /></a>
+          <Link href="/"><Logo size="md" showText={true} /></Link>
           <a href="/exhibitor/login" className="text-sm font-semibold text-[#cd2653] hover:text-[#b01f45] flex items-center gap-1">Sign in to your portal →</a>
         </div>
       </header>

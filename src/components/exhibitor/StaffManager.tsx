@@ -137,7 +137,7 @@ body{font-family:'Inter',-apple-system,sans-serif;margin:0;display:grid;grid-tem
         <div className={`rounded-2xl border p-4 flex items-center justify-between gap-3 flex-wrap ${over ? 'bg-amber-50 border-amber-200' : 'bg-[#cd2653]/5 border-[#cd2653]/20'}`}>
           <p className={`text-sm flex items-start gap-2 ${over ? 'text-amber-800' : 'text-neutral-700'}`}>
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-[#cd2653]" />
-            You've used all {allowance} of your included gate passes. Need more people on site?
+            You&apos;ve used all {allowance} of your included gate passes. Need more people on site?
           </p>
           <a href={TICKETS_URL} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 bg-[#cd2653] hover:bg-[#b01f45] text-white font-semibold rounded-lg px-4 py-2 text-sm whitespace-nowrap">
             Buy extra passes <ExternalLink className="w-3.5 h-3.5" />

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Loader2, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, Upload, Building2, User, ShoppingBag, Zap, FileText } from 'lucide-react'
 import { track } from '@/components/analytics-tracker'
 import { Logo } from '@/components/logo'
@@ -21,12 +22,12 @@ const ITEM_CATEGORIES = [
 ]
 
 const STALL_OPTIONS = [
-  { value: 'marquee-table-2x2', label: 'MARQUEE Table Space — 2m x 2m', price: 3700, bands: 2 },
-  { value: 'marquee-full-3x3', label: 'MARQUEE Full Space — 3m x 3m', price: 6500, bands: 3 },
-  { value: 'marquee-table-double-4x2', label: 'MARQUEE Table Space Double — 4m x 2m', price: 6500, bands: 4 },
-  { value: 'marquee-full-double-6x3', label: 'MARQUEE Full Space Double — 6m x 3m', price: 12000, bands: 6 },
-  { value: 'outdoor-bedouin-2x3', label: 'OUTDOOR Bedouin Tent Space — 2m x 3m', price: 3750, bands: 2 },
-  { value: 'food-gazebo-3x3', label: 'Food Stall (GAZEBO ONLY) — 3m x 3m', price: 4800, bands: 3 },
+  { value: 'marquee-table-2x2', label: 'MARQUEE Table Space, 2m x 2m', price: 3700, bands: 2 },
+  { value: 'marquee-full-3x3', label: 'MARQUEE Full Space, 3m x 3m', price: 6500, bands: 3 },
+  { value: 'marquee-table-double-4x2', label: 'MARQUEE Table Space Double, 4m x 2m', price: 6500, bands: 4 },
+  { value: 'marquee-full-double-6x3', label: 'MARQUEE Full Space Double, 6m x 3m', price: 12000, bands: 6 },
+  { value: 'outdoor-bedouin-2x3', label: 'OUTDOOR Bedouin Tent Space, 2m x 3m', price: 3750, bands: 2 },
+  { value: 'food-gazebo-3x3', label: 'Food Stall (GAZEBO ONLY), 3m x 3m', price: 4800, bands: 3 },
   { value: 'mini-dessert-truck-3.5m', label: 'Mini Dessert Truck (MAX 3.5m)', price: 5000, bands: 3 },
   { value: 'food-truck-4.5m', label: 'Food Truck/Space (MAX 4.5m)', price: 6500, bands: 4 },
   { value: 'food-truck-6m', label: 'Food Truck/Space (MAX 6m)', price: 7500, bands: 5 },
@@ -86,6 +87,7 @@ export default function ApplyPage() {
     // Step 4: Documents & Terms
     accepts_cancellation: false,
     accepts_terms: false,
+    accepts_comms: false,
   })
 
   // Track step changes
@@ -123,7 +125,7 @@ export default function ApplyPage() {
     if (step === 1) return form.email && form.item_category && form.stall_brand_name && form.business_description && form.traded_before && form.contact_person && form.whatsapp_number && form.social_media_links
     if (step === 2) return form.stall_type
     if (step === 3) return Object.keys(form.electrical_appliances).length > 0 && form.uses_gas
-    if (step === 4) return form.accepts_cancellation && form.accepts_terms
+    if (step === 4) return form.accepts_cancellation && form.accepts_terms && form.accepts_comms
     return false
   }
 
@@ -181,11 +183,11 @@ export default function ApplyPage() {
           <p className="text-neutral-500 text-sm mb-4">Your application will be assessed by the selection committee. If successful, you will receive login details to your exhibitor portal where you can select your booth, make payment, and sign the terms and conditions.</p>
           <p className="text-sm font-medium text-neutral-700 mb-4">Estimated Total: R{totalEstimate.toLocaleString()}</p>
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
-            <p className="text-xs text-amber-800">A confirmation email has been sent to your inbox. If you don't see it, please check your spam or junk folder and mark it as "not spam".</p>
+            <p className="text-xs text-amber-800">A confirmation email has been sent to your inbox. If you don&apos;t see it, please check your spam or junk folder and mark it as &quot;not spam&quot;.</p>
           </div>
-          <a href="/" className="inline-block px-6 py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors">
+          <Link href="/" className="inline-block px-6 py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors">
             Return to Home
-          </a>
+          </Link>
         </div>
       </div>
     )
@@ -195,7 +197,7 @@ export default function ApplyPage() {
     <div className="min-h-screen bg-neutral-50">
       <header className="bg-white border-b border-neutral-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <a href="/"><Logo size="md" showText={true} /></a>
+          <Link href="/"><Logo size="md" showText={true} /></Link>
           <span className="text-sm text-neutral-500">Step {step} of 4</span>
         </div>
       </header>
@@ -409,7 +411,7 @@ export default function ApplyPage() {
 
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-1">Full detailed list of appliances</label>
-                  <p className="text-xs text-neutral-500 mb-2">E.g. 2 Double Fryers, 3 fridges, 2 Microwaves — MUST BE ACCURATE, WILL BE AUDITED. State "none" if not applicable.</p>
+                  <p className="text-xs text-neutral-500 mb-2">E.g. 2 Double Fryers, 3 fridges, 2 Microwaves. MUST BE ACCURATE, WILL BE AUDITED. State &quot;none&quot; if not applicable.</p>
                   <textarea value={form.appliance_details} onChange={e => set('appliance_details', e.target.value)} rows={3}
                     className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none" placeholder="List exact quantities of each appliance, or 'none' if not applicable..." />
                 </div>
@@ -487,12 +489,14 @@ export default function ApplyPage() {
                 <label className="flex items-start gap-3 cursor-pointer">
                   <input type="checkbox" checked={form.accepts_terms} onChange={e => set('accepts_terms', e.target.checked)}
                     className="mt-1 w-4 h-4 rounded border-neutral-300 text-[#cd2653] focus:ring-[#cd2653]" />
-                  <span className="text-sm text-neutral-700">I understand and accept the terms and conditions *</span>
+                  <span className="text-sm text-neutral-700">I understand and accept the <a href="/terms" target="_blank" className="text-[#cd2653] underline">terms and conditions</a> *</span>
                 </label>
 
-                <p className="text-xs text-neutral-500 leading-relaxed">
-                  By submitting, you agree to receive festival updates and communications via WhatsApp and email. Reply STOP anytime to opt out of WhatsApp.
-                </p>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" checked={form.accepts_comms} onChange={e => set('accepts_comms', e.target.checked)}
+                    className="mt-1 w-4 h-4 rounded border-neutral-300 text-[#cd2653] focus:ring-[#cd2653]" />
+                  <span className="text-sm text-neutral-700">If approved, I consent to event-related communications about YAH Festival 2026 from the organisers via <strong>WhatsApp and email</strong> (payment reminders, allocations, load-in details, support replies). Scope limited to this event. Reply STOP anytime. *</span>
+                </label>
               </div>
 
               {/* Final cost summary */}
@@ -501,7 +505,7 @@ export default function ApplyPage() {
                   <h3 className="font-semibold mb-3">Application Summary</h3>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between"><span className="text-neutral-400">Brand</span><span>{form.stall_brand_name}</span></div>
-                    <div className="flex justify-between"><span className="text-neutral-400">Stall</span><span>{selectedStall.label.split('—')[0].trim()}</span></div>
+                    <div className="flex justify-between"><span className="text-neutral-400">Stall</span><span>{selectedStall.label.split(',')[0].trim()}</span></div>
                     <div className="flex justify-between"><span className="text-neutral-400">Category</span><span>{form.item_category}</span></div>
                     <div className="border-t border-white/20 pt-2 flex justify-between font-bold text-lg">
                       <span>Estimated Total</span><span className="text-[#f59e0b]">R{totalEstimate.toLocaleString()}</span>
@@ -519,9 +523,9 @@ export default function ApplyPage() {
                 <ArrowLeft className="w-4 h-4" /> Back
               </button>
             ) : (
-              <a href="/" className="flex items-center gap-2 px-5 py-3 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors">
+              <Link href="/" className="flex items-center gap-2 px-5 py-3 text-sm font-medium text-neutral-700 bg-white border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors">
                 <ArrowLeft className="w-4 h-4" /> Home
-              </a>
+              </Link>
             )}
 
             {step < 4 ? (

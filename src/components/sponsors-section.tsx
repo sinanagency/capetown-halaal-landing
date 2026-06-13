@@ -440,7 +440,7 @@ export function SponsorsSection() {
             </span>
           </h2>
           <p className="text-neutral-400 text-lg max-w-2xl mx-auto">
-            Partner with South Africa's premier lifestyle festival. Amplify your brand through community alignment, social impact, and maximum visibility.
+            Partner with South Africa&apos;s premier lifestyle festival. Amplify your brand through community alignment, social impact, and maximum visibility.
           </p>
         </motion.div>
 

@@ -259,8 +259,11 @@ function FirstPersonControls({ enabled }: { enabled: boolean }) {
       velocity.current.x -= direction.current.x * moveSpeed
     }
 
-    // Apply movement
+    // Apply movement. react-three-fiber owns camera.position; mutating x/z each
+    // frame is the documented pattern, but React 19 lint flags the assignment.
+    // eslint-disable-next-line react-hooks/immutability
     camera.position.x += velocity.current.x
+    // eslint-disable-next-line react-hooks/immutability
     camera.position.z += velocity.current.z
 
     // Damping

@@ -387,7 +387,7 @@ export default function ProfileEditor({
           Up to 40 items. Each shows on your public profile.
         </p>
         {p.menu.length === 0 ? (
-          <p className="text-sm text-neutral-500 italic">No items yet. Add what you'll be selling.</p>
+          <p className="text-sm text-neutral-500 italic">No items yet. Add what you&apos;ll be selling.</p>
         ) : (
           <div className="space-y-2">
             {p.menu.map((m, i) => (
