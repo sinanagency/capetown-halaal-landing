@@ -14,6 +14,7 @@ const navigation = [
   { name: 'Contacts', href: '/admin/contacts', icon: Users },
   { name: 'Vendor Ops', href: '/admin/vendor-ops', icon: LayoutGrid },
   { name: 'Vendor Inbox', href: '/admin/support', icon: MessageSquare },
+  { name: 'Unified Inbox', href: '/admin/inbox', icon: Inbox },
   { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
   { name: 'Bot Inbox', href: '/admin/bot-inbox', icon: Inbox },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
