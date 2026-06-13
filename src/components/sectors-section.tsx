@@ -379,7 +379,7 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
                   </div>
                   {vendors.length > 9 && (
                     <p className="mt-4 text-center text-xs text-neutral-500">
-                      Showing 9 of {vendors.length} — scroll sideways inside the panel for the rest.
+                      Showing 9 of {vendors.length}. Scroll sideways inside the panel for the rest.
                     </p>
                   )}
                 </>
