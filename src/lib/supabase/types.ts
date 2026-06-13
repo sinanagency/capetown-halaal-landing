@@ -26,6 +26,33 @@ export interface VendorApplication {
   status: ApplicationStatus
   admin_notes: string | null
   reviewed_at: string | null
+
+  // Audit + smart-queue fields (migration v9)
+  reviewed_by?: string | null
+  dup_marker?: string | null
+  completeness_score?: number | null
+  documents?: VendorApplicationDocument[] | null
+}
+
+export interface VendorApplicationDocument {
+  url: string
+  name?: string
+  kind?: string
+  uploaded_at?: string
+}
+
+export interface WaMessage {
+  id: string
+  created_at: string
+  direction: 'inbound' | 'outbound'
+  phone: string
+  application_id: string | null
+  template_key: string | null
+  body: string | null
+  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'skipped'
+  provider_message_id: string | null
+  error: string | null
+  metadata: Record<string, unknown> | null
 }
 
 export interface AdminUser {

@@ -3,19 +3,18 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
-import type { VendorApplication, ApplicationStatus } from '@/lib/supabase/types'
-import {
-  PageShell,
-  PageHeader,
-  Card,
-  Pill,
-  ButtonPrimary,
-  ButtonSecondary,
-  KV,
-} from '@/components/chrome/PageChrome'
+import { StatusBadge } from '@/components/admin/StatusBadge'
+import type {
+  VendorApplication,
+  ApplicationStatus,
+  WaMessage,
+} from '@/lib/supabase/types'
 import {
   ArrowLeft,
   Loader2,
+  Building2,
+  Mail,
+  Phone,
   Globe,
   Instagram,
   Facebook,
@@ -23,7 +22,9 @@ import {
   XCircle,
   HelpCircle,
   Save,
+  MessageCircle,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleDateString('en-ZA', {
@@ -35,13 +36,6 @@ function formatDate(dateString: string) {
   })
 }
 
-const STATUS_TONE: Record<string, 'neutral' | 'success' | 'warn' | 'danger' | 'brand'> = {
-  approved: 'success',
-  rejected: 'danger',
-  info_requested: 'warn',
-  pending: 'neutral',
-}
-
 export default function ApplicationDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -49,6 +43,8 @@ export default function ApplicationDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [adminNotes, setAdminNotes] = useState('')
+  const [waMessages, setWaMessages] = useState<WaMessage[]>([])
+  const [waLoading, setWaLoading] = useState(false)
 
   useEffect(() => {
     async function loadApplication() {
@@ -70,6 +66,34 @@ export default function ApplicationDetailPage() {
 
     loadApplication()
   }, [params.id, router])
+
+  // Load last 10 wa_messages once we know the phone
+  useEffect(() => {
+    if (!application?.phone) return
+    let abort = false
+    async function loadThread() {
+      setWaLoading(true)
+      try {
+        const phone = (application?.phone ?? '').replace(/\D+/g, '')
+        if (!phone) return
+        const res = await fetch(
+          `/api/admin/vendor-thread?phone=${encodeURIComponent(phone)}&limit=10`
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (!abort) setWaMessages(data.messages ?? [])
+        }
+      } catch (err) {
+        console.error('Failed to load WA thread:', err)
+      } finally {
+        if (!abort) setWaLoading(false)
+      }
+    }
+    loadThread()
+    return () => {
+      abort = true
+    }
+  }, [application?.phone])
 
   const updateStatus = async (status: ApplicationStatus) => {
     if (!application) return
@@ -117,11 +141,9 @@ export default function ApplicationDetailPage() {
 
   if (loading) {
     return (
-      <PageShell>
-        <div className="flex items-center justify-center py-32">
-          <Loader2 className="w-8 h-8 animate-spin text-[#E5E5E5]" />
-        </div>
-      </PageShell>
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-neutral-400" />
+      </div>
     )
   }
 
@@ -130,125 +152,126 @@ export default function ApplicationDetailPage() {
   }
 
   return (
-    <PageShell>
+    <div className="p-8 max-w-4xl">
+      {/* Back Button */}
       <Link
         href="/admin/applications"
-        className="inline-flex items-center gap-2 bg-[#FFFFFF] border border-[#E5E5E5]/40 hover:border-[#cd2653]/50 text-[#1B1A17] font-semibold rounded-full px-4 py-2 text-sm transition-colors mb-6"
+        className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-sm font-medium transition-colors mb-6"
       >
         <ArrowLeft className="w-4 h-4" />
         All Applications
       </Link>
 
-      <PageHeader
-        kicker="Applications"
-        title={application.business_name}
-        subtitle={`Applied ${formatDate(application.created_at)}`}
-        actions={
-          <Pill tone={STATUS_TONE[application.status] || 'neutral'}>
-            {application.status.replace(/_/g, ' ')}
-          </Pill>
-        }
-      />
-
-      {/* Approved vendors graduate to the relationship view (vendor profile) */}
-      {application.status === 'approved' && (
-        <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 max-w-4xl">
-          <div>
-            <div className="font-medium text-sm text-emerald-900">This vendor is approved</div>
-            <div className="text-xs text-emerald-800 mt-0.5">See the full A-Z profile: documents, messages, contract, payments, activity.</div>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-neutral-900 mb-2">
+            {application.business_name}
+          </h1>
+          <div className="flex items-center gap-3">
+            <StatusBadge status={application.status} />
+            <span className="text-neutral-500">
+              Applied {formatDate(application.created_at)}
+            </span>
           </div>
-          <Link
-            href={`/admin/vendors/${application.id}`}
-            className="inline-flex items-center justify-center rounded-lg bg-emerald-700 text-white px-4 py-2 text-sm font-medium hover:bg-emerald-800"
-          >
-            Open vendor profile →
-          </Link>
         </div>
-      )}
+      </div>
 
-      <div className="grid gap-6 max-w-4xl">
+      <div className="grid gap-6">
         {/* Contact Info */}
-        <Card>
-          <h2 className="font-serif text-xl text-[#1B1A17] mb-3">Contact Information</h2>
-          <KV label="Contact Name" value={application.contact_name} />
-          <KV
-            label="Email"
-            value={
-              <a href={`mailto:${application.email}`} className="font-medium text-[#cd2653] hover:underline">
-                {application.email}
-              </a>
-            }
-          />
-          <KV
-            label="Phone"
-            value={
-              <a href={`tel:${application.phone}`} className="font-medium">
-                {application.phone}
-              </a>
-            }
-          />
-          {application.website && (
-            <KV
-              label="Website"
-              value={
-                <a
-                  href={application.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-[#cd2653] hover:underline inline-flex items-center gap-1.5"
-                >
-                  <Globe className="w-3.5 h-3.5" />
-                  {application.website}
-                </a>
-              }
-            />
-          )}
-
-          {(application.instagram || application.facebook) && (
-            <div className="flex gap-4 mt-4 pt-4 border-t border-[#E5E5E5]/15">
-              {application.instagram && (
-                <a
-                  href={`https://instagram.com/${application.instagram.replace('@', '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-[#1B1A17]/65 hover:text-[#cd2653]"
-                >
-                  <Instagram className="w-4 h-4" />
-                  {application.instagram}
-                </a>
-              )}
-              {application.facebook && (
-                <a
-                  href={application.facebook.startsWith('http') ? application.facebook : `https://facebook.com/${application.facebook}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-sm text-[#1B1A17]/65 hover:text-[#cd2653]"
-                >
-                  <Facebook className="w-4 h-4" />
-                  Facebook
-                </a>
-              )}
+        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-4">Contact Information</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-neutral-500" />
+              </div>
+              <div>
+                <p className="text-sm text-neutral-500">Contact Name</p>
+                <p className="font-medium">{application.contact_name}</p>
+              </div>
             </div>
-          )}
-        </Card>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center">
+                <Mail className="w-5 h-5 text-neutral-500" />
+              </div>
+              <div>
+                <p className="text-sm text-neutral-500">Email</p>
+                <a href={`mailto:${application.email}`} className="font-medium text-[#cd2653] hover:underline">
+                  {application.email}
+                </a>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center">
+                <Phone className="w-5 h-5 text-neutral-500" />
+              </div>
+              <div>
+                <p className="text-sm text-neutral-500">Phone</p>
+                <a href={`tel:${application.phone}`} className="font-medium">
+                  {application.phone}
+                </a>
+              </div>
+            </div>
+            {application.website && (
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-neutral-500" />
+                </div>
+                <div>
+                  <p className="text-sm text-neutral-500">Website</p>
+                  <a href={application.website} target="_blank" rel="noopener noreferrer" className="font-medium text-[#cd2653] hover:underline">
+                    {application.website}
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Social */}
+          <div className="flex gap-3 mt-4 pt-4 border-t border-neutral-100">
+            {application.instagram && (
+              <a
+                href={`https://instagram.com/${application.instagram.replace('@', '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-neutral-600 hover:text-[#cd2653]"
+              >
+                <Instagram className="w-4 h-4" />
+                {application.instagram}
+              </a>
+            )}
+            {application.facebook && (
+              <a
+                href={application.facebook.startsWith('http') ? application.facebook : `https://facebook.com/${application.facebook}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-sm text-neutral-600 hover:text-[#cd2653]"
+              >
+                <Facebook className="w-4 h-4" />
+                Facebook
+              </a>
+            )}
+          </div>
+        </div>
 
         {/* Business Details */}
-        <Card>
-          <h2 className="font-serif text-xl text-[#1B1A17] mb-4">Business Details</h2>
+        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-4">Business Details</h2>
 
           {application.business_description && (
             <div className="mb-4">
-              <p className="text-sm text-[#1B1A17]/55 mb-1">Description</p>
-              <p className="text-[#1B1A17]/85">{application.business_description}</p>
+              <p className="text-sm text-neutral-500 mb-1">Description</p>
+              <p className="text-neutral-700">{application.business_description}</p>
             </div>
           )}
 
           {application.product_categories.length > 0 && (
             <div className="mb-4">
-              <p className="text-sm text-[#1B1A17]/55 mb-2">Product Categories</p>
+              <p className="text-sm text-neutral-500 mb-2">Product Categories</p>
               <div className="flex flex-wrap gap-2">
                 {application.product_categories.map((cat) => (
-                  <span key={cat} className="px-3 py-1 bg-[#FAFAFA] text-[#1B1A17] rounded-full text-sm">
+                  <span key={cat} className="px-3 py-1 bg-neutral-100 rounded-full text-sm">
                     {cat}
                   </span>
                 ))}
@@ -258,7 +281,7 @@ export default function ApplicationDetailPage() {
 
           {application.preferred_booth_tier && (
             <div className="mb-4">
-              <p className="text-sm text-[#1B1A17]/55 mb-1">Preferred Booth Tier</p>
+              <p className="text-sm text-neutral-500 mb-1">Preferred Booth Tier</p>
               <p className="font-medium">{application.preferred_booth_tier}</p>
             </div>
           )}
@@ -278,16 +301,16 @@ export default function ApplicationDetailPage() {
               const data = JSON.parse(application.special_requirements)
               return (
                 <div>
-                  <p className="text-sm text-[#1B1A17]/55 mb-3">Requirements & Details</p>
+                  <p className="text-sm text-neutral-500 mb-3">Requirements & Details</p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {Object.entries(data).map(([key, val]) => {
                       const label = LABELS[key] || key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
                       const isPrice = key === 'stall_price' || key === 'total_estimate'
                       const display = isPrice ? `R${Number(val).toLocaleString()}` : String(val).replace(/\\n/g, ', ')
                       return (
-                        <div key={key} className="bg-[#FAFAFA] rounded-xl px-4 py-3">
-                          <p className="text-xs text-[#1B1A17]/55 font-medium mb-0.5">{label}</p>
-                          <p className="text-sm text-[#1B1A17] font-medium">{display}</p>
+                        <div key={key} className="bg-neutral-50 rounded-lg px-4 py-3">
+                          <p className="text-xs text-neutral-500 font-medium mb-0.5">{label}</p>
+                          <p className="text-sm text-neutral-900 font-medium">{display}</p>
                         </div>
                       )
                     })}
@@ -297,138 +320,144 @@ export default function ApplicationDetailPage() {
             } catch {
               return (
                 <div>
-                  <p className="text-sm text-[#1B1A17]/55 mb-1">Special Requirements</p>
-                  <p className="text-[#1B1A17]/85">{application.special_requirements}</p>
+                  <p className="text-sm text-neutral-500 mb-1">Special Requirements</p>
+                  <p className="text-neutral-700">{application.special_requirements}</p>
                 </div>
               )
             }
           })()}
-        </Card>
+        </div>
 
-        {/* Payment & Invoices */}
-        <Card>
-          <h2 className="font-serif text-xl text-[#1B1A17] mb-4">Payment & Invoice</h2>
-          {(() => {
-            const ALLOC_RE = /⟦PORTAL:([A-Za-z0-9+/=]+)⟧/
-            const m = (application.admin_notes as string | null)?.match(ALLOC_RE)
-            let pay: { status?: string; amount?: number; provider_ref?: string; paid_at?: string; reference?: string } = {}
-            if (m) {
-              try { pay = (JSON.parse(atob(m[1])).payment) || {} } catch {}
-            }
-            const status = (pay.status as string) || 'none'
-            const paidLabel = pay.paid_at
-              ? new Date(pay.paid_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
-              : null
-            const toneClass =
-              status === 'paid' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-              : status === 'pending' ? 'bg-blue-50 border-blue-200 text-blue-700'
-              : status === 'waived' ? 'bg-neutral-50 border-neutral-200 text-neutral-700'
-              : 'bg-amber-50 border-[#cd2653]/30 text-[#cd2653]'
-            return (
-              <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className={`text-[10px] font-bold uppercase tracking-[0.16em] border px-2.5 py-1 rounded-full ${toneClass}`}>
-                    {status}
-                  </span>
-                  {paidLabel && <span className="text-xs text-neutral-500">paid on {paidLabel}</span>}
+        {/* WhatsApp Thread */}
+        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-emerald-600" />
+              WhatsApp Thread
+            </h2>
+            <span className="text-xs text-neutral-500">last 10 messages</span>
+          </div>
+          {waLoading ? (
+            <div className="flex items-center justify-center py-6 text-neutral-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+          ) : waMessages.length === 0 ? (
+            <p className="text-sm text-neutral-500">
+              No WhatsApp messages exchanged with {application.phone} yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {[...waMessages].reverse().map((m) => (
+                <div
+                  key={m.id}
+                  className={cn(
+                    'rounded-lg px-3 py-2 text-sm border',
+                    m.direction === 'outbound'
+                      ? 'bg-emerald-50 border-emerald-100 ml-8'
+                      : 'bg-neutral-50 border-neutral-100 mr-8'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] uppercase tracking-wide text-neutral-500">
+                      {m.direction === 'outbound' ? 'Sent' : 'Received'}
+                      {m.template_key ? ` · ${m.template_key}` : ''}
+                    </span>
+                    <span className="text-[10px] text-neutral-400 tabular-nums">
+                      {new Date(m.created_at).toLocaleString('en-ZA', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  {m.body && (
+                    <p className="text-neutral-800 whitespace-pre-wrap">{m.body}</p>
+                  )}
+                  {m.status && m.status !== 'sent' && m.status !== 'delivered' && (
+                    <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600">
+                      {m.status}
+                      {m.error ? `: ${m.error}` : ''}
+                    </span>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                  <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wide font-semibold">Amount</p>
-                    <p className="text-neutral-900 font-bold mt-1">
-                      {pay.amount ? `R${pay.amount.toLocaleString()}` : '·'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wide font-semibold">Yoco ref</p>
-                    <p className="text-neutral-900 font-mono text-xs mt-1 break-all">
-                      {pay.provider_ref || '·'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wide font-semibold">Internal ref</p>
-                    <p className="text-neutral-900 font-mono text-xs mt-1">
-                      {pay.reference || (application.id as string).slice(0, 8).toUpperCase()}
-                    </p>
-                  </div>
-                </div>
-                {status === 'paid' && (
-                  <a
-                    href={`/admin/applications/${application.id}/invoice`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 bg-[#cd2653] hover:bg-[#bf3026] text-white font-semibold rounded-full px-4 py-2 text-sm transition-colors"
-                  >
-                    View &amp; print invoice
-                  </a>
-                )}
-                {status !== 'paid' && (
-                  <p className="text-xs text-neutral-500">
-                    No paid invoice yet. Mark this vendor paid from <a href="/admin/vendor-ops" className="text-[#cd2653] hover:underline font-semibold">Vendor Ops → Payments</a>.
-                  </p>
-                )}
-              </div>
-            )
-          })()}
-        </Card>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Admin Notes */}
-        <Card>
-          <h2 className="font-serif text-xl text-[#1B1A17] mb-4">Admin Notes</h2>
+        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-4">Admin Notes</h2>
           <textarea
             value={adminNotes}
             onChange={(e) => setAdminNotes(e.target.value)}
             placeholder="Add internal notes about this application..."
             rows={4}
-            className="w-full px-4 py-3 bg-white border border-[#E5E5E5]/40 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none"
+            className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none"
           />
-          <ButtonSecondary
+          <button
             onClick={saveNotes}
             disabled={saving}
-            className="mt-3 flex items-center gap-2"
+            className="mt-3 flex items-center gap-2 px-4 py-2 bg-neutral-100 text-neutral-700 rounded-lg hover:bg-neutral-200 transition-colors disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
             Save Notes
-          </ButtonSecondary>
-        </Card>
+          </button>
+        </div>
 
         {/* Actions */}
-        <Card>
-          <h2 className="font-serif text-xl text-[#1B1A17] mb-4">Actions</h2>
+        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <h2 className="text-lg font-semibold text-neutral-900 mb-4">Actions</h2>
           <div className="flex flex-wrap gap-3">
-            <ButtonPrimary
+            <button
               onClick={() => updateStatus('approved')}
               disabled={saving || application.status === 'approved'}
-              className="flex items-center gap-2"
+              className={cn(
+                'flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50',
+                application.status === 'approved'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              )}
             >
-              <CheckCircle className="w-4 h-4" />
-              {application.status === 'approved' ? 'Approved' : 'Approve'}
-            </ButtonPrimary>
-            <ButtonSecondary
+              <CheckCircle className="w-5 h-5" />
+              Approve
+            </button>
+            <button
               onClick={() => updateStatus('rejected')}
               disabled={saving || application.status === 'rejected'}
-              className="flex items-center gap-2"
+              className={cn(
+                'flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50',
+                application.status === 'rejected'
+                  ? 'bg-red-100 text-red-800'
+                  : 'bg-red-600 text-white hover:bg-red-700'
+              )}
             >
-              <XCircle className="w-4 h-4" />
-              {application.status === 'rejected' ? 'Rejected' : 'Reject'}
-            </ButtonSecondary>
-            <ButtonSecondary
+              <XCircle className="w-5 h-5" />
+              Reject
+            </button>
+            <button
               onClick={() => updateStatus('info_requested')}
               disabled={saving || application.status === 'info_requested'}
-              className="flex items-center gap-2"
+              className={cn(
+                'flex items-center gap-2 px-5 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50',
+                application.status === 'info_requested'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              )}
             >
-              <HelpCircle className="w-4 h-4" />
-              {application.status === 'info_requested' ? 'Info Requested' : 'Request Info'}
-            </ButtonSecondary>
+              <HelpCircle className="w-5 h-5" />
+              Request Info
+            </button>
           </div>
 
           {application.reviewed_at && (
-            <p className="text-sm text-[#1B1A17]/55 mt-4">
+            <p className="text-sm text-neutral-500 mt-4">
               Last reviewed: {formatDate(application.reviewed_at)}
             </p>
           )}
-        </Card>
+        </div>
       </div>
-    </PageShell>
+    </div>
   )
 }

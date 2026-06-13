@@ -113,6 +113,10 @@ export async function PATCH(
     const updateData: Record<string, unknown> = { ...validated }
     if (validated.status) {
       updateData.reviewed_at = new Date().toISOString()
+      updateData.reviewed_by = user.id
+    } else if (validated.admin_notes !== undefined) {
+      // Touch reviewed_by on any admin-driven mutation so we know who edited last.
+      updateData.reviewed_by = user.id
     }
 
     const { data, error } = await admin
