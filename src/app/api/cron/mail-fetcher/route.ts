@@ -77,6 +77,7 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
   if (cronSecret) {
     const auth = req.headers.get('authorization') || ''
     if (auth !== `Bearer ${cronSecret}`) {
+      console.warn(JSON.stringify({ at: 'mail-fetcher', event: 'unauthorized' }))
       return NextResponse.json(
         { ok: false, fetched: 0, written: 0, skipped: 0, errors: ['unauthorized'], host: '', durationMs: 0 },
         { status: 401 }
@@ -88,10 +89,18 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
   const port = Number(process.env.IMAP_PORT || 993)
   const user = process.env.IMAP_USER || 'support@youngatheart.co.za'
   let pass = process.env.IMAP_PASS
+  let passFromSmtpFallback = false
   if (!pass) {
     pass = process.env.SMTP_PASS
     if (pass) {
-      errors.push('IMAP_PASS missing, falling back to SMTP_PASS')
+      passFromSmtpFallback = true
+      // GoDaddy (imap.secureserver.net) needs a real mailbox password.
+      // SMTP_PASS is the same secret on that stack today, but env hygiene
+      // says IMAP_PASS must be set explicitly. Surface as a config defect.
+      errors.push(
+        'config: IMAP_PASS missing, fell back to SMTP_PASS. ' +
+          'Set IMAP_PASS in Vercel env (GoDaddy mailbox password) to remove this warning.'
+      )
     }
   }
 
@@ -124,13 +133,17 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
   try {
     await client.connect()
   } catch (e) {
+    const msg = (e as Error).message
+    console.error(JSON.stringify({ at: 'mail-fetcher', event: 'connect_failed', host, error: msg }))
+    // Best-effort close on connect failure (imapflow may have a half-open socket)
+    try { await client.close() } catch { /* swallow */ }
     return NextResponse.json(
       {
         ok: false,
         fetched: 0,
         written: 0,
         skipped: 0,
-        errors: [`imap connect: ${(e as Error).message}`],
+        errors: [`imap connect: ${msg}`],
         host,
         durationMs: Date.now() - started,
       },
@@ -138,8 +151,9 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
     )
   }
 
-  const lock = await client.getMailboxLock('INBOX')
+  let lock: Awaited<ReturnType<typeof client.getMailboxLock>> | null = null
   try {
+    lock = await client.getMailboxLock('INBOX')
     // Pull UNSEEN, cap to 50 per run to bound work
     const uidsRaw = await client.search({ seen: false }, { uid: true })
     const uids: number[] = Array.isArray(uidsRaw) ? uidsRaw : []
@@ -152,7 +166,15 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
         msg = (await client.fetchOne(String(uid), {
           envelope: true,
           source: true,
-          headers: ['message-id', 'auto-submitted', 'in-reply-to', 'references'],
+          headers: [
+            'message-id',
+            'auto-submitted',
+            'x-auto-response-suppress',
+            'precedence',
+            'list-unsubscribe',
+            'in-reply-to',
+            'references',
+          ],
         }, { uid: true })) as FetchMessageObject
       } catch (e) {
         errors.push(`uid ${uid} fetch: ${(e as Error).message}`)
@@ -165,9 +187,17 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
       }
 
       const headerBlob = msg.headers ? msg.headers.toString('utf8') : ''
-      const autoSubmitted = /^auto-submitted:\s*(auto-replied|auto-generated)/im.test(headerBlob)
-      if (autoSubmitted) {
-        // Mark seen so we don't re-process bounce/vacation loops
+      // RFC 3834: Auto-Submitted other than "no" is a non-human reply.
+      const autoSubmittedMatch = headerBlob.match(/^auto-submitted:\s*([^\r\n]+)/im)
+      const autoSubmitted =
+        autoSubmittedMatch !== null &&
+        autoSubmittedMatch[1].trim().toLowerCase() !== 'no'
+      // Microsoft / Outlook out-of-office signal — any value means suppress.
+      const autoSuppress = /^x-auto-response-suppress:\s*\S/im.test(headerBlob)
+      // Mailing-list / bulk traffic.
+      const precedence = /^precedence:\s*(bulk|list|junk)/im.test(headerBlob)
+      if (autoSubmitted || autoSuppress || precedence) {
+        // Mark seen so we don't re-process bounce/vacation/list loops
         try {
           await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true })
         } catch {
@@ -254,12 +284,38 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
         errors.push(`flag seen ${uid}: ${(e as Error).message}`)
       }
     }
+  } catch (e) {
+    // Unexpected failure inside the loop / mailbox lock — bubble into errors
+    // but keep the response shape stable so the cron monitor still parses it.
+    errors.push(`loop: ${(e as Error).message}`)
+    console.error(
+      JSON.stringify({ at: 'mail-fetcher', event: 'loop_error', error: (e as Error).message })
+    )
   } finally {
-    lock.release()
-    await client.logout().catch(() => {
-      /* swallow */
+    if (lock) {
+      try { lock.release() } catch { /* swallow */ }
+    }
+    // Always close the IMAP socket. logout() does a clean BYE; close() forces
+    // the socket shut if logout times out or the connection is already broken.
+    await client.logout().catch(async () => {
+      try { await client.close() } catch { /* swallow */ }
     })
   }
+
+  const durationMs = Date.now() - started
+  console.log(
+    JSON.stringify({
+      at: 'mail-fetcher',
+      event: 'run_complete',
+      host,
+      fetched,
+      written,
+      skipped,
+      errorCount: errors.length,
+      durationMs,
+      passFromSmtpFallback,
+    })
+  )
 
   return NextResponse.json({
     ok: errors.length === 0,
@@ -268,6 +324,6 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
     skipped,
     errors,
     host,
-    durationMs: Date.now() - started,
+    durationMs,
   })
 }
