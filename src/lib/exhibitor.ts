@@ -24,17 +24,20 @@ export async function getExhibitorContext(): Promise<ExhibitorContext | null> {
   const applicationId = meta.application_id as string | undefined
 
   let application: Record<string, unknown> | null = null
+  const admin = createAdminClient()
   if (applicationId) {
-    const admin = createAdminClient()
     const { data } = await admin
       .from('vendor_applications')
       .select('*')
       .eq('id', applicationId)
-      .single()
+      .maybeSingle()
     application = data ?? null
-  } else if (user.email) {
-    // fallback: match by email if metadata link is missing
-    const admin = createAdminClient()
+  }
+  // Fallback: if the metadata link is missing OR the linked row no longer
+  // exists (orphan id from a prior demo/seed reset), match by email. This
+  // prevents the contract gate from silently no-op'ing because the auth user
+  // points at a deleted application row.
+  if (!application && user.email) {
     const { data } = await admin
       .from('vendor_applications')
       .select('*')
