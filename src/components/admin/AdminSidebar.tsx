@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X } from 'lucide-react'
+import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -13,6 +13,9 @@ const navigation = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Ticket Sales', href: '/admin/tickets', icon: Ticket },
   { name: 'Applications', href: '/admin/applications', icon: FileText },
+  { name: 'Vendors', href: '/admin/applications?status=approved', icon: Users },
+  { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
+  { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
 ]
