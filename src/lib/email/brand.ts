@@ -1,6 +1,6 @@
 // Single source of truth for every email's look. Change it here, all emails update.
 // White editorial direction: white canvas, serif headings, the purple→magenta→orange
-// logo gradient used sparingly as accent rules and the CTA button — never a colour flood.
+// logo gradient used sparingly as accent rules and the CTA button, never a colour flood.
 
 export const brand = {
   color: {
@@ -21,7 +21,7 @@ export const brand = {
   gradientFallback: '#b5398a',
   font: {
     sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    serif: 'Georgia, "Times New Roman", serif', // web-safe editorial serif for headings
+    serif: 'Georgia, "Times New Roman", serif',
     mono: '"SF Mono", Menlo, Consolas, monospace',
   },
   url: {
@@ -36,6 +36,6 @@ export const brand = {
     email: 'support@youngatheart.co.za',
     phone: '+27 65 943 5012',
     venue: 'Youngsfield Military Base, Cape Town',
-    dates: '11–13 December 2026',
+    dates: '11-13 December 2026',
   },
 } as const

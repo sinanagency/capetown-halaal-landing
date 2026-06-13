@@ -15,7 +15,7 @@ export interface CampaignProps {
   preview: string
   /** Big serif headline at the top of the body. */
   heading: string
-  /** Optional greeting line, e.g. "Hi Aisha," — personalise via {name} upstream. */
+  /** Optional greeting line, e.g. "Hi Aisha,". */
   greeting?: string
   /** Body as plain paragraphs (each rendered with safe spacing). */
   paragraphs?: string[]
@@ -64,9 +64,9 @@ export function Campaign({
           <Divider />
           <EventDetails
             rows={[
-              `📅  ${brand.contact.dates}`,
-              `📍  ${brand.contact.venue}`,
-              '🎪  350+ Vendors · 25,000+ Visitors',
+              `Dates: ${brand.contact.dates}`,
+              `Venue: ${brand.contact.venue}`,
+              '350+ Vendors, 25,000+ Visitors',
             ]}
           />
         </>
@@ -79,8 +79,8 @@ export function Campaign({
       </Signoff>
 
       <Text style={ps}>
-        You&apos;re receiving this because you applied to, registered for, or bought tickets to
-        Young at Heart Festival.
+        {'You are receiving this because you applied to, registered for, or bought tickets to '}
+        {'Young at Heart Festival.'}
       </Text>
     </EmailLayout>
   )

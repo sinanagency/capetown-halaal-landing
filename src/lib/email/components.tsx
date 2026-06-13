@@ -17,7 +17,7 @@ import type { ReactNode } from 'react'
 import { brand } from './brand'
 
 /* ----------------------------------------------------------------------------
- * EmailLayout — the branded shell every email pours its content into.
+ * EmailLayout, the branded shell every email pours its content into.
  * White editorial: logo-led white header + slim gradient rule, rich footer.
  * -------------------------------------------------------------------------- */
 export function EmailLayout({
@@ -85,7 +85,7 @@ export function EmailLayout({
               <Link href={brand.url.linkedin} style={sFootLinkPurple}>LinkedIn</Link>
             </Text>
             <Text style={sCopy}>
-              © 2026 Young at Heart Festival · Cape Town, South Africa
+              {'© 2026 Young at Heart Festival · Cape Town, South Africa'}
               {unsubscribeUrl && (
                 <>
                   {'  ·  '}
@@ -133,28 +133,6 @@ export function InfoCard({ label, value }: { label: string; value: ReactNode }) 
     <Section style={sCard}>
       <Text style={sCardLabel}>{label}</Text>
       <Text style={sCardValue}>{value}</Text>
-    </Section>
-  )
-}
-
-export function CredBox({ email, password, note }: { email: string; password: string; note?: string }) {
-  return (
-    <>
-      <Section style={sCred}>
-        <Text style={sCredLabel}>Email</Text>
-        <Text style={sCredValue}>{email}</Text>
-        <Text style={{ ...sCredLabel, marginTop: '14px' }}>Temporary Password</Text>
-        <Text style={sCredCode}>{password}</Text>
-      </Section>
-      {note && <Text style={sSmall}>{note}</Text>}
-    </>
-  )
-}
-
-export function SuccessBadge({ children }: { children: ReactNode }) {
-  return (
-    <Section style={sBadge}>
-      <Text style={sBadgeText}>{children}</Text>
     </Section>
   )
 }
@@ -243,17 +221,6 @@ const sCardLabel = {
   textTransform: 'uppercase' as const, letterSpacing: '1px',
 }
 const sCardValue = { margin: '5px 0 0', fontSize: '16px', fontWeight: 600 as const, color: brand.color.ink }
-const sCred = { backgroundColor: brand.color.soft, border: `1px solid #ead9ef`, borderRadius: '12px', padding: '20px 24px', margin: '0 0 10px' }
-const sCredLabel = { margin: 0, fontSize: '11px', fontWeight: 700 as const, color: brand.color.purple, textTransform: 'uppercase' as const, letterSpacing: '1px' }
-const sCredValue = { margin: '4px 0 0', fontSize: '15px', fontWeight: 600 as const, color: brand.color.ink }
-const sCredCode = { margin: '4px 0 0', fontSize: '26px', fontWeight: 800 as const, color: brand.color.magenta, letterSpacing: '3px', fontFamily: brand.font.mono }
-const sSmall = { fontSize: '12px', color: brand.color.muted, margin: '0 0 16px' }
-const sBadge = { textAlign: 'center' as const, margin: '0 0 22px' }
-const sBadgeText = {
-  display: 'inline-block', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
-  borderRadius: '999px', color: '#16a34a', fontSize: '11px', fontWeight: 700 as const,
-  letterSpacing: '1.5px', padding: '8px 18px', margin: 0,
-}
 const sEvent = { backgroundColor: brand.color.soft, borderRadius: '12px', padding: '18px 20px', margin: '8px 0 20px' }
 const sEventTitle = { margin: '0 0 10px', fontSize: '11px', fontWeight: 700 as const, color: brand.color.purple, letterSpacing: '1.5px' }
 const sEventRow = { margin: '0 0 5px', fontSize: '14px', lineHeight: '22px', color: brand.color.body }

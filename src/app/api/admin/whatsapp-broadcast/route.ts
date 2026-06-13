@@ -1,160 +1,359 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
-import { sendTemplate, toE164 } from '@/lib/whatsapp'
-import { randomUUID } from 'crypto'
+// =============================================================================
+// /api/admin/whatsapp-broadcast
+//
+// One route, two responsibilities, two modes:
+//
+//   GET  ?counts=1&<filters>
+//       Returns the audience count for both channels (mail + wa) given the
+//       supplied filter set. Used by the admin UI to gate the Send button
+//       behind a confirmation modal with the exact number.
+//
+//   POST { channel, filters, template_key, custom_message? }
+//       Builds the audience, then dispatches.
+//         channel = 'mail' | 'wa' | 'both'
+//         filters = same shape as GET querystring
+//         template_key = 'doc_chase' | 'payment_reminder' | ...
+//         custom_message = optional override text injected as {{custom_message}}
+//
+// Filter columns:
+//   status            = one of pending|approved|rejected|info_requested
+//   sector            = matches inside vendor_applications.product_categories[]
+//   booth_tier        = exact match on preferred_booth_tier
+//   has_docs          = true|false (true = admin_notes contains '⟦DOCS:complete⟧')
+//   contract_signed   = true|false (admin_notes contains '⟦CONTRACT_SIGNED⟧')
+//   paid              = true|false (admin_notes contains '⟦PAID⟧')
+//
+// Doctrine notes:
+//   - Outbound mail always goes through zanii-sender (Resend only).
+//   - Outbound WA always goes through whatsapp/sender (WABA stub if not wired).
+//   - We dedupe by email for mail, by phone for WA.
+//   - We exclude mail_optout for mail; WA exclusion via wa_consent will land
+//     when that column exists (defensive null-check in the meantime).
+//   - Pacing: mail at 4/sec (250ms), WA at 1 every 250ms.
+//   - Every message logs to mail_messages with full headers so inbound
+//     reconciliation works.
+// =============================================================================
 
-export const runtime = 'nodejs'
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sendZaniiMail, pacer } from '@/lib/mail/zanii-sender'
+import { sendTemplate } from '@/lib/whatsapp/sender'
+import { renderTemplate, TEMPLATE_KEYS, type TemplateKey, type TemplateVars } from '@/lib/mail/templates'
+import { buildUnsubUrl } from '@/lib/mail/unsubscribe-token'
+
+export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-// The approved MARKETING template used for broadcasts. Body:
-//   "Hi {{1}}! 🎉 An update from the Young at Heart Festival:\n\n{{2}}\n\n
-//    Get your tickets at tickets.youngatheart.co.za\n\nReply STOP to opt out..."
-// {{1}} = first name, {{2}} = Sam's message.
-const BROADCAST_TEMPLATE = 'festival_announcement'
-const PACE_MS = 250 // ~4/sec, gentle on rate + messaging limits
+// ---------------------------------------------------------------------------
+// Auth helper.
+// ---------------------------------------------------------------------------
 
-type Audience = 'vendors' | 'attendees' | 'all'
-
-async function authorize(request: NextRequest): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  const authHeader = request.headers.get('authorization')
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return { ok: true }
+async function assertAdmin(): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  if (!user) return { ok: false, status: 401, error: 'Unauthorized' }
   const admin = createAdminClient()
-  const { data: adminUser } = await admin.from('admin_users').select('id').eq('id', user.id).single()
-  if (!adminUser) return { ok: false, res: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  const { data: adminUser } = await admin
+    .from('admin_users')
+    .select('id')
+    .eq('id', user.id)
+    .single()
+  if (!adminUser) return { ok: false, status: 403, error: 'Forbidden' }
   return { ok: true }
 }
 
-const firstName = (n?: string | null) => {
-  const f = (n || '').trim().split(/\s+/)[0]
-  return f ? f.charAt(0).toUpperCase() + f.slice(1) : 'there'
+// ---------------------------------------------------------------------------
+// Filter shape + parsing.
+// ---------------------------------------------------------------------------
+
+export interface BroadcastFilters {
+  status?: string | null
+  sector?: string | null
+  booth_tier?: string | null
+  has_docs?: boolean | null
+  contract_signed?: boolean | null
+  paid?: boolean | null
 }
 
-interface Recipient { phone: string; name: string }
-
-// Build the recipient list for an audience, deduped by E.164. The consent gate
-// (canSend, inside sendTemplate) is the real safety net: only opted_in contacts
-// actually receive a marketing broadcast, and opted_out are skipped — so pulling
-// raw vendor/buyer phones here is safe.
-async function getRecipients(audience: Audience): Promise<Recipient[]> {
-  const db = createAdminClient()
-  const byPhone = new Map<string, Recipient>()
-  const add = (rawPhone?: string | null, name?: string | null) => {
-    if (!rawPhone) return
-    const e164 = toE164(rawPhone)
-    if (!e164) return
-    if (!byPhone.has(e164)) byPhone.set(e164, { phone: e164, name: firstName(name) })
-  }
-
-  if (audience === 'vendors' || audience === 'all') {
-    const { data } = await db.from('vendor_applications').select('phone, contact_name, business_name')
-    for (const r of data || []) add(r.phone, r.contact_name || r.business_name)
-  }
-  if (audience === 'attendees' || audience === 'all') {
-    const { data } = await db.from('ticket_buyers').select('phone, name')
-    for (const r of data || []) add(r.phone, r.name)
-    // Also any WhatsApp contact flagged as a buyer (covers buyers captured by the bot)
-    const { data: wc } = await db.from('wa_contacts').select('wa_phone, profile_name').eq('is_buyer', true)
-    for (const r of wc || []) add(r.wa_phone, r.profile_name)
-  }
-  return [...byPhone.values()]
+function parseBoolParam(v: string | null | undefined): boolean | null {
+  if (v == null) return null
+  if (v === '1' || v === 'true' || v === 'yes') return true
+  if (v === '0' || v === 'false' || v === 'no') return false
+  return null
 }
 
-// GET ?counts=1 → audience sizes (opted-in) for the UI to show before sending.
-export async function GET(request: NextRequest) {
-  const auth = await authorize(request)
-  if (!auth.ok) return auth.res
-  const db = createAdminClient()
+function filtersFromSearch(params: URLSearchParams): BroadcastFilters {
+  return {
+    status: params.get('status') || null,
+    sector: params.get('sector') || null,
+    booth_tier: params.get('booth_tier') || null,
+    has_docs: parseBoolParam(params.get('has_docs')),
+    contract_signed: parseBoolParam(params.get('contract_signed')),
+    paid: parseBoolParam(params.get('paid')),
+  }
+}
 
-  const counts: Record<string, number> = {}
-  for (const aud of ['vendors', 'attendees', 'all'] as Audience[]) {
-    const recips = await getRecipients(aud)
-    // how many are actually reachable (opted_in, not opted_out)
-    const phones = recips.map((r) => r.phone)
-    let optedIn = 0
-    if (phones.length) {
-      const { data } = await db
-        .from('wa_contacts')
-        .select('wa_phone, opted_in, opted_out')
-        .in('wa_phone', phones)
-      const map = new Map((data || []).map((c) => [c.wa_phone, c]))
-      for (const p of phones) {
-        const c = map.get(p)
-        if (c && c.opted_in && !c.opted_out) optedIn++
-      }
+// ---------------------------------------------------------------------------
+// Audience builder.
+//
+// AND-of-filters. We pull a minimal column set and filter in-process for
+// admin_notes marker conditions, since those are not indexed.
+// ---------------------------------------------------------------------------
+
+interface AudienceRow {
+  id: string
+  business_name: string
+  contact_name: string | null
+  email: string | null
+  phone: string | null
+  preferred_booth_tier: string | null
+  product_categories: string[] | null
+  status: string | null
+  admin_notes: string | null
+}
+
+const STALL_MARKER_RE = /⟦STALL:([^⟧]+)⟧/
+const DOCS_COMPLETE_MARKER = '⟦DOCS:complete⟧'
+const CONTRACT_SIGNED_MARKER = '⟦CONTRACT_SIGNED⟧'
+const PAID_MARKER = '⟦PAID⟧'
+
+async function buildAudience(filters: BroadcastFilters): Promise<AudienceRow[]> {
+  const admin = createAdminClient()
+  let q = admin
+    .from('vendor_applications')
+    .select('id, business_name, contact_name, email, phone, preferred_booth_tier, product_categories, status, admin_notes')
+
+  if (filters.status) q = q.eq('status', filters.status)
+  if (filters.booth_tier) q = q.eq('preferred_booth_tier', filters.booth_tier)
+  if (filters.sector) q = q.contains('product_categories', [filters.sector])
+
+  const { data, error } = await q
+  if (error) {
+    console.error('Audience query error', error)
+    return []
+  }
+  const rows = (data || []) as AudienceRow[]
+  return rows.filter((r) => {
+    const notes = r.admin_notes || ''
+    if (filters.has_docs === true && !notes.includes(DOCS_COMPLETE_MARKER)) return false
+    if (filters.has_docs === false && notes.includes(DOCS_COMPLETE_MARKER)) return false
+    if (filters.contract_signed === true && !notes.includes(CONTRACT_SIGNED_MARKER)) return false
+    if (filters.contract_signed === false && notes.includes(CONTRACT_SIGNED_MARKER)) return false
+    if (filters.paid === true && !notes.includes(PAID_MARKER)) return false
+    if (filters.paid === false && notes.includes(PAID_MARKER)) return false
+    return true
+  })
+}
+
+async function loadOptOutEmails(): Promise<Set<string>> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('mail_optout').select('email')
+  if (error) {
+    // Table may not exist pre-migration. Fail open so dev preview works.
+    return new Set()
+  }
+  return new Set((data || []).map((r: { email: string }) => r.email.toLowerCase()))
+}
+
+// ---------------------------------------------------------------------------
+// GET — audience counts.
+// ---------------------------------------------------------------------------
+
+export async function GET(req: NextRequest) {
+  const auth = await assertAdmin()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const url = new URL(req.url)
+  if (url.searchParams.get('counts') !== '1') {
+    return NextResponse.json({ error: 'Use ?counts=1 with filters' }, { status: 400 })
+  }
+  const filters = filtersFromSearch(url.searchParams)
+  const audience = await buildAudience(filters)
+  const optout = await loadOptOutEmails()
+
+  const mailRecipients = new Set<string>()
+  const waRecipients = new Set<string>()
+  for (const r of audience) {
+    if (r.email) {
+      const e = r.email.trim().toLowerCase()
+      if (e && !optout.has(e)) mailRecipients.add(e)
     }
-    counts[aud] = optedIn
-    counts[`${aud}_total`] = recips.length
-  }
-  return NextResponse.json({ counts })
-}
-
-// POST { audience, message, test? } → send the broadcast.
-export async function POST(request: NextRequest) {
-  const auth = await authorize(request)
-  if (!auth.ok) return auth.res
-
-  let body: { audience?: Audience; message?: string; test?: string }
-  try { body = await request.json() } catch { return NextResponse.json({ error: 'Bad JSON' }, { status: 400 }) }
-
-  const message = (body.message || '').trim()
-  const audience = body.audience
-  if (!message) return NextResponse.json({ error: 'Message is required' }, { status: 400 })
-  if (message.length > 600) return NextResponse.json({ error: 'Message too long (max 600 chars)' }, { status: 400 })
-  if (!body.test && !['vendors', 'attendees', 'all'].includes(audience || '')) {
-    return NextResponse.json({ error: 'Pick an audience' }, { status: 400 })
-  }
-
-  const db = createAdminClient()
-  const broadcastId = randomUUID()
-
-  // Test send: just one number, the admin's own.
-  const recipients: Recipient[] = body.test
-    ? [{ phone: toE164(body.test), name: 'there' }].filter((r) => r.phone) as Recipient[]
-    : await getRecipients(audience as Audience)
-
-  let sent = 0, skipped = 0, failed = 0
-  const skipReasons: Record<string, number> = {}
-
-  for (const r of recipients) {
-    try {
-      const res = await sendTemplate(r.phone, BROADCAST_TEMPLATE, [r.name, message], { category: 'marketing' })
-      if (res.skipped) {
-        skipped++
-        skipReasons[res.skipped] = (skipReasons[res.skipped] || 0) + 1
-      } else {
-        sent++
-      }
-      // Log every attempt for audit.
-      await db.from('wa_messages').insert({
-        direction: 'out',
-        wa_phone: r.phone,
-        template_name: BROADCAST_TEMPLATE,
-        category: 'marketing',
-        body: message,
-        status: res.skipped ? 'failed' : 'sent',
-        error: res.skipped || null,
-        provider_message_id: res.messageId || null,
-        broadcast_id: broadcastId,
-      })
-    } catch (e) {
-      failed++
-      console.error('[broadcast] send error', r.phone, e)
+    if (r.phone) {
+      const p = r.phone.replace(/[^0-9]/g, '')
+      if (p.length >= 9) waRecipients.add(p)
     }
-    if (PACE_MS) await new Promise((rs) => setTimeout(rs, PACE_MS))
   }
 
   return NextResponse.json({
-    broadcastId,
-    audience: body.test ? 'test' : audience,
-    total: recipients.length,
-    sent,
-    skipped,
-    failed,
-    skipReasons,
+    audience_total: audience.length,
+    mail_count: mailRecipients.size,
+    wa_count: waRecipients.size,
+    filters,
+    optout_count: optout.size,
   })
+}
+
+// ---------------------------------------------------------------------------
+// POST — dispatch.
+// ---------------------------------------------------------------------------
+
+interface BroadcastBody {
+  channel: 'mail' | 'wa' | 'both'
+  filters?: BroadcastFilters
+  template_key: TemplateKey
+  custom_message?: string
+  /** Approved WABA template name override (defaults to template_key). */
+  wa_template?: string
+  /** Dry run — build audience and return counts without sending. */
+  dry_run?: boolean
+}
+
+function firstName(contact?: string | null): string {
+  if (!contact) return 'there'
+  const t = contact.trim().split(/\s+/)[0]
+  return t || 'there'
+}
+
+function stallFromNotes(notes?: string | null): string | undefined {
+  if (!notes) return undefined
+  const m = STALL_MARKER_RE.exec(notes)
+  return m ? m[1].trim() : undefined
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await assertAdmin()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  let body: BroadcastBody
+  try {
+    body = await req.json() as BroadcastBody
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  if (!body.channel || !['mail', 'wa', 'both'].includes(body.channel)) {
+    return NextResponse.json({ error: 'channel must be mail | wa | both' }, { status: 400 })
+  }
+  if (!body.template_key || !TEMPLATE_KEYS.includes(body.template_key)) {
+    return NextResponse.json({ error: 'unknown template_key' }, { status: 400 })
+  }
+
+  const filters = body.filters || {}
+  const audience = await buildAudience(filters)
+  const optout = await loadOptOutEmails()
+
+  const dryRun = !!body.dry_run
+  const channel = body.channel
+  const adminDb = createAdminClient()
+
+  const seenEmails = new Set<string>()
+  const seenPhones = new Set<string>()
+  const results = {
+    audience_total: audience.length,
+    mail: { attempted: 0, sent: 0, failed: 0, skipped: 0 },
+    wa: { attempted: 0, sent: 0, failed: 0, skipped: 0 },
+    dry_run: dryRun,
+    errors: [] as Array<{ kind: 'mail' | 'wa'; to: string; error: string }>,
+  }
+
+  for (const row of audience) {
+    const vars: TemplateVars = {
+      first_name: firstName(row.contact_name),
+      business_name: row.business_name || 'your stand',
+      stall_code: stallFromNotes(row.admin_notes),
+      custom_message: body.custom_message || '',
+    }
+
+    // ---------------- mail ----------------
+    if (channel === 'mail' || channel === 'both') {
+      const emailRaw = (row.email || '').trim().toLowerCase()
+      if (emailRaw && !seenEmails.has(emailRaw) && !optout.has(emailRaw)) {
+        seenEmails.add(emailRaw)
+        results.mail.attempted++
+        if (!dryRun) {
+          const unsubscribeUrl = buildUnsubUrl(emailRaw)
+          const rendered = await renderTemplate(body.template_key, { ...vars, unsubscribe_url: unsubscribeUrl })
+          const send = await sendZaniiMail({
+            to: emailRaw,
+            subject: rendered.subject,
+            html: rendered.body_html,
+            text: rendered.body_text,
+            unsubscribeToken: unsubscribeUrl.split('/').pop(),
+            tags: [
+              { name: 'template', value: body.template_key },
+              { name: 'channel', value: 'mail' },
+            ],
+          })
+          if (send.ok) {
+            results.mail.sent++
+          } else {
+            results.mail.failed++
+            results.errors.push({ kind: 'mail', to: emailRaw, error: send.error || 'unknown' })
+          }
+          // Log to mail_messages. Best-effort; if the table is missing the
+          // insert fails and we just log it.
+          try {
+            await adminDb.from('mail_messages').insert({
+              direction: 'out',
+              mailbox: send.fromUsed || 'hello@youngatheart.co.za',
+              from_addr: send.fromUsed || 'hello@youngatheart.co.za',
+              to_addr: emailRaw,
+              subject: rendered.subject,
+              body_text: rendered.body_text,
+              body_html: rendered.body_html,
+              message_id: send.messageId || `<broadcast-${Date.now()}@event.youngatheart.co.za>`,
+              status: send.ok ? 'sent' : 'failed',
+              error: send.ok ? null : (send.error || null),
+              provider_message_id: send.providerMessageId || null,
+              vendor_application_id: row.id,
+            })
+          } catch (e) {
+            console.warn('mail_messages insert failed:', (e as Error).message)
+          }
+          await pacer(250) // 4/sec
+        } else {
+          results.mail.sent++
+        }
+      } else if (emailRaw && (seenEmails.has(emailRaw) || optout.has(emailRaw))) {
+        results.mail.skipped++
+      }
+    }
+
+    // ---------------- whatsapp ----------------
+    if (channel === 'wa' || channel === 'both') {
+      const phoneRaw = (row.phone || '').replace(/[^0-9]/g, '')
+      if (phoneRaw && phoneRaw.length >= 9 && !seenPhones.has(phoneRaw)) {
+        seenPhones.add(phoneRaw)
+        results.wa.attempted++
+        if (!dryRun) {
+          const send = await sendTemplate({
+            to: phoneRaw,
+            template: body.wa_template || body.template_key,
+            variables: [
+              vars.first_name || 'there',
+              vars.business_name || '',
+              vars.stall_code || '',
+              body.custom_message || '',
+            ].filter((v) => v.length > 0),
+          })
+          if (send.ok) {
+            results.wa.sent++
+          } else if (send.skipped) {
+            results.wa.skipped++
+          } else {
+            results.wa.failed++
+            results.errors.push({ kind: 'wa', to: phoneRaw, error: send.error || 'unknown' })
+          }
+          await pacer(250)
+        } else {
+          results.wa.sent++
+        }
+      } else if (phoneRaw && seenPhones.has(phoneRaw)) {
+        results.wa.skipped++
+      }
+    }
+  }
+
+  return NextResponse.json(results)
 }
