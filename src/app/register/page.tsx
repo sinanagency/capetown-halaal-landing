@@ -24,11 +24,6 @@ export default function RegisterPage() {
   const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [error, setError] = useState('')
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setState('loading')
@@ -44,6 +39,13 @@ export default function RegisterPage() {
       setState('error')
       return
     }
+
+    // Defer client creation until submit — @supabase/ssr throws on empty
+    // URL/key during prerender when env vars aren't scoped to this preview.
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    )
 
     const { data, error: authError } = await supabase.auth.signUp({
       email: form.email,
