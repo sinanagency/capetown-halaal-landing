@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { updatePortalState } from '@/lib/portal-state'
+import { parsePortalState, updatePortalState } from '@/lib/portal-state'
 import { activeProvider } from '@/lib/payments'
+import { isPaidPaymentStatus } from '@/lib/idempotency-guards'
 
 // FNB return handler (PULL model). FNB redirects the buyer's browser here after
 // the card form + 3D Secure, with the txnToken in the query string. We do NOT
@@ -48,6 +49,21 @@ export async function GET(req: NextRequest) {
   }
 
   if (result.status === 'paid') {
+    // KT #244 max-1-retry guard. Browser refresh on the return URL = a
+    // second GET hitting the same applicationId. If portal-state already
+    // reads paid we skip the state mutation and just bounce to the portal
+    // with ?already=1 (a successful prior-payment landing, not a fresh one).
+    const admin = createAdminClient()
+    const { data: app } = await admin
+      .from('vendor_applications')
+      .select('admin_notes')
+      .eq('id', applicationId)
+      .maybeSingle()
+    const before = parsePortalState(app?.admin_notes)
+    if (isPaidPaymentStatus(before.payment?.status)) {
+      console.log(`[fnb return] ${applicationId} already PAID, bouncing without mutation (${result.reference})`)
+      return NextResponse.redirect(`${origin}${PORTAL}?already=1`)
+    }
     await updatePortalState(applicationId, (s) => ({
       ...s,
       stage: 'paid',

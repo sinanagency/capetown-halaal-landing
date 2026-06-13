@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTicket, toE164, uploadMedia } from '@/lib/whatsapp'
 import { recordConsent } from '@/lib/wa-consent'
+import { wasTicketDelivered } from '@/lib/idempotency-guards'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -36,9 +37,22 @@ export async function POST(request: NextRequest) {
   }
 
   const firstName = (b.firstName || '').trim().split(/\s+/)[0] || 'there'
-  const orderNumber = (b.orderNumber || '').toString().trim() || '—'
+  const orderNumber = (b.orderNumber || '').toString().trim() || ','
   const ticketSummary = (b.ticketSummary || 'Your ticket').toString().trim()
   const filename = (b.filename || `YAH-Ticket-${orderNumber}.pdf`).toString()
+
+  // KT #244 max-1-retry guard. WordPress/WooCommerce can retry this POST
+  // (CRON_SECRET timeout, network glitch) and the buyer would get the same
+  // ticket PDF twice + a duplicate ticket_buyers count bump. If a successful
+  // 'ticket_delivery' row already exists for this order in the last 24h,
+  // short-circuit with 200 so WordPress stops retrying. Cap at 24h so
+  // future-cycle re-purchases against a re-used order id can still flow.
+  if (orderNumber && orderNumber !== ',') {
+    const dbCheck = createAdminClient()
+    if (await wasTicketDelivered(dbCheck, orderNumber)) {
+      return NextResponse.json({ ok: true, mode: 'already-delivered', orderNumber })
+    }
+  }
 
   // Buying a ticket = transactional consent + auto opt-in (T&C). Record it.
   try {

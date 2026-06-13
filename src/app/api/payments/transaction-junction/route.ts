@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { updatePortalState } from '@/lib/portal-state'
+import { parsePortalState, updatePortalState } from '@/lib/portal-state'
 import { activeProvider } from '@/lib/payments'
+import { isPaidPaymentStatus } from '@/lib/idempotency-guards'
 
 // Webhook/callback endpoint for Transaction Junction.
 // Give this URL to TJ during onboarding: https://cthalaal.co.za/api/payments/transaction-junction
@@ -41,6 +42,21 @@ export async function POST(req: NextRequest) {
   }
 
   if (result.status === 'paid') {
+    // KT #244 max-1-retry guard. TJ retries webhooks aggressively. If the
+    // vendor's portal-state already reads payment.status='paid' we have
+    // already mutated state + (downstream) confirmed; return 200 so TJ
+    // stops retrying and skip the duplicate mutation.
+    const admin = createAdminClient()
+    const { data: app } = await admin
+      .from('vendor_applications')
+      .select('admin_notes')
+      .eq('id', applicationId)
+      .maybeSingle()
+    const before = parsePortalState(app?.admin_notes)
+    if (isPaidPaymentStatus(before.payment?.status)) {
+      console.log(`[payments webhook] ${applicationId} already PAID, skipping (${result.reference})`)
+      return NextResponse.json({ ok: true, alreadyPaid: true })
+    }
     await updatePortalState(applicationId, (s) => ({
       ...s,
       stage: 'paid',
