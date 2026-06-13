@@ -200,8 +200,12 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
 export interface MailTemplateSpec {
   key: TemplateKey
   label: string
+  /** One-liner shown next to the label in the picker. */
+  description: string
   /** Merge tags this template uses (declared so the picker can render param inputs). */
   vars: Array<keyof TemplateVars>
+  /** Parallel param descriptors so the picker can render uniform inputs across channels. */
+  params: Array<{ key: string; label: string; placeholder?: string; required?: boolean }>
 }
 
 const TEMPLATE_VARS: Record<TemplateKey, Array<keyof TemplateVars>> = {
@@ -212,10 +216,35 @@ const TEMPLATE_VARS: Record<TemplateKey, Array<keyof TemplateVars>> = {
   general_announcement: ['first_name', 'business_name', 'custom_message'],
 }
 
+const TEMPLATE_DESCRIPTIONS: Record<TemplateKey, string> = {
+  doc_chase: 'Nudge a vendor about missing documents.',
+  payment_reminder: 'Friendly stall fee reminder with amount + due date.',
+  contract_sign_reminder: 'Ask a vendor to sign their exhibitor contract.',
+  stall_allocation_notice: 'Tell a vendor their stall code is allocated.',
+  general_announcement: 'Custom announcement with merged greeting.',
+}
+
+const VAR_LABELS: Record<keyof TemplateVars, { label: string; placeholder?: string }> = {
+  first_name: { label: 'First name', placeholder: 'Aisha' },
+  business_name: { label: 'Business name', placeholder: 'Aisha Eats' },
+  stall_code: { label: 'Stall code', placeholder: 'F-12' },
+  amount_due: { label: 'Amount due', placeholder: 'R 6,500' },
+  due_date: { label: 'Due date', placeholder: '10 July 2026' },
+  custom_message: { label: 'Custom message', placeholder: 'Optional extra paragraph' },
+  unsubscribe_url: { label: 'Unsubscribe URL' },
+}
+
 export const MAIL_TEMPLATES: MailTemplateSpec[] = TEMPLATE_KEYS.map((key) => ({
   key,
   label: TEMPLATE_LABELS[key],
+  description: TEMPLATE_DESCRIPTIONS[key],
   vars: TEMPLATE_VARS[key],
+  params: TEMPLATE_VARS[key].map((v) => ({
+    key: String(v),
+    label: VAR_LABELS[v].label,
+    placeholder: VAR_LABELS[v].placeholder,
+    required: v !== 'custom_message' && v !== 'unsubscribe_url',
+  })),
 }))
 
 export function findMailTemplate(key: string): MailTemplateSpec | undefined {
@@ -223,16 +252,32 @@ export function findMailTemplate(key: string): MailTemplateSpec | undefined {
 }
 
 /**
- * Wrapper for renderTemplate that accepts either a TemplateKey (string) or a
- * MailTemplateSpec (the object the picker holds). Mirrors the WA template
- * picker's call shape so TemplatePicker can call mail + wa with parallel names.
+ * SYNC preview renderer for TemplatePicker. Returns the subject + a plain-text
+ * body built directly from the spec + merged tags. Does NOT go through the
+ * Campaign React renderer (which is async). The actual SEND path still calls
+ * the async `renderTemplate(key, vars)` for the full HTML email body.
+ *
+ * Shape returned: { body, subject } to mirror the WA template preview shape.
  */
-export async function renderMailTemplate(
+export function renderMailTemplate(
   specOrKey: MailTemplateSpec | TemplateKey,
   vars: TemplateVars,
-): Promise<RenderedTemplate> {
+): { subject: string; body: string } {
   const key: TemplateKey = typeof specOrKey === 'string' ? specOrKey : specOrKey.key
-  return renderTemplate(key, vars)
+  const spec = SPECS[key]
+  if (!spec) return { subject: '(unknown template)', body: '' }
+  const subject = merge(spec.subject, vars)
+  const paragraphs = spec.paragraphs
+    .map((p) => merge(p, vars))
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0)
+  const lines: string[] = []
+  if (spec.greeting) lines.push(merge(spec.greeting, vars), '')
+  for (const p of paragraphs) lines.push(p, '')
+  if (spec.cta) lines.push(`${spec.cta.label}: ${spec.cta.href}`, '')
+  lines.push(spec.signoff || 'Warm regards,')
+  lines.push('The Young at Heart Festival Team')
+  return { subject, body: lines.join('\n').trim() }
 }
 
 /**
