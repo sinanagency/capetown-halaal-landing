@@ -14,7 +14,6 @@ import {
 import {
   PageShell, PageHeader, Card, StatCard, Pill,
 } from '@/components/chrome/PageChrome'
-import { ActivityFeed } from '@/components/admin/ActivityFeed'
 
 interface Stats {
   total: number
@@ -437,9 +436,6 @@ export default function AdminDashboard() {
             </div>
           </Card>
         )}
-
-        {/* Activity Feed */}
-        <ActivityFeed />
 
         {/* Bottom Row: Recent Orders + Pending Apps */}
         <div className="grid lg:grid-cols-2 gap-6">
