@@ -28,10 +28,13 @@ export interface VendorApplication {
   reviewed_at: string | null
 }
 
+export type AdminRole = 'owner' | 'operator' | 'viewer'
+
 export interface AdminUser {
   id: string
   email: string
   name: string
+  role: AdminRole
   created_at: string
 }
 
