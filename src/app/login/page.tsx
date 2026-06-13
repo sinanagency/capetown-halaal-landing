@@ -1,5 +1,10 @@
 'use client'
 
+// Force runtime SSR — page imports @supabase/ssr which throws at build time
+// when NEXT_PUBLIC_SUPABASE_* env vars aren't in the preview environment.
+// Same pattern as /exhibitor (deploy unblock 2026-06-13).
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'

@@ -1,5 +1,8 @@
 'use client'
 
+// Force runtime SSR — page imports @supabase/ssr; deploy unblock 2026-06-13.
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
