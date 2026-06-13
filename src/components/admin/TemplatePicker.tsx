@@ -25,7 +25,7 @@ import {
 import {
   MAIL_TEMPLATES,
   findMailTemplate,
-  renderMailTemplate,
+  renderMailTemplatePreview,
   validateMailTemplate,
   type MailTemplateSpec,
 } from '@/lib/mail/templates'
@@ -79,7 +79,7 @@ export function TemplatePicker({ channel, onInsert, onSendAsTemplate, compact = 
         subject: undefined as string | undefined,
       }
     }
-    const out = renderMailTemplate(selected as MailTemplateSpec, params)
+    const out = renderMailTemplatePreview(selected as MailTemplateSpec, params)
     return { body: out.body, subject: out.subject }
   }, [selected, params, channel])
 
@@ -99,9 +99,9 @@ export function TemplatePicker({ channel, onInsert, onSendAsTemplate, compact = 
   function handleInsert() {
     if (!selected || !rendered) return
     if (channel === 'mail') {
-      const v = validateMailTemplate(selected as MailTemplateSpec, params)
+      const v = validateMailTemplate((selected as MailTemplateSpec).key, params)
       if (!v.ok) {
-        setError(v.error)
+        setError(`Missing: ${v.missing.join(', ')}`)
         return
       }
     } else {
@@ -124,9 +124,9 @@ export function TemplatePicker({ channel, onInsert, onSendAsTemplate, compact = 
         return
       }
     } else {
-      const v = validateMailTemplate(selected as MailTemplateSpec, params)
+      const v = validateMailTemplate((selected as MailTemplateSpec).key, params)
       if (!v.ok) {
-        setError(v.error)
+        setError(`Missing: ${v.missing.join(', ')}`)
         return
       }
     }

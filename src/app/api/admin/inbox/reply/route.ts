@@ -216,9 +216,9 @@ export async function POST(req: Request) {
       if (!v.ok) {
         return NextResponse.json({ error: `missing required fields: ${v.missing.join(', ')}` }, { status: 400 })
       }
-      const rendered = await renderMailTemplate(spec.key, payload.params ?? {})
+      const rendered = renderMailTemplate(spec.key, payload.params ?? {})
       subject = rendered.subject
-      body = rendered.body_text
+      body = rendered.body
     }
 
     try {
