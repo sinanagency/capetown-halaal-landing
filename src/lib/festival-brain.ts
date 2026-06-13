@@ -1,169 +1,341 @@
-// Single source of truth for the festival concierge brain.
-// Both the site chat widget (api/chat) and the WhatsApp bot (api/whatsapp)
-// import from here, so there is exactly ONE brain — never a divergent copy.
+/**
+ * Festival brain entry point.
+ *
+ * Pipeline:
+ *   Step 0: classifyIntent (fast regex).
+ *   Step 1: matchFaq pattern match. If hit AND intent confidence >= 0.55 => canonical answer, no LLM.
+ *   Step 2: confidence < 0.6 => escalate to human, return holding message.
+ *   Step 3: LLM call with tightened system prompt + FAQ grounding.
+ *   Step 4: post-process (strip em-dashes, strip forbidden self-refs, append Zanii sign-off
+ *           only on first-contact OR sign-off OR identity-question).
+ *
+ * Sign-off rule: track first-contact via wa_messages last-24h direction=out count == 0.
+ *   First contact => append signature.
+ *   Identity question (intent maps via isIdentityQuestion()) => append signature.
+ *   Explicit sign-off context (caller passes signOff:true) => append signature.
+ *   Otherwise => no signature.
+ */
 
 import Anthropic from '@anthropic-ai/sdk'
-import { askDgx, dgxConfigured, DgxNotConfigured } from './llm/dgx'
+import { classifyIntent, intentFaqKeys, Intent, IntentResult } from './festival-brain/intents'
+import { matchFaq, buildGroundingContext, FaqEntry } from './festival-brain/faq'
+import {
+  buildSystemPrompt,
+  stripEmDashes,
+  stripForbiddenSelfRefs,
+  ZANII_FIRST_CONTACT_SIGNOFF,
+  ZANII_IDENTITY_LINE,
+} from './festival-brain/system-prompt'
+import { createAdminClient } from './supabase/admin'
 
-export const FESTIVAL_SYSTEM_PROMPT = `You are the official Young at Heart Festival assistant, a warm, knowledgeable concierge for visitors and vendors. You speak in the first person as the festival ("we", "our event"). You help people plan their visit, buy tickets, and apply as vendors. You know Cape Town and the event inside out.
-
-=== EVENT ESSENTIALS ===
-- Event: Young at Heart Festival 2026, South Africa's lifestyle exhibition
-- In association with Smile 90.4 FM (media partner)
-- Dates: Friday 11 – Sunday 13 December 2026 (3 days)
-- Gates: from 9:00 AM daily (if asked for exact closing times and you're unsure, say final daily times will be confirmed closer to the event / on our Instagram)
-- Venue: Youngsfield Military Base, Wetton Road, Wynberg, Cape Town, 7700
-- Scale: 350+ vendors, 25,000+ visitors over the weekend, 264 stalls
-- Website: cthalaal.co.za | Tickets: tickets.youngatheart.co.za
-- Contact: support@youngatheart.co.za | 065 943 5012
-- Instagram: @youngatheart_capetown
-
-=== TICKETS (buy at tickets.youngatheart.co.za) ===
-- Friday Pass, R30 (Fri 11 Dec)
-- Saturday Pass, R30 (Sat 12 Dec)
-- Sunday Pass, R30 (Sun 13 Dec)
-- Weekend Pass, R60 (all 3 days, best value, saves R30)
-- Kids under 5: free
-- Tickets are delivered as a PDF with a QR code scanned at the gate. If someone bought a ticket and can't find it, tell them to check the email used at checkout (and spam), or contact support@youngatheart.co.za.
-- Ticket refunds/changes: not handled automatically, direct them to support@youngatheart.co.za.
-
-=== WHAT'S ON ===
-- Hundreds of stalls across food & treats, modest fashion & style, beauty & wellness, health, home & living, travel, finance/Islamic services, and business/trade
-- A big halaal food court (all food vendors are strictly halaal-certified)
-- Live entertainment, stage performances, cooking demos and fashion shows
-- Rides and a carnival, including a kids' play area (Jump City)
-- Prayer (salaah) facilities on-site
-- Show-only deals and promotions from brands
-- The FULL line-up, specific rides, the list of food vendors/cuisines, stage schedule, is announced closer to the event. If asked for specifics we don't have yet, say it'll be announced soon and point them to our Instagram @youngatheart_capetown for the latest. (Never invent vendor names, ride names, or a schedule.)
-
-=== GETTING THERE & PARKING ===
-- By car: Wetton Road, Wynberg/Claremont, parking available on-site at Youngsfield (arrive early on busy days)
-- Uber/Bolt: drop-off at the Youngsfield Military Base entrance on Wetton Road
-- By train: Claremont Station (Southern Line), then a short ride to the venue
-- From Cape Town International Airport: roughly 20–25 minutes by car
-
-=== HALAAL ===
-- All food vendors are strictly halaal and vetted, every food stall must hold a valid halaal certificate (COA). It's a fully halaal food environment.
-
-=== VENDORS / EXHIBITORS (apply at cthalaal.co.za/apply) ===
-Stall options (base price, before electricity; "entry bands" = staff passes included, multi-entry all 3 days):
-- Marquee Table Space 2x2m, R3,700 (2 bands)
-- Marquee Full Space 3x3m, R6,500 (3 bands)
-- Marquee Table Space Double 4x2m, R6,500 (4 bands)
-- Marquee Full Space Double 6x3m, R12,000 (6 bands)
-- Outdoor Bedouin Tent 2x3m, R3,750 (2 bands)
-- Food Stall (gazebo) 3x3m, R4,800 (3 bands)
-- Mini Dessert Truck (max 3.5m), R5,000 (3 bands)
-- Food Truck (max 4.5m), R6,500 (4 bands); (max 6m), R7,500 (5 bands); (max 8m), R8,500 (6 bands)
-- Advertising/sponsorship, priced on proposal
-Electricity add-ons (per item): charger/lighting R400, microwave R400, urn R500, single fryer R500, double fryer R800, waffle/pancake maker R500, blender R400, coffee machine R750, electric stove R750, small fridge R400, large fridge/freezer R600.
-Vendor essentials:
-- Apply online (4 steps: business info → stall → requirements → documents & terms). Applications are reviewed by a selection committee; if accepted you get exhibitor-portal login to pick your stall, pay, and manage staff passes.
-- Application outcome / "when will I hear back?": every applicant is contacted with the outcome once the committee has reviewed, there's no fixed turnaround time to promise. If they want to check on a pending application, point them to support@youngatheart.co.za. (Don't invent a number of days.)
-- Food vendors must provide a valid halaal certificate (COA) and the required City of Cape Town food/Hawkers permit; public liability insurance is expected; gas users need a fire extinguisher + fire blanket (and gas certification).
-- Payment: your stall is only confirmed once paid in full. No deposit option. There is NO vendor "verification deposit" of any amount; if anyone asks about an R10 deposit or any pre-payment, tell them clearly that no deposit is required and that stall fees are paid in full only after acceptance.
-- Cancellation: full refund if you cancel 8+ weeks before the event; no refund within 8 weeks.
-- Setup: Thursday afternoon before the event (mandatory). Friday-morning dry run is compulsory for vendors using electricity.
-- Parking: one space per stall; extra spaces charged separately; illegal parking R200 fine.
-- Rules: no personal generators, no flyers, no letting people in unpaid; organisers may reposition stalls; no guaranteed exclusivity.
-- Vendor document/queries: through the exhibitor portal or support@youngatheart.co.za.
-
-=== HOW TO BEHAVE ===
-- Be warm, human and concise. On WhatsApp keep it short (2–4 sentences); pack in the useful specifics (prices, dates, links).
-- Be accurate. Use ONLY the facts above. NEVER invent prices, times, or policies. If you genuinely don't know (e.g. exact closing time, ticket refund specifics, a vendor's stall number), say so briefly and point them to support@youngatheart.co.za or tickets.youngatheart.co.za.
-- Reply in the language the person writes in (English or Afrikaans).
-- Use their name if they share it. End with a helpful next step or question when it fits.
-- If someone asks to stop messages, tell them to reply STOP (and START to opt back in).
-- You can't process payments, issue refunds, or look up someone's specific order/booth in chat, for those, hand off to support@youngatheart.co.za (tickets) or the exhibitor portal (vendors).`
-
-let _client: Anthropic | null = null
-function client(): Anthropic {
-  if (!_client) _client = new Anthropic()
-  return _client
+export interface BrainContext {
+  /** WhatsApp wa_id / phone for the inbound sender. Used to look up wa_messages. */
+  waId?: string
+  /** If caller already knows this is a first-contact, pass true to skip the lookup. */
+  forceFirstContact?: boolean
+  /** If caller wants the sign-off appended (e.g. final goodbye). */
+  signOff?: boolean
+  /** Recent conversation turns to give the LLM context. Newest last. */
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
 }
 
-export interface BrainMessage {
-  role: 'user' | 'assistant'
-  content: string
+export interface BrainResult {
+  message: string
+  /** Why we answered the way we did. Logged, not user-visible. */
+  trace: {
+    intent: IntentResult
+    matchedFaq: string | null
+    pathTaken: 'faq' | 'escalate' | 'llm' | 'identity'
+    isFirstContact: boolean
+    needsHuman: boolean
+    signoffAppended: boolean
+  }
+  /** Caller should record this for follow-up. */
+  needsHuman: boolean
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const HOLDING_MESSAGE =
+  "Let me get Samreen on this, she will reply within a few hours."
 
-// Ask the festival brain for a reply. Returns plain text.
-// Lessons applied:
-//  - PROMPT CACHING on the Anthropic fallback (cache_control ephemeral)
-//  - BACKOFF: retry on 429 / 529 with exponential backoff
-//  - DGX FIRST: when DGX_ENDPOINT is configured, try the local Qwen3-VL-235B
-//    on Node 01 first. Soft-fallback to Anthropic Haiku on any error or
-//    timeout so a DGX outage degrades to "the bot is slightly more expensive
-//    for a few minutes" instead of "the bot is dead". See KT node #200.
+const client = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null
+
+/**
+ * Detect questions about identity: "who are you", "are you a bot", etc.
+ */
+function isIdentityQuestion(message: string): boolean {
+  const text = message.toLowerCase()
+  return (
+    /\b(who|what) (are|r) (you|u)\b/.test(text) ||
+    /\bare you (a |an )?(bot|human|person|real|ai|robot)\b/.test(text) ||
+    /\bwhat (are|r) (you|u)\b/.test(text) ||
+    /\bwho am i (talking|chatting|speaking) (to|with)\b/.test(text) ||
+    /\bis this (a |an )?(bot|human|person|real)\b/.test(text)
+  )
+}
+
+/**
+ * Look up wa_messages to decide if this is a first-contact conversation
+ * (zero outbound from us in the last 24h to this wa_id).
+ *
+ * Defensive: if the table is missing or the env is not wired, default to true
+ * so we err on the side of identifying ourselves.
+ */
+async function isFirstContactByWaId(waId: string): Promise<boolean> {
+  try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return true
+    }
+    const sb = createAdminClient()
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { count, error } = await sb
+      .from('wa_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('wa_id', waId)
+      .eq('direction', 'out')
+      .gte('created_at', since)
+
+    if (error) {
+      // Table missing or RLS denied: be safe, sign off
+      return true
+    }
+    return (count ?? 0) === 0
+  } catch {
+    return true
+  }
+}
+
+/**
+ * Record an escalation. The portal surfaces these in the "Needs You" queue.
+ * Defensive: never throw to the caller.
+ */
+async function escalateToHuman(opts: {
+  waId?: string
+  message: string
+  intent: IntentResult
+  reason: string
+}): Promise<void> {
+  try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return
+    const sb = createAdminClient()
+    await sb.from('brain_escalations').insert({
+      wa_id: opts.waId ?? null,
+      message: opts.message,
+      intent: opts.intent.intent,
+      confidence: opts.intent.confidence,
+      reason: opts.reason,
+      created_at: new Date().toISOString(),
+    })
+  } catch {
+    // brain_escalations table may not exist yet in this env. Silent.
+  }
+}
+
+function postProcess(text: string): string {
+  return stripEmDashes(stripForbiddenSelfRefs(text)).trim()
+}
+
+/**
+ * Main entry. Inbound message in, polished outbound text out.
+ */
 export async function askFestivalBrain(
-  messages: BrainMessage[],
-  opts: { system?: string; maxTokens?: number } = {}
-): Promise<string> {
-  const system = opts.system ?? FESTIVAL_SYSTEM_PROMPT
+  message: string,
+  context: BrainContext = {},
+): Promise<BrainResult> {
+  const intent = classifyIntent(message)
+  const identityQ = isIdentityQuestion(message)
 
-  if (dgxConfigured()) {
-    try {
-      const dgxMessages = [
-        { role: 'system' as const, content: system },
-        ...messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-      ]
-      return await askDgx(dgxMessages, { maxTokens: opts.maxTokens ?? 300 })
-    } catch (e) {
-      if (!(e instanceof DgxNotConfigured)) {
-        console.warn('[festival-brain] DGX failed:', (e as Error).message)
-      }
+  // Step 0a: identity question shortcut. Never let the LLM answer this from memory.
+  if (identityQ) {
+    const isFirstContact = context.forceFirstContact ?? (context.waId ? await isFirstContactByWaId(context.waId) : true)
+    const out = ZANII_IDENTITY_LINE + ZANII_FIRST_CONTACT_SIGNOFF
+    return {
+      message: postProcess(out),
+      needsHuman: false,
+      trace: {
+        intent,
+        matchedFaq: null,
+        pathTaken: 'identity',
+        isFirstContact,
+        needsHuman: false,
+        signoffAppended: true,
+      },
     }
   }
 
-  // Kill switch: while DGX is still being stood up, refuse to call Anthropic
-  // to protect against /api/chat unauth burn (audit C2). Remove the env var
-  // when DGX is live and the swap has soaked.
-  if (process.env.ANTHROPIC_DISABLED === 'true') {
-    return "Thanks for reaching out. Our AI assistant is briefly offline while we upgrade it. For tickets, head to tickets.youngatheart.co.za. For anything else, email support@youngatheart.co.za or check Instagram @youngatheart_capetown. The festival is on 11-13 December 2026 at Youngsfield Military Base."
-  }
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY not configured and DGX unavailable')
-  }
-  // CROSS-TURN PROMPT CACHE SPLIT (2026-06-12). The webhook passes
-  // `${FESTIVAL_SYSTEM_PROMPT}\n\n=== ABOUT THE SENDER ===\n${briefing}` as one
-  // string, so the per-sender briefing was busting the cache on every turn
-  // from every visitor. Splitting at the marker puts the big static festival
-  // prompt in its own cached block: Anthropic serves it at cache-read pricing
-  // across ALL visitors, and only the small briefing is fresh input. No
-  // marker → single cached block, identical to the old behavior.
-  const SENDER_MARKER = '\n\n=== ABOUT THE SENDER ==='
-  const splitAt = system.indexOf(SENDER_MARKER)
-  const systemBlocks =
-    splitAt > 0
-      ? [
-          { type: 'text' as const, text: system.slice(0, splitAt), cache_control: { type: 'ephemeral' as const } },
-          { type: 'text' as const, text: system.slice(splitAt) },
-        ]
-      : [{ type: 'text' as const, text: system, cache_control: { type: 'ephemeral' as const } }]
-  const payload = {
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: opts.maxTokens ?? 300,
-    system: systemBlocks,
-    messages: messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
-  }
-
-  let lastErr: unknown
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await client().messages.create(payload)
-      return response.content[0]?.type === 'text' ? response.content[0].text : ''
-    } catch (e) {
-      lastErr = e
-      const status = (e as { status?: number })?.status
-      if (status === 429 || status === 529) {
-        await sleep(500 * Math.pow(2, attempt))
-        continue
-      }
-      throw e
+  // Step 0b: explicit human request always escalates.
+  if (intent.intent === 'human_request') {
+    await escalateToHuman({
+      waId: context.waId,
+      message,
+      intent,
+      reason: 'user explicitly requested a human',
+    })
+    return {
+      message: postProcess(HOLDING_MESSAGE),
+      needsHuman: true,
+      trace: {
+        intent,
+        matchedFaq: null,
+        pathTaken: 'escalate',
+        isFirstContact: context.forceFirstContact ?? true,
+        needsHuman: true,
+        signoffAppended: false,
+      },
     }
   }
-  throw lastErr
+
+  // Step 0c: spam => silent drop equivalent (still returns a polite line, but escalates).
+  if (intent.intent === 'spam' && intent.confidence >= 0.6) {
+    await escalateToHuman({ waId: context.waId, message, intent, reason: 'looks like spam' })
+    return {
+      message: postProcess(HOLDING_MESSAGE),
+      needsHuman: true,
+      trace: {
+        intent,
+        matchedFaq: null,
+        pathTaken: 'escalate',
+        isFirstContact: context.forceFirstContact ?? true,
+        needsHuman: true,
+        signoffAppended: false,
+      },
+    }
+  }
+
+  // Step 1: FAQ pattern match.
+  const faqHit: FaqEntry | null = matchFaq(message)
+  const isFirstContact =
+    context.forceFirstContact ?? (context.waId ? await isFirstContactByWaId(context.waId) : true)
+
+  if (faqHit && intent.confidence >= 0.55) {
+    let out = faqHit.answer
+    if (isFirstContact || context.signOff) {
+      out = out + ZANII_FIRST_CONTACT_SIGNOFF
+    }
+    return {
+      message: postProcess(out),
+      needsHuman: false,
+      trace: {
+        intent,
+        matchedFaq: faqHit.key,
+        pathTaken: 'faq',
+        isFirstContact,
+        needsHuman: false,
+        signoffAppended: isFirstContact || !!context.signOff,
+      },
+    }
+  }
+
+  // Step 2: low confidence => escalate.
+  if (intent.confidence < 0.6) {
+    await escalateToHuman({
+      waId: context.waId,
+      message,
+      intent,
+      reason: `confidence ${intent.confidence.toFixed(2)} below 0.6`,
+    })
+    return {
+      message: postProcess(HOLDING_MESSAGE),
+      needsHuman: true,
+      trace: {
+        intent,
+        matchedFaq: null,
+        pathTaken: 'escalate',
+        isFirstContact,
+        needsHuman: true,
+        signoffAppended: false,
+      },
+    }
+  }
+
+  // Step 3: LLM with tightened prompt + grounding.
+  if (!client) {
+    // No API key configured: degrade gracefully.
+    return {
+      message: postProcess(HOLDING_MESSAGE),
+      needsHuman: true,
+      trace: {
+        intent,
+        matchedFaq: null,
+        pathTaken: 'escalate',
+        isFirstContact,
+        needsHuman: true,
+        signoffAppended: false,
+      },
+    }
+  }
+
+  const grounding = buildGroundingContext(intentFaqKeys(intent.intent))
+  const system = buildSystemPrompt(intent.intent, grounding)
+
+  const history = (context.history ?? []).slice(-8)
+  const llmMessages = [
+    ...history.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user' as const, content: message },
+  ]
+
+  let llmText = ''
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 280,
+      system,
+      messages: llmMessages,
+    })
+    llmText = response.content[0]?.type === 'text' ? response.content[0].text : ''
+  } catch (err) {
+    console.error('[festival-brain] llm error', err)
+    await escalateToHuman({ waId: context.waId, message, intent, reason: 'llm error' })
+    return {
+      message: postProcess(HOLDING_MESSAGE),
+      needsHuman: true,
+      trace: {
+        intent,
+        matchedFaq: null,
+        pathTaken: 'escalate',
+        isFirstContact,
+        needsHuman: true,
+        signoffAppended: false,
+      },
+    }
+  }
+
+  if (!llmText.trim()) {
+    await escalateToHuman({
+      waId: context.waId,
+      message,
+      intent,
+      reason: 'empty LLM response',
+    })
+    return {
+      message: postProcess(HOLDING_MESSAGE),
+      needsHuman: true,
+      trace: {
+        intent,
+        matchedFaq: null,
+        pathTaken: 'escalate',
+        isFirstContact,
+        needsHuman: true,
+        signoffAppended: false,
+      },
+    }
+  }
+
+  let out = llmText
+  const appendSig = isFirstContact || !!context.signOff
+  if (appendSig) {
+    out = out.trim() + ZANII_FIRST_CONTACT_SIGNOFF
+  }
+
+  return {
+    message: postProcess(out),
+    needsHuman: false,
+    trace: {
+      intent,
+      matchedFaq: null,
+      pathTaken: 'llm',
+      isFirstContact,
+      needsHuman: false,
+      signoffAppended: appendSig,
+    },
+  }
 }

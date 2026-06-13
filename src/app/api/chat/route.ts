@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { FESTIVAL_SYSTEM_PROMPT, askFestivalBrain } from '@/lib/festival-brain'
+import Anthropic from '@anthropic-ai/sdk'
+import { askFestivalBrain } from '@/lib/festival-brain'
 
-
-const ADMIN_PROMPT = `You are the Young at Heart Festival admin assistant. You help the festival management team understand their data and make decisions.
+const ADMIN_PROMPT = `You are the Young at Heart Festival admin helper. You help the festival management team understand their data and make decisions.
 
 You have access to these admin tools and pages:
 - Dashboard (cthalaal.co.za/admin): KPIs, revenue trends, vendor pipeline, ticket sales charts
@@ -14,8 +14,8 @@ You have access to these admin tools and pages:
 KEY METRICS YOU KNOW:
 - 264 total booth spaces across 4 categories (FT, FS, TS, BS)
 - Booth prices: R3,700 to R12,000 (marquee), R4,800 to R8,500 (food trucks)
-- Festival dates: Dec 11-13, 2026
-- Ticket prices: R30/day, R60 weekend pass
+- Festival dates: 11, 12, 13 December 2026
+- Ticket prices: R30 per day, R60 weekend pass
 - Expected: 25,000+ visitors, 350+ vendors
 
 ADMIN GUIDANCE:
@@ -29,8 +29,12 @@ ADMIN GUIDANCE:
 RULES:
 - Be professional but friendly
 - Give specific, actionable advice
-- Reference exact pages/sections where they can find data
-- Keep responses concise (2-3 sentences)`
+- Reference exact pages and sections where they can find data
+- Keep responses concise (2-3 sentences)
+- No em-dashes. Use commas, periods, colons.
+- Do not say "AI assistant", "Claude", "ChatGPT". You are Zanii AI for Young at Heart.`
+
+const client = new Anthropic()
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,15 +48,47 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Chat service not configured' }, { status: 503 })
     }
 
-    // Single Claude path (festival-brain): gets prompt caching + 429/529 backoff.
-    const systemPrompt = context === 'admin' ? ADMIN_PROMPT : FESTIVAL_SYSTEM_PROMPT
-    const text = await askFestivalBrain(
-      messages.map((m: { role: string; content: string }) => ({
+    // Public visitor concierge => route through the festival brain so we get
+    // FAQ short-circuit, intent classification, escalation, and Zanii sign-off.
+    if (context !== 'admin') {
+      const last = messages[messages.length - 1]
+      const history = messages
+        .slice(0, -1)
+        .slice(-8)
+        .map((m: { role: string; content: string }) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }))
+
+      // Web chat = treat each new session as first-contact for sign-off purposes
+      // if the assistant has not sent anything yet in this thread.
+      const assistantHasSpoken = messages.some(
+        (m: { role: string }) => m.role === 'assistant',
+      )
+
+      const result = await askFestivalBrain(last?.content ?? '', {
+        history,
+        forceFirstContact: !assistantHasSpoken,
+      })
+
+      return NextResponse.json({
+        message: result.message,
+        needsHuman: result.needsHuman,
+      })
+    }
+
+    // Admin chat: stays on direct LLM with admin prompt.
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: ADMIN_PROMPT,
+      messages: messages.slice(-10).map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
-      { system: systemPrompt }
-    )
+    })
+
+    const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
     return NextResponse.json({ message: text })
   } catch (error) {
