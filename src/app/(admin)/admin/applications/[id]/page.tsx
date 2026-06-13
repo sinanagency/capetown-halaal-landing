@@ -4,7 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { StatusBadge } from '@/components/admin/StatusBadge'
-import type { VendorApplication, ApplicationStatus } from '@/lib/supabase/types'
+import type {
+  VendorApplication,
+  ApplicationStatus,
+  WaMessage,
+} from '@/lib/supabase/types'
 import {
   ArrowLeft,
   Loader2,
@@ -12,13 +16,13 @@ import {
   Mail,
   Phone,
   Globe,
-  Calendar,
   Instagram,
   Facebook,
   CheckCircle,
   XCircle,
   HelpCircle,
   Save,
+  MessageCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -39,6 +43,8 @@ export default function ApplicationDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [adminNotes, setAdminNotes] = useState('')
+  const [waMessages, setWaMessages] = useState<WaMessage[]>([])
+  const [waLoading, setWaLoading] = useState(false)
 
   useEffect(() => {
     async function loadApplication() {
@@ -60,6 +66,34 @@ export default function ApplicationDetailPage() {
 
     loadApplication()
   }, [params.id, router])
+
+  // Load last 10 wa_messages once we know the phone
+  useEffect(() => {
+    if (!application?.phone) return
+    let abort = false
+    async function loadThread() {
+      setWaLoading(true)
+      try {
+        const phone = (application?.phone ?? '').replace(/\D+/g, '')
+        if (!phone) return
+        const res = await fetch(
+          `/api/admin/vendor-thread?phone=${encodeURIComponent(phone)}&limit=10`
+        )
+        if (res.ok) {
+          const data = await res.json()
+          if (!abort) setWaMessages(data.messages ?? [])
+        }
+      } catch (err) {
+        console.error('Failed to load WA thread:', err)
+      } finally {
+        if (!abort) setWaLoading(false)
+      }
+    }
+    loadThread()
+    return () => {
+      abort = true
+    }
+  }, [application?.phone])
 
   const updateStatus = async (status: ApplicationStatus) => {
     if (!application) return
@@ -292,6 +326,64 @@ export default function ApplicationDetailPage() {
               )
             }
           })()}
+        </div>
+
+        {/* WhatsApp Thread */}
+        <div className="bg-white rounded-xl border border-neutral-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-neutral-900 flex items-center gap-2">
+              <MessageCircle className="w-5 h-5 text-emerald-600" />
+              WhatsApp Thread
+            </h2>
+            <span className="text-xs text-neutral-500">last 10 messages</span>
+          </div>
+          {waLoading ? (
+            <div className="flex items-center justify-center py-6 text-neutral-400">
+              <Loader2 className="w-4 h-4 animate-spin" />
+            </div>
+          ) : waMessages.length === 0 ? (
+            <p className="text-sm text-neutral-500">
+              No WhatsApp messages exchanged with {application.phone} yet.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {[...waMessages].reverse().map((m) => (
+                <div
+                  key={m.id}
+                  className={cn(
+                    'rounded-lg px-3 py-2 text-sm border',
+                    m.direction === 'outbound'
+                      ? 'bg-emerald-50 border-emerald-100 ml-8'
+                      : 'bg-neutral-50 border-neutral-100 mr-8'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-[10px] uppercase tracking-wide text-neutral-500">
+                      {m.direction === 'outbound' ? 'Sent' : 'Received'}
+                      {m.template_key ? ` · ${m.template_key}` : ''}
+                    </span>
+                    <span className="text-[10px] text-neutral-400 tabular-nums">
+                      {new Date(m.created_at).toLocaleString('en-ZA', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  {m.body && (
+                    <p className="text-neutral-800 whitespace-pre-wrap">{m.body}</p>
+                  )}
+                  {m.status && m.status !== 'sent' && m.status !== 'delivered' && (
+                    <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600">
+                      {m.status}
+                      {m.error ? `: ${m.error}` : ''}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Admin Notes */}
