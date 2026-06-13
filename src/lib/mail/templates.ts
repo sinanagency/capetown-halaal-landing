@@ -126,8 +126,25 @@ const SPECS: Record<TemplateKey, TemplateSpec> = {
       '{{custom_message}}',
     ],
     showEvent: true,
+    // Brand law per Taona M13: mass / autonomous outbound carries the Zanii
+    // sign-off so the recipient knows the channel. Admin-curated 1:1
+    // templates (doc_chase, payment_reminder, contract_sign_reminder,
+    // stall_allocation_notice) keep the human signoff because an admin
+    // actually reviews each one before send. Mass announcement defaults to
+    // the bot signoff for transparency.
+    signoff: '— Zanii AI on behalf of Young at Heart Festival',
   },
 }
+
+/**
+ * Brand sign-off helpers. Use BOT_SIGNOFF on autonomous / mass channels
+ * (broadcast, auto-reply, AI-suggested replies that go out without review).
+ * Use HUMAN_SIGNOFF on admin-curated 1:1 mail. Never "AI assistant" — that
+ * label was explicitly rejected (KT memory feedback_sasa_always_first_person
+ * + memory feedback_sasa_nisria_only — same family of brand laws).
+ */
+export const BOT_SIGNOFF = '— Zanii AI on behalf of Young at Heart Festival'
+export const HUMAN_SIGNOFF = 'Warm regards,'
 
 // ---- public render ---------------------------------------------------------
 
