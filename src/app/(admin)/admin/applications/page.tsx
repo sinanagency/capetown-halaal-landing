@@ -390,7 +390,9 @@ function ApplicationsPageInner() {
         </div>
       </div>
 
-      {/* Chip rail */}
+      {/* Chip rail — status always visible, sector/tier/flags collapsed into
+          summary groups. Active chips from collapsed groups remain visible
+          inline so the operator never loses sight of what's filtering. */}
       <div className="mb-4 space-y-2">
         <ChipRow
           title="Status"
@@ -399,41 +401,66 @@ function ApplicationsPageInner() {
           counts={counts}
           onToggle={toggleChip}
         />
-        {sectorChips.length > 0 && (
-          <ChipRow
-            title="Sector"
-            chips={sectorChips}
+
+        <div className="flex flex-wrap items-start gap-2">
+          {sectorChips.length > 0 && (
+            <ChipGroup
+              label="Sector"
+              chips={sectorChips}
+              active={activeKeys}
+              counts={counts}
+              onToggle={toggleChip}
+            />
+          )}
+          {tierChips.length > 0 && (
+            <ChipGroup
+              label="Booth tier"
+              chips={tierChips}
+              active={activeKeys}
+              counts={counts}
+              onToggle={toggleChip}
+            />
+          )}
+          <ChipGroup
+            label="Flags"
+            chips={FLAG_CHIPS}
             active={activeKeys}
             counts={counts}
             onToggle={toggleChip}
           />
-        )}
-        {tierChips.length > 0 && (
-          <ChipRow
-            title="Booth tier"
-            chips={tierChips}
-            active={activeKeys}
-            counts={counts}
-            onToggle={toggleChip}
-          />
-        )}
-        <ChipRow
-          title="Flags"
-          chips={FLAG_CHIPS}
-          active={activeKeys}
-          counts={counts}
-          onToggle={toggleChip}
-          trailing={
-            activeKeys.size > 0 ? (
-              <button
-                onClick={clearChips}
-                className="text-xs text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1"
-              >
-                <X className="w-3 h-3" /> Clear all
-              </button>
-            ) : null
-          }
-        />
+          {activeKeys.size > 0 && (
+            <button
+              onClick={clearChips}
+              className="text-xs text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1 px-2 py-1.5"
+            >
+              <X className="w-3 h-3" /> Clear all
+            </button>
+          )}
+        </div>
+
+        {/* Active-chip strip: keeps selected sector/tier/flag chips visible
+            even when their group is collapsed. */}
+        {activeKeys.size > 0 && (() => {
+          const collapsedActive = [...sectorChips, ...tierChips, ...FLAG_CHIPS].filter((c) =>
+            activeKeys.has(c.key)
+          )
+          if (collapsedActive.length === 0) return null
+          return (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+              <span className="text-[10px] uppercase tracking-wide text-neutral-400">Active:</span>
+              {collapsedActive.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => toggleChip(c.key)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#cd2653] text-white text-[11px] font-medium"
+                >
+                  {c.label}
+                  <X className="w-2.5 h-2.5 opacity-80" />
+                </button>
+              ))}
+            </div>
+          )
+        })()}
       </div>
 
       {/* Table */}
@@ -618,6 +645,73 @@ function ChipRow({
       })}
       {trailing}
     </div>
+  )
+}
+
+// Collapsible chip group. Uses <details> for native a11y + keyboard support.
+// Shows a count of currently-active chips in the summary so the operator
+// knows the group is filtering even when closed.
+function ChipGroup({
+  label,
+  chips,
+  active,
+  counts,
+  onToggle,
+}: {
+  label: string
+  chips: Chip[]
+  active: Set<string>
+  counts: Record<string, number>
+  onToggle: (key: string) => void
+}) {
+  const activeCount = chips.filter((c) => active.has(c.key)).length
+  return (
+    <details className="group">
+      <summary
+        className={cn(
+          'list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium select-none',
+          activeCount > 0
+            ? 'bg-[#cd2653]/10 text-[#cd2653] border-[#cd2653]/30'
+            : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+        )}
+      >
+        {label}
+        {activeCount > 0 && (
+          <span className="text-[10px] px-1 rounded tabular-nums bg-[#cd2653] text-white">
+            {activeCount}
+          </span>
+        )}
+        <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="mt-2 p-3 bg-white border border-neutral-200 rounded-xl shadow-sm flex flex-wrap gap-1.5 max-w-2xl">
+        {chips.map((c) => {
+          const on = active.has(c.key)
+          const count = counts[c.key] ?? 0
+          return (
+            <button
+              key={c.key}
+              onClick={() => onToggle(c.key)}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors',
+                on
+                  ? 'bg-[#cd2653] text-white border-[#cd2653]'
+                  : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+              )}
+            >
+              {c.label}
+              <span
+                className={cn(
+                  'text-[10px] px-1 rounded tabular-nums',
+                  on ? 'bg-white/20' : 'bg-neutral-100 text-neutral-500'
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </details>
   )
 }
 

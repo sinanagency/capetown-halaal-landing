@@ -47,8 +47,8 @@ export default async function SupportPage() {
   }
 
   const waPrefill = businessName
-    ? `Hi Samreen, this is ${businessName} from YAH Festival 2026. `
-    : 'Hi Samreen, this is about my YAH Festival 2026 stall. '
+    ? `Hi, this is ${businessName} from YAH Festival 2026. `
+    : 'Hi, this is about my YAH Festival 2026 stall. '
   const waUrl = `https://wa.me/${SUPPORT_WA_E164.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(waPrefill)}`
 
   return (
@@ -56,7 +56,7 @@ export default async function SupportPage() {
       <PageHeader
         kicker="Inbox"
         title="Talk to the organisers"
-        subtitle="Every message you send here is delivered to Samreen on WhatsApp in real time. She replies in this thread, or messages you on WhatsApp if it is faster."
+        subtitle="Every message you send here is delivered to support on WhatsApp in real time. Support replies in this thread, or messages you on WhatsApp if it is faster."
       />
 
       {/* Direct WhatsApp tile at the top */}
@@ -69,7 +69,7 @@ export default async function SupportPage() {
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1f8a4a]">WhatsApp</p>
             <p className="font-serif text-2xl text-neutral-900 mt-0.5">{SUPPORT_WA}</p>
             <p className="text-sm text-neutral-600 mt-1">
-              Samreen handles every vendor question personally. Voice calls are not monitored, please WhatsApp. Reply time during office hours is usually under 30 minutes.
+              Support handles every vendor question personally. Voice calls are not monitored, please WhatsApp. Reply time during office hours is usually under 30 minutes.
             </p>
           </div>
           <a
@@ -79,18 +79,18 @@ export default async function SupportPage() {
             className="bg-[#25d366] hover:bg-[#1f8a4a] text-white font-semibold rounded-full px-5 py-2.5 text-sm shrink-0 flex items-center gap-2 transition-colors"
           >
             <MessageCircle className="w-4 h-4" />
-            WhatsApp Samreen now
+            WhatsApp Support now
           </a>
         </div>
       </Card>
 
-      {/* In-portal thread, notifies Samreen on WhatsApp + email automatically */}
+      {/* In-portal thread, notifies support on WhatsApp + email automatically */}
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#cd2653] mb-2">
         Or message us here
       </p>
       <SupportThread initial={mergedMessages} />
       <p className="text-[11px] text-neutral-500 mt-3 leading-relaxed">
-        Every message you send below is automatically WhatsApp&apos;d to Samreen and emailed to the support inbox. She replies in this thread when she gets a moment. Use the WhatsApp button above if you need her live.
+        Every message you send below is automatically WhatsApp&apos;d to support and emailed to the support inbox. Support replies in this thread as soon as possible. Use the WhatsApp button above if you need someone live.
       </p>
 
       {/* Secondary channels */}

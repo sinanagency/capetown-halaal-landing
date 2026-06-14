@@ -21,10 +21,6 @@ export default async function ContractPage() {
     <div className="max-w-3xl mx-auto px-4 py-10">
       {/* Header chrome — Cape Town Halaal + Young at Heart marks */}
       <header className="text-center mb-10">
-        <div className="flex items-center justify-center gap-5 mb-6">
-          <img src="/logo-cth.png" alt="Cape Town Halaal" className="w-16 h-16 rounded-full bg-[#2BAFB0] p-1" />
-          <img src="/logo-yah.png" alt="Young at Heart" className="w-16 h-16 rounded-full bg-black p-1" />
-        </div>
         <h1 className="font-serif text-3xl text-[#1B1A17] tracking-tight">Vendor Contract 2026</h1>
         <p className="mt-2 text-sm text-neutral-600">
           {CONTRACT_DATE_RANGE}, {CONTRACT_VENUE}

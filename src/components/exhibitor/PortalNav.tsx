@@ -56,25 +56,25 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
     // masked sticky strip — content scrolls UNDER this, never above the bar
     <div className="sticky top-0 z-50 bg-[#fbfafa]/85 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-3 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-3 py-2.5">
+        <div className="flex items-center gap-3 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-3 min-h-[72px] py-2.5">
           {/* logo */}
-          <a href="/exhibitor/portal" className="flex items-center gap-2.5 shrink-0 pr-2">
+          <a href="/exhibitor/portal" className="flex items-center gap-2.5 shrink-0 pr-2 self-center">
             <LogoMark size="sm" />
-            <span className="hidden lg:block leading-tight">
+            <span className="hidden lg:flex flex-col justify-center leading-tight">
               <span className="block font-bold text-neutral-900 text-sm">Young at Heart</span>
               <span className="block text-[10px] text-neutral-400">Exhibitor portal</span>
             </span>
           </a>
 
           {/* main nav — spaced to breathe */}
-          <nav className="flex items-center gap-1.5 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav className="flex items-center gap-1.5 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {MAIN.map((i) => {
               const active = pathname === i.href
               const Icon = i.icon
               const showDot = inboxUnread && (i.href === '/exhibitor/portal/support' || i.href === '/exhibitor/portal')
               return (
                 <a key={i.href} href={i.href}
-                  className={`relative flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
+                  className={`relative flex items-center gap-2 rounded-full px-4 lg:px-7 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
                   <Icon className="w-4 h-4" />{i.label}
                   {showDot && (
                     <span aria-label="unread reply" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />

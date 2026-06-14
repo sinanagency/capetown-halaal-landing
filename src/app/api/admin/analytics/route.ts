@@ -16,17 +16,20 @@ export async function GET() {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    // Fetch all data in parallel
+    // Fetch all data in parallel. The aggregate queries (pageViews / events) use
+    // .range(0, 49999) so we get real totals instead of the Supabase default 1000-row
+    // cap (the cap was surfacing as "1000 page views / 1000 events" in the KPI cards).
+    // The exact totals come back via { count } on a head:true query.
     const [
-      { data: pageViews },
-      { data: recentViews },
-      { data: events },
-      { data: applications },
+      { data: pageViews, count: pageViewsCount },
+      { data: recentViews, count: recentViewsCount },
+      { data: events, count: eventsCount },
+      { data: applications, count: applicationsCount },
     ] = await Promise.all([
-      admin.from('page_views').select('*').gte('created_at', thirtyDaysAgo.toISOString()).order('created_at', { ascending: false }),
-      admin.from('page_views').select('*').gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: false }),
-      admin.from('site_events').select('*').gte('created_at', thirtyDaysAgo.toISOString()).order('created_at', { ascending: false }),
-      admin.from('vendor_applications').select('status, created_at, email, contact_name, business_name').order('created_at', { ascending: false }),
+      admin.from('page_views').select('*', { count: 'exact' }).gte('created_at', thirtyDaysAgo.toISOString()).order('created_at', { ascending: false }).range(0, 49999),
+      admin.from('page_views').select('*', { count: 'exact' }).gte('created_at', sevenDaysAgo.toISOString()).order('created_at', { ascending: false }).range(0, 49999),
+      admin.from('site_events').select('*', { count: 'exact' }).gte('created_at', thirtyDaysAgo.toISOString()).order('created_at', { ascending: false }).range(0, 49999),
+      admin.from('vendor_applications').select('status, created_at, email, contact_name, business_name', { count: 'exact' }).order('created_at', { ascending: false }).range(0, 49999),
     ])
 
     const allViews = pageViews || []
@@ -152,12 +155,12 @@ export async function GET() {
 
     return NextResponse.json({
       overview: {
-        totalPageViews: allViews.length,
+        totalPageViews: pageViewsCount ?? allViews.length,
         totalVisitors: uniqueSessions.size,
-        weeklyPageViews: recent.length,
+        weeklyPageViews: recentViewsCount ?? recent.length,
         weeklyVisitors: uniqueSessionsWeek.size,
-        totalEvents: allEvents.length,
-        totalApplications: allApps.length,
+        totalEvents: eventsCount ?? allEvents.length,
+        totalApplications: applicationsCount ?? allApps.length,
       },
       dailyStats,
       topPages,

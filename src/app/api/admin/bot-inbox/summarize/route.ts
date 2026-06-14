@@ -3,10 +3,40 @@
 // conversation is about + 3 reply suggestions she can tap-to-send.
 
 import { NextRequest, NextResponse } from 'next/server'
+import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { askDgx } from '@/lib/llm/dgx'
+import { askDgx, dgxConfigured, DgxNotConfigured } from '@/lib/llm/dgx'
 import { toE164 } from '@/lib/whatsapp'
+
+// If DGX is unset, fall back to Anthropic Haiku (already installed + used by
+// /api/admin/inbox/summarize). Never block the bot-inbox UI on DGX availability.
+async function askLLM(systemPrompt: string, msgs: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<string> {
+  if (dgxConfigured()) {
+    try {
+      return await askDgx(
+        [{ role: 'system' as const, content: systemPrompt }, ...msgs],
+        { maxTokens: 600 },
+      )
+    } catch (e) {
+      if (!(e instanceof DgxNotConfigured)) throw e
+      console.warn('[bot-inbox/summarize] DGX not configured, falling back to Anthropic')
+    }
+  } else {
+    console.warn('[bot-inbox/summarize] DGX not configured, using Anthropic fallback')
+  }
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('No summary engine available (neither DGX nor ANTHROPIC_API_KEY)')
+  const client = new Anthropic({ apiKey })
+  const resp = await client.messages.create({
+    model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5',
+    max_tokens: 600,
+    system: systemPrompt,
+    messages: msgs,
+  })
+  const block = resp.content[0]
+  return block && block.type === 'text' ? block.text : ''
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -63,10 +93,7 @@ export async function POST(req: NextRequest) {
   const systemFull = `${SYSTEM}\n\n=== VENDOR INFO ===\n${vendorBriefing}\n\n=== INSTRUCTIONS ===\nUse the vendor's first name if known. Refer to specifics where it helps. The conversation messages follow next.`
 
   try {
-    const raw = await askDgx(
-      [{ role: 'system' as const, content: systemFull }, ...msgs],
-      { maxTokens: 600 },
-    )
+    const raw = await askLLM(systemFull, msgs)
     // Strip any code fences or prose around the JSON.
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return NextResponse.json({ ok: true, summary: raw.slice(0, 200), context: '', suggestions: [] })

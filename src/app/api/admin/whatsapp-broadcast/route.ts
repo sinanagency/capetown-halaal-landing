@@ -41,6 +41,7 @@ import { sendZaniiMail, pacer } from '@/lib/mail/zanii-sender'
 import { sendTemplate } from '@/lib/whatsapp/sender'
 import { renderTemplate, TEMPLATE_KEYS, type TemplateKey, type TemplateVars } from '@/lib/mail/templates'
 import { buildUnsubUrl } from '@/lib/mail/unsubscribe-token'
+import { renderTemplate as interpolate, type InterpolateVars } from '@/lib/interpolate'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -201,18 +202,35 @@ export async function GET(req: NextRequest) {
 interface BroadcastBody {
   channel: 'mail' | 'wa' | 'both'
   filters?: BroadcastFilters
-  template_key: TemplateKey
+  /** Required unless `free_text` is supplied. */
+  template_key?: TemplateKey
   custom_message?: string
   /** Approved WABA template name override (defaults to template_key). */
   wa_template?: string
   /** Dry run — build audience and return counts without sending. */
   dry_run?: boolean
+  /**
+   * "Write your own" mode. When supplied, the body is sent verbatim (after
+   * merge-tag interpolation) instead of rendering a registered template. WA
+   * channel falls back to {{custom_message}} of `general_announcement` so the
+   * approved WABA template name stays valid; mail bypasses the template
+   * registry entirely.
+   */
+  free_text?: string
+  /** Subject for free_text mode (mail only). Falls back to a generic line. */
+  free_text_subject?: string
 }
 
-function firstName(contact?: string | null): string {
-  if (!contact) return 'there'
+/**
+ * Extract first token from contact_name. Returns `null` when absent so the
+ * interpolation helper can drop the placeholder and clean surrounding
+ * punctuation (e.g. "Hi {{first_name}}," -> "Hi,") instead of injecting a
+ * stilted fallback like "Hi there,".
+ */
+function firstName(contact?: string | null): string | null {
+  if (!contact) return null
   const t = contact.trim().split(/\s+/)[0]
-  return t || 'there'
+  return t || null
 }
 
 function stallFromNotes(notes?: string | null): string | undefined {
@@ -235,7 +253,8 @@ export async function POST(req: NextRequest) {
   if (!body.channel || !['mail', 'wa', 'both'].includes(body.channel)) {
     return NextResponse.json({ error: 'channel must be mail | wa | both' }, { status: 400 })
   }
-  if (!body.template_key || !TEMPLATE_KEYS.includes(body.template_key)) {
+  const freeTextMode = !!(body.free_text && body.free_text.trim().length > 0)
+  if (!freeTextMode && (!body.template_key || !TEMPLATE_KEYS.includes(body.template_key))) {
     return NextResponse.json({ error: 'unknown template_key' }, { status: 400 })
   }
 
@@ -273,7 +292,9 @@ export async function POST(req: NextRequest) {
         results.mail.attempted++
         if (!dryRun) {
           const unsubscribeUrl = buildUnsubUrl(emailRaw)
-          const rendered = await renderTemplate(body.template_key, { ...vars, unsubscribe_url: unsubscribeUrl })
+          const rendered = freeTextMode
+            ? await renderFreeText(body.free_text!, body.free_text_subject || 'An update from Young at Heart Festival', { ...vars, unsubscribe_url: unsubscribeUrl })
+            : await renderTemplate(body.template_key!, { ...vars, unsubscribe_url: unsubscribeUrl })
           const send = await sendZaniiMail({
             to: emailRaw,
             subject: rendered.subject,
@@ -281,7 +302,7 @@ export async function POST(req: NextRequest) {
             text: rendered.body_text,
             unsubscribeToken: unsubscribeUrl.split('/').pop(),
             tags: [
-              { name: 'template', value: body.template_key },
+              { name: 'template', value: body.template_key || 'free_text' },
               { name: 'channel', value: 'mail' },
             ],
           })
@@ -327,14 +348,26 @@ export async function POST(req: NextRequest) {
         seenPhones.add(phoneRaw)
         results.wa.attempted++
         if (!dryRun) {
+          const waTemplate =
+            body.wa_template ||
+            body.template_key ||
+            // Free-text mode still needs an approved WABA template name; the
+            // free text becomes {{custom_message}} inside general_announcement.
+            'general_announcement'
+          const waCustom = freeTextMode
+            ? interpolate(body.free_text || '', vars as InterpolateVars)
+            : (body.custom_message || '')
           const send = await sendTemplate({
             to: phoneRaw,
-            template: body.wa_template || body.template_key,
+            template: waTemplate,
             variables: [
+              // Meta WABA rejects empty positional vars, so we fall back to
+              // 'there' here. Email uses the interpolate helper which drops
+              // the placeholder gracefully instead.
               vars.first_name || 'there',
               vars.business_name || '',
               vars.stall_code || '',
-              body.custom_message || '',
+              waCustom,
             ].filter((v) => v.length > 0),
           })
           if (send.ok) {
@@ -356,4 +389,31 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json(results)
+}
+
+// ---------------------------------------------------------------------------
+// Free-text renderer for the "Write your own" composer mode. Bypasses the
+// template registry, interpolates merge tags via lib/interpolate, and wraps
+// the body in a minimal HTML shell. The Campaign React template is skipped
+// here because the operator is asserting the message is ready to send.
+// ---------------------------------------------------------------------------
+
+async function renderFreeText(
+  text: string,
+  subject: string,
+  vars: TemplateVars & { unsubscribe_url?: string },
+): Promise<{ subject: string; body_text: string; body_html: string }> {
+  const body = interpolate(text, vars as InterpolateVars)
+  const subj = interpolate(subject, vars as InterpolateVars)
+  const escaped = body.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c] as string))
+  const html =
+    `<div style="font-family:Inter,Arial,sans-serif;color:#1B1A17;line-height:1.55;font-size:15px">` +
+    escaped.split('\n').map((l) => l.trim().length === 0 ? '<br/>' : `<p style="margin:0 0 12px">${l}</p>`).join('') +
+    (vars.unsubscribe_url
+      ? `<p style="margin-top:24px;font-size:12px;color:#666">Unsubscribe: <a href="${vars.unsubscribe_url}">${vars.unsubscribe_url}</a></p>`
+      : '') +
+    `</div>`
+  return { subject: subj, body_text: body, body_html: html }
 }

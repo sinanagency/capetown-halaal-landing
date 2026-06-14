@@ -1,9 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users } from 'lucide-react'
+import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -13,8 +14,9 @@ const navigation = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Ticket Sales', href: '/admin/tickets', icon: Ticket },
   { name: 'Applications', href: '/admin/applications', icon: FileText },
-  { name: 'Vendors', href: '/admin/applications?status=approved', icon: Users },
+  { name: 'Vendors', href: '/admin/vendors', icon: Users },
   { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
+  { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
   { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
   { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
   { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
@@ -37,11 +39,33 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
   const badge = ROLE_BADGE_STYLE[role]
   const BadgeIcon = badge.Icon
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [supportUnread, setSupportUnread] = useState(0)
 
   // Close drawer on route change
   useEffect(() => {
     setMobileOpen(false)
   }, [pathname])
+
+  // Poll support inbox unread count for the sidebar badge. Cheap query (open
+  // threads only), fires every 60s when the tab is visible. Best-effort —
+  // sidebar still works if the call fails.
+  useEffect(() => {
+    let cancelled = false
+    const tick = async () => {
+      if (document.hidden) return
+      try {
+        const res = await fetch('/api/admin/support-inbox/threads?status=open')
+        if (!res.ok) return
+        const j = await res.json()
+        if (cancelled) return
+        const total = (j.threads || []).reduce((s: number, t: { unread_count?: number }) => s + (t.unread_count || 0), 0)
+        setSupportUnread(total)
+      } catch { /* swallow */ }
+    }
+    tick()
+    const id = setInterval(tick, 60000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -53,11 +77,21 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
     <>
       {/* Logo */}
       <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-bold text-neutral-900">
-            Young at Heart
-          </h1>
-          <p className="text-xs text-neutral-500 mt-0.5">Admin Portal</p>
+        <div className="flex items-center gap-3 min-w-0">
+          <Image
+            src="/logo.png"
+            alt="Young at Heart"
+            width={40}
+            height={53}
+            priority
+            className="h-10 w-auto flex-shrink-0"
+          />
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-neutral-900 leading-tight truncate">
+              Young at Heart
+            </h1>
+            <p className="text-xs text-neutral-500 mt-0.5">Admin Portal</p>
+          </div>
         </div>
         <button
           type="button"
@@ -87,7 +121,13 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
               )}
             >
               <item.icon className="w-4.5 h-4.5" />
-              {item.name}
+              <span className="flex-1">{item.name}</span>
+              {item.href === '/admin/support-inbox' && supportUnread > 0 && (
+                <span className={cn(
+                  'text-[10px] font-bold rounded-full px-1.5 py-0.5',
+                  isActive ? 'bg-white text-[#cd2653]' : 'bg-[#cd2653] text-white'
+                )}>{supportUnread}</span>
+              )}
             </Link>
           )
         })}

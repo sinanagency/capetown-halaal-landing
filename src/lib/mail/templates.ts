@@ -19,6 +19,7 @@
 import { render } from '@react-email/components'
 import { Campaign, type CampaignProps } from '@/lib/email/templates/Campaign'
 import { createElement } from 'react'
+import { renderTemplate as renderInterpolated, type InterpolateVars } from '@/lib/interpolate'
 
 export type TemplateKey =
   | 'doc_chase'
@@ -28,13 +29,13 @@ export type TemplateKey =
   | 'general_announcement'
 
 export interface TemplateVars {
-  first_name?: string
-  business_name?: string
-  stall_code?: string
-  amount_due?: string
-  due_date?: string
-  custom_message?: string
-  unsubscribe_url?: string
+  first_name?: string | null
+  business_name?: string | null
+  stall_code?: string | null
+  amount_due?: string | null
+  due_date?: string | null
+  custom_message?: string | null
+  unsubscribe_url?: string | null
 }
 
 export interface RenderedTemplate {
@@ -44,14 +45,11 @@ export interface RenderedTemplate {
 }
 
 // ---- merge helper ---------------------------------------------------------
-
-const MERGE_RE = /\{\{\s*(first_name|business_name|stall_code|amount_due|due_date|custom_message)\s*\}\}/g
+// Delegates to lib/interpolate so that null / empty placeholders collapse
+// cleanly: "Hi {{first_name}}," with no name renders as "Hi," not "Hi ,".
 
 function merge(input: string, vars: TemplateVars): string {
-  return input.replace(MERGE_RE, (_, key: keyof TemplateVars) => {
-    const v = vars[key]
-    return (v == null || v === '') ? '' : String(v)
-  })
+  return renderInterpolated(input, vars as InterpolateVars)
 }
 
 // ---- spec for each template ------------------------------------------------
@@ -167,7 +165,7 @@ export async function renderTemplate(key: TemplateKey, vars: TemplateVars): Prom
     cta: spec.cta,
     showEvent: spec.showEvent,
     signoff: spec.signoff,
-    unsubscribeUrl: vars.unsubscribe_url,
+    unsubscribeUrl: vars.unsubscribe_url ?? undefined,
   }
   const body_html = await render(createElement(Campaign, props))
 

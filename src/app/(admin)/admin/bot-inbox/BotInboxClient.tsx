@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Send, Sparkles, Loader2, MessageCircle, Crown, Star, ArrowRight, Clock, UserCheck, CheckCircle2, RotateCcw } from 'lucide-react'
+import { Send, Sparkles, Loader2, MessageCircle, Crown, Star, ArrowRight, Clock, UserCheck, CheckCircle2, RotateCcw, Search, Tag, Link2 } from 'lucide-react'
 import type { BotAdmin } from '@/lib/bot/admins'
 import { PageShell, PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
 
@@ -29,6 +29,10 @@ export interface GuestThread {
   phone: string
   label: string
   sublabel: string
+  /** vendor | ticket_buyer | unknown — drives the small contact badge. */
+  badge: 'vendor' | 'ticket_buyer' | 'unknown'
+  vendorApplicationId: string | null
+  ticketBuyerEmail: string | null
   messages: MsgRow[]
   handover: 'human' | 'bot'
   latestAt: string | null
@@ -95,7 +99,17 @@ export function BotInboxClient({
     return () => clearInterval(id)
   }, [router])
 
-  const active = useMemo<{ phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest' | 'mail'; handover?: 'human' | 'bot'; subject?: string } | null>(() => {
+  const active = useMemo<{
+    phone: string
+    label: string
+    messages: MsgRow[]
+    kind: 'admin' | 'guest' | 'mail'
+    handover?: 'human' | 'bot'
+    subject?: string
+    badge?: 'vendor' | 'ticket_buyer' | 'unknown'
+    vendorApplicationId?: string | null
+    ticketBuyerEmail?: string | null
+  } | null>(() => {
     if (!sel) return null
     if (sel.kind === 'admin') {
       const t = adminThreads[sel.idx]; if (!t) return null
@@ -117,8 +131,39 @@ export function BotInboxClient({
       return { phone: t.peer, label: t.peer, messages, kind: 'mail', subject: t.subject }
     }
     const t = guestThreads[sel.idx]; if (!t) return null
-    return { phone: t.phone, label: t.label, messages: t.messages, kind: 'guest', handover: t.handover }
+    return {
+      phone: t.phone,
+      label: t.label,
+      messages: t.messages,
+      kind: 'guest' as const,
+      handover: t.handover,
+      badge: t.badge,
+      vendorApplicationId: t.vendorApplicationId,
+      ticketBuyerEmail: t.ticketBuyerEmail,
+    }
   }, [sel, adminThreads, guestThreads, mailThreads])
+
+  // Search across vendor/guest threads. Matches against display label, raw
+  // phone, and the latest preview body.
+  const [search, setSearch] = useState('')
+  const filteredGuests = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return guestThreads
+    return guestThreads.filter((t) =>
+      t.label.toLowerCase().includes(q) ||
+      t.phone.toLowerCase().includes(q) ||
+      t.latestPreview.toLowerCase().includes(q)
+    )
+  }, [search, guestThreads])
+  const filteredMail = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return mailThreads
+    return mailThreads.filter((t) =>
+      t.peer.toLowerCase().includes(q) ||
+      (t.subject || '').toLowerCase().includes(q) ||
+      t.latestPreview.toLowerCase().includes(q)
+    )
+  }, [search, mailThreads])
 
   return (
     <PageShell>
@@ -131,14 +176,30 @@ export function BotInboxClient({
       <div className="grid lg:grid-cols-[340px_1fr] gap-5">
         {/* LEFT: thread list */}
         <div className="space-y-5">
-          {guestThreads.length > 0 && (
+          <Card padded={false}>
+            <div className="p-3">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search threads."
+                  className="w-full rounded-lg bg-white border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:border-[#cd2653]"
+                />
+              </div>
+            </div>
+          </Card>
+
+          {filteredGuests.length > 0 && (
             <Card padded={false}>
               <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#cd2653]">Vendor / guest threads</p>
-                <span className="text-[11px] text-neutral-500">{guestThreads.length}</span>
+                <span className="text-[11px] text-neutral-500">{filteredGuests.length}</span>
               </div>
               <div className="divide-y divide-neutral-100 max-h-[480px] overflow-y-auto">
-                {guestThreads.map((t, i) => (
+                {filteredGuests.map((t) => {
+                  const i = guestThreads.indexOf(t)
+                  return (
                   <button
                     key={t.phone}
                     onClick={() => setSel({ kind: 'guest', idx: i })}
@@ -146,6 +207,9 @@ export function BotInboxClient({
                   >
                     <div className="flex items-center justify-between gap-2 mb-0.5">
                       <p className="text-sm font-semibold text-neutral-900 truncate">{t.label}</p>
+                      {t.badge === 'vendor' && <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">vendor</span>}
+                      {t.badge === 'ticket_buyer' && <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">ticket</span>}
+                      {t.badge === 'unknown' && <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-neutral-50 text-neutral-500 border border-neutral-200">unknown</span>}
                       {t.handover === 'human' && <Pill tone="brand">human</Pill>}
                       {t.unreadCount > 0 && <span className="text-[10px] font-bold bg-[#cd2653] text-white rounded-full px-1.5 py-0.5">{t.unreadCount}</span>}
                     </div>
@@ -153,19 +217,21 @@ export function BotInboxClient({
                     <p className="text-xs text-neutral-600 truncate mt-1">{t.latestPreview}</p>
                     <p className="text-[10px] text-neutral-400 mt-1">{fmt(t.latestAt)}</p>
                   </button>
-                ))}
+                )})}
               </div>
             </Card>
           )}
 
-          {mailThreads.length > 0 && (
+          {filteredMail.length > 0 && (
             <Card padded={false}>
               <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#1B6E8E]">Mail threads</p>
-                <span className="text-[11px] text-neutral-500">{mailThreads.length}</span>
+                <span className="text-[11px] text-neutral-500">{filteredMail.length}</span>
               </div>
               <div className="divide-y divide-neutral-100 max-h-[360px] overflow-y-auto">
-                {mailThreads.map((t, i) => (
+                {filteredMail.map((t) => {
+                  const i = mailThreads.indexOf(t)
+                  return (
                   <button
                     key={t.peer}
                     onClick={() => setSel({ kind: 'mail', idx: i })}
@@ -179,7 +245,7 @@ export function BotInboxClient({
                     <p className="text-xs text-neutral-600 truncate mt-1">{t.latestPreview}</p>
                     <p className="text-[10px] text-neutral-400 mt-1">{fmt(t.latestAt)}</p>
                   </button>
-                ))}
+                )})}
               </div>
             </Card>
           )}
@@ -237,7 +303,17 @@ export function BotInboxClient({
 // -------------------- ActiveThread (right pane) --------------------
 
 interface ActiveThreadProps {
-  active: { phone: string; label: string; messages: MsgRow[]; kind: 'admin' | 'guest' | 'mail'; handover?: 'human' | 'bot'; subject?: string }
+  active: {
+    phone: string
+    label: string
+    messages: MsgRow[]
+    kind: 'admin' | 'guest' | 'mail'
+    handover?: 'human' | 'bot'
+    subject?: string
+    badge?: 'vendor' | 'ticket_buyer' | 'unknown'
+    vendorApplicationId?: string | null
+    ticketBuyerEmail?: string | null
+  }
 }
 
 function ActiveThread({ active }: ActiveThreadProps) {
@@ -305,12 +381,26 @@ function ActiveThread({ active }: ActiveThreadProps) {
             <p className="text-xs text-neutral-500 font-mono mt-0.5">{active.phone}</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {active.kind === 'guest' && active.badge === 'vendor' && (
+              <Pill tone="brand">vendor</Pill>
+            )}
+            {active.kind === 'guest' && active.badge === 'ticket_buyer' && (
+              <Pill tone="neutral">ticket buyer</Pill>
+            )}
+            {active.kind === 'guest' && active.badge === 'unknown' && (
+              <Pill tone="neutral">unknown</Pill>
+            )}
             {active.kind === 'guest' && active.handover === 'human' && <Pill tone="brand">human handling</Pill>}
             {active.kind === 'guest' && active.handover === 'bot' && <Pill tone="neutral">auto-bot</Pill>}
             {active.kind === 'admin' && <Pill tone="neutral">admin</Pill>}
           </div>
         </div>
-        <ThreadActions threadKey={active.phone} channel="wa" />
+        <ThreadActions
+          threadKey={active.phone}
+          channel="wa"
+          vendorApplicationId={active.vendorApplicationId ?? null}
+          ticketBuyerEmail={active.ticketBuyerEmail ?? null}
+        />
       </Card>
 
       {/* AI summary + suggestions (guest threads only) */}
@@ -392,11 +482,30 @@ function ActiveThread({ active }: ActiveThreadProps) {
 // /api/admin/bot-inbox/thread/action. Each button posts an action and
 // re-fetches the row to keep the status pill honest. Kept inline because the
 // state is per-thread and the parent already owns the active thread.
-function ThreadActions({ threadKey, channel }: { threadKey: string; channel: 'wa' | 'mail' }) {
+type WaTag = 'payment' | 'load-in' | 'badges' | 'contract' | 'refund' | 'general'
+const WA_TAG_LIST: WaTag[] = ['payment', 'load-in', 'badges', 'contract', 'refund', 'general']
+
+function ThreadActions({
+  threadKey,
+  channel,
+  vendorApplicationId,
+  ticketBuyerEmail,
+}: {
+  threadKey: string
+  channel: 'wa' | 'mail'
+  vendorApplicationId: string | null
+  ticketBuyerEmail: string | null
+}) {
   const [status, setStatus] = useState<'open' | 'snoozed' | 'done' | null>(null)
   const [snoozedUntil, setSnoozedUntil] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [assignee, setAssignee] = useState<string | null>(null)
+  const [tag, setTag] = useState<WaTag | null>(null)
+  const [linkedVendor, setLinkedVendor] = useState<string | null>(vendorApplicationId)
+  const [linkedTicket, setLinkedTicket] = useState<string | null>(ticketBuyerEmail)
+  const [linkPicker, setLinkPicker] = useState<'vendor' | 'ticket' | null>(null)
+  const [linkQuery, setLinkQuery] = useState('')
+  const [linkHits, setLinkHits] = useState<Array<{ id?: string; email?: string; business_name?: string | null; contact_name?: string | null; name?: string | null }>>([])
 
   async function refresh() {
     try {
@@ -406,19 +515,22 @@ function ThreadActions({ threadKey, channel }: { threadKey: string; channel: 'wa
       setStatus((t?.status as 'open' | 'snoozed' | 'done') ?? 'open')
       setSnoozedUntil(t?.snoozed_until ?? null)
       setAssignee(t?.assignee_id ?? null)
+      setTag((t?.tag as WaTag) ?? null)
+      setLinkedVendor(t?.vendor_application_id ?? vendorApplicationId)
+      setLinkedTicket(t?.ticket_buyer_email ?? ticketBuyerEmail)
     } catch {
       // silent — actions still work, just no pill state
     }
   }
   useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [threadKey, channel])
 
-  async function act(action: string, snoozeHours?: number) {
+  async function act(action: string, extra: Record<string, unknown> = {}) {
     setBusy(action)
     try {
       const res = await fetch('/api/admin/bot-inbox/thread/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadKey, channel, action, snoozeHours }),
+        body: JSON.stringify({ threadKey, channel, action, ...extra }),
       })
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || `${action} failed`)
@@ -426,12 +538,30 @@ function ThreadActions({ threadKey, channel }: { threadKey: string; channel: 'wa
       setStatus((t?.status as 'open' | 'snoozed' | 'done') ?? 'open')
       setSnoozedUntil(t?.snoozed_until ?? null)
       setAssignee(t?.assignee_id ?? null)
+      setTag((t?.tag as WaTag) ?? null)
+      setLinkedVendor(t?.vendor_application_id ?? null)
+      setLinkedTicket(t?.ticket_buyer_email ?? null)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'action failed')
     } finally {
       setBusy(null)
     }
   }
+
+  useEffect(() => {
+    if (!linkPicker) { setLinkHits([]); return }
+    const q = linkQuery.trim()
+    if (q.length < 2) { setLinkHits([]); return }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/admin/support-inbox/search?type=${linkPicker}&q=${encodeURIComponent(q)}`)
+        const j = await res.json()
+        if (!res.ok) throw new Error(j.error)
+        setLinkHits(j.results || [])
+      } catch { setLinkHits([]) }
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [linkPicker, linkQuery])
 
   const Btn = (props: { onClick: () => void; disabled?: boolean; children: React.ReactNode; active?: boolean }) => (
     <button
@@ -455,7 +585,7 @@ function ThreadActions({ threadKey, channel }: { threadKey: string; channel: 'wa
       {status === 'done' && <Pill tone="neutral">done</Pill>}
       {assignee && <Pill tone="neutral">assigned</Pill>}
 
-      <Btn onClick={() => act('snooze', 4)} disabled={busy === 'snooze'} active={status === 'snoozed'}>
+      <Btn onClick={() => act('snooze', { snoozeHours: 4 })} disabled={busy === 'snooze'} active={status === 'snoozed'}>
         {busy === 'snooze' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
         Snooze 4h
       </Btn>
@@ -473,6 +603,73 @@ function ThreadActions({ threadKey, channel }: { threadKey: string; channel: 'wa
           {busy === 'reopen' ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
           Reopen
         </Btn>
+      )}
+
+      {/* Tag picker */}
+      <div className="flex items-center gap-1">
+        <Tag className="w-3 h-3 text-neutral-400" />
+        <select
+          value={tag || ''}
+          onChange={(e) => act('tag', { tag: e.target.value || null })}
+          disabled={busy === 'tag'}
+          className="text-xs rounded-full border border-neutral-200 bg-white px-2 py-1 outline-none focus:border-[#cd2653]"
+        >
+          <option value="">No tag</option>
+          {WA_TAG_LIST.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+
+      {/* Link to application / ticket */}
+      <Btn onClick={() => { setLinkPicker('vendor'); setLinkQuery('') }}>
+        <Link2 className="w-3 h-3" />
+        {linkedVendor ? 'Linked vendor' : 'Link application'}
+      </Btn>
+      <Btn onClick={() => { setLinkPicker('ticket'); setLinkQuery('') }}>
+        <Link2 className="w-3 h-3" />
+        {linkedTicket ? 'Linked ticket' : 'Link ticket'}
+      </Btn>
+
+      {linkPicker && (
+        <div className="basis-full mt-2 border border-neutral-200 rounded-lg p-2 bg-neutral-50">
+          <div className="flex items-center gap-2 mb-2">
+            <Search className="w-3.5 h-3.5 text-neutral-400" />
+            <input
+              autoFocus
+              value={linkQuery}
+              onChange={(e) => setLinkQuery(e.target.value)}
+              placeholder={linkPicker === 'vendor' ? 'Search vendor applications.' : 'Search ticket buyers.'}
+              className="flex-1 bg-white border border-neutral-200 rounded px-2 py-1 text-xs outline-none focus:border-[#cd2653]"
+            />
+            <button
+              onClick={() => {
+                if (linkPicker === 'vendor') act('link_vendor', { vendorApplicationId: null })
+                else act('link_ticket', { ticketBuyerEmail: null })
+                setLinkPicker(null)
+              }}
+              className="text-[11px] text-neutral-600 hover:text-[#cd2653]"
+            >Unlink</button>
+            <button onClick={() => setLinkPicker(null)} className="text-[11px] text-neutral-500 hover:text-neutral-900">Close</button>
+          </div>
+          <div className="space-y-1 max-h-44 overflow-y-auto">
+            {linkHits.map((h, i) => (
+              <button
+                key={(h.id || h.email || i).toString()}
+                onClick={() => {
+                  if (linkPicker === 'vendor' && h.id) act('link_vendor', { vendorApplicationId: h.id })
+                  else if (linkPicker === 'ticket' && h.email) act('link_ticket', { ticketBuyerEmail: h.email })
+                  setLinkPicker(null)
+                }}
+                className="w-full text-left text-xs bg-white border border-neutral-200 rounded px-2 py-1.5 hover:border-[#cd2653]/40"
+              >
+                <span className="font-semibold">{h.business_name || h.name || h.email}</span>
+                <span className="text-neutral-500"> · {h.contact_name || h.email || ''}</span>
+              </button>
+            ))}
+            {linkHits.length === 0 && linkQuery.length >= 2 && (
+              <p className="text-[11px] text-neutral-400 italic px-2">No matches.</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

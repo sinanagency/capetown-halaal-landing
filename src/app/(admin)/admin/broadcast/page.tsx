@@ -1,15 +1,20 @@
 'use client'
 
 // =============================================================================
-// /admin/broadcast, mass outreach console.
+// /admin/broadcast — mass outreach console.
 //
 // Layout (top to bottom):
-//   1. Filter chip rail, status, sector, booth tier, document, contract, paid.
-//   2. Channel toggle, Email / WhatsApp / Both.
-//   3. Template picker, dropdown from TEMPLATE_LABELS.
-//   4. Optional custom message, appended as {{custom_message}}.
-//   5. Live count (fetched from GET ?counts=1 as filters change).
-//   6. Send button, confirmation modal showing exact mail_count + wa_count.
+//   1. Filter chip rail — status, sector, booth tier, document, contract, paid.
+//   2. Channel toggle — Email / WhatsApp / Both.
+//   3. Mode radio — "Use template" or "Write your own".
+//   4. Template picker (template mode) — dropdown from TEMPLATE_LABELS.
+//   5. Free-text composer (write-your-own mode) — plain textarea.
+//   6. Optional custom message — appended as {{custom_message}} (template mode).
+//   7. Preview pane — live render for the FIRST audience member, with a
+//      "preview as: <vendor> ▾" picker to switch sample. Plus a "Spin"
+//      button that calls Claude for three rewrites that preserve merge tags.
+//   8. Live count (fetched from GET ?counts=1 as filters change).
+//   9. Send button → confirmation modal showing exact mail_count + wa_count.
 //
 // Design language: white canvas, neutral grays, festival red accents
 // (#cd2653 borrowed from the admin sidebar), tight typography. No glassmorphism.
@@ -18,6 +23,7 @@
 import { useEffect, useMemo, useState } from 'react'
 
 type Channel = 'mail' | 'wa' | 'both'
+type Mode = 'template' | 'free_text'
 type TemplateKey =
   | 'doc_chase'
   | 'payment_reminder'
@@ -80,6 +86,21 @@ interface DispatchResponse {
   errors: Array<{ kind: 'mail' | 'wa'; to: string; error: string }>
 }
 
+interface AudienceSample {
+  id: string
+  business_name: string
+  contact_name: string
+}
+
+interface PreviewResponse {
+  mode: 'template' | 'free_text'
+  template_key?: TemplateKey
+  subject: string
+  body_text: string
+  sample: AudienceSample
+  audience_total: number
+}
+
 function buildQuery(filters: Filters): string {
   const p = new URLSearchParams({ counts: '1' })
   if (filters.status) p.set('status', filters.status)
@@ -91,11 +112,25 @@ function buildQuery(filters: Filters): string {
   return p.toString()
 }
 
+function filtersToBody(filters: Filters) {
+  return {
+    status: filters.status || null,
+    sector: filters.sector || null,
+    booth_tier: filters.booth_tier || null,
+    has_docs: filters.has_docs === '' ? null : filters.has_docs === 'true',
+    contract_signed: filters.contract_signed === '' ? null : filters.contract_signed === 'true',
+    paid: filters.paid === '' ? null : filters.paid === 'true',
+  }
+}
+
 export default function BroadcastPage() {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [channel, setChannel] = useState<Channel>('mail')
+  const [mode, setMode] = useState<Mode>('template')
   const [templateKey, setTemplateKey] = useState<TemplateKey>('general_announcement')
   const [customMessage, setCustomMessage] = useState('')
+  const [freeText, setFreeText] = useState('')
+  const [freeTextSubject, setFreeTextSubject] = useState('')
   const [counts, setCounts] = useState<CountsResponse | null>(null)
   const [countsLoading, setCountsLoading] = useState(false)
   const [countsError, setCountsError] = useState<string | null>(null)
@@ -103,6 +138,18 @@ export default function BroadcastPage() {
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<DispatchResponse | null>(null)
   const [sendError, setSendError] = useState<string | null>(null)
+
+  // Preview state.
+  const [audienceSample, setAudienceSample] = useState<AudienceSample[]>([])
+  const [previewVendorId, setPreviewVendorId] = useState<string>('')
+  const [preview, setPreview] = useState<PreviewResponse | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+
+  // Spin state.
+  const [spinning, setSpinning] = useState(false)
+  const [spinError, setSpinError] = useState<string | null>(null)
+  const [spinVariants, setSpinVariants] = useState<string[] | null>(null)
 
   // Refresh counts when filters change.
   useEffect(() => {
@@ -122,6 +169,60 @@ export default function BroadcastPage() {
     return () => { cancelled = true }
   }, [filters])
 
+  // Refresh audience sample list when filters change.
+  useEffect(() => {
+    let cancelled = false
+    const qs = new URLSearchParams()
+    if (filters.status) qs.set('status', filters.status)
+    if (filters.sector) qs.set('sector', filters.sector)
+    if (filters.booth_tier) qs.set('booth_tier', filters.booth_tier)
+    if (filters.has_docs) qs.set('has_docs', filters.has_docs)
+    if (filters.contract_signed) qs.set('contract_signed', filters.contract_signed)
+    if (filters.paid) qs.set('paid', filters.paid)
+    fetch(`/api/admin/broadcast/preview?${qs.toString()}`, { credentials: 'include' })
+      .then(async (r) => r.ok ? r.json() : null)
+      .then((j) => {
+        if (cancelled || !j) return
+        setAudienceSample(j.audience || [])
+        // Default to the first sample when the current selection drops out.
+        if (j.audience?.length && !j.audience.find((a: AudienceSample) => a.id === previewVendorId)) {
+          setPreviewVendorId(j.audience[0].id)
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+    // previewVendorId intentionally excluded so a user switching previews
+    // does not re-fetch the audience list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters])
+
+  // Refresh preview when template / mode / vendor / customMessage / freeText changes.
+  useEffect(() => {
+    let cancelled = false
+    setPreviewLoading(true)
+    setPreviewError(null)
+    fetch('/api/admin/broadcast/preview', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        template_key: mode === 'template' ? templateKey : undefined,
+        custom_message: customMessage,
+        vendor_id: previewVendorId || undefined,
+        free_text: mode === 'free_text' ? freeText : undefined,
+        filters: filtersToBody(filters),
+      }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json()).error || `HTTP ${r.status}`)
+        return r.json() as Promise<PreviewResponse>
+      })
+      .then((j) => { if (!cancelled) setPreview(j) })
+      .catch((e: Error) => { if (!cancelled) setPreviewError(e.message) })
+      .finally(() => { if (!cancelled) setPreviewLoading(false) })
+    return () => { cancelled = true }
+  }, [mode, templateKey, customMessage, freeText, previewVendorId, filters])
+
   const expectedCount = useMemo(() => {
     if (!counts) return 0
     if (channel === 'mail') return counts.mail_count
@@ -133,28 +234,58 @@ export default function BroadcastPage() {
     setFilters((f) => ({ ...f, [key]: value }))
   }
 
+  const spin = async () => {
+    setSpinning(true)
+    setSpinError(null)
+    setSpinVariants(null)
+    try {
+      const baseText = mode === 'free_text' ? freeText : (preview?.body_text || '')
+      if (!baseText.trim()) {
+        throw new Error('Nothing to spin yet, pick a template or write some text first.')
+      }
+      const res = await fetch('/api/admin/broadcast/spin', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: baseText,
+          template_key: mode === 'template' ? templateKey : undefined,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+      setSpinVariants(json.variants || [])
+    } catch (e) {
+      setSpinError((e as Error).message)
+    } finally {
+      setSpinning(false)
+    }
+  }
+
+  const acceptSpin = (variant: string) => {
+    // Spin output lands in free-text mode so the operator sees exactly what
+    // will go out and can still edit before sending.
+    setMode('free_text')
+    setFreeText(variant)
+    setSpinVariants(null)
+  }
+
   const send = async () => {
     setSending(true)
     setSendError(null)
     setResult(null)
     try {
-      const filtersBody = {
-        status: filters.status || null,
-        sector: filters.sector || null,
-        booth_tier: filters.booth_tier || null,
-        has_docs: filters.has_docs === '' ? null : filters.has_docs === 'true',
-        contract_signed: filters.contract_signed === '' ? null : filters.contract_signed === 'true',
-        paid: filters.paid === '' ? null : filters.paid === 'true',
-      }
       const res = await fetch('/api/admin/whatsapp-broadcast', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channel,
-          filters: filtersBody,
-          template_key: templateKey,
+          filters: filtersToBody(filters),
+          template_key: mode === 'template' ? templateKey : 'general_announcement',
           custom_message: customMessage,
+          free_text: mode === 'free_text' ? freeText : undefined,
+          free_text_subject: mode === 'free_text' ? freeTextSubject : undefined,
         }),
       })
       const json = await res.json() as DispatchResponse | { error?: string }
@@ -168,7 +299,11 @@ export default function BroadcastPage() {
     }
   }
 
-  const sendDisabled = expectedCount === 0 || !templateKey || sending
+  const sendDisabled =
+    expectedCount === 0 ||
+    sending ||
+    (mode === 'template' && !templateKey) ||
+    (mode === 'free_text' && freeText.trim().length === 0)
 
   return (
     <div className="px-8 py-10 max-w-5xl">
@@ -212,30 +347,116 @@ export default function BroadcastPage() {
         </div>
       </section>
 
-      {/* Template picker */}
-      <section className="mb-7">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-          Template
-        </label>
-        <select value={templateKey}
-          onChange={(e) => setTemplateKey(e.target.value as TemplateKey)}
-          className="w-full md:w-96 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40">
-          {(Object.keys(TEMPLATE_LABELS) as TemplateKey[]).map((k) => (
-            <option key={k} value={k}>{TEMPLATE_LABELS[k]}</option>
+      {/* Mode radio */}
+      <section className="mb-5">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Message source</h2>
+        <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1">
+          {(['template', 'free_text'] as Mode[]).map((m) => (
+            <button key={m} type="button"
+              onClick={() => setMode(m)}
+              className={
+                'px-4 py-2 text-sm font-medium rounded-md transition-colors ' +
+                (mode === m ? 'bg-[#cd2653] text-white' : 'text-neutral-600 hover:bg-neutral-100')
+              }>
+              {m === 'template' ? 'Use template' : 'Write your own'}
+            </button>
           ))}
-        </select>
+        </div>
       </section>
 
-      {/* Custom message */}
-      <section className="mb-7">
-        <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
-          Optional custom message
-        </label>
-        <textarea value={customMessage}
-          onChange={(e) => setCustomMessage(e.target.value)}
-          rows={4}
-          placeholder="Anything extra to add. Injected as {{custom_message}} in the template."
-          className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+      {/* Template picker (template mode) */}
+      {mode === 'template' && (
+        <section className="mb-5">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
+            Template
+          </label>
+          <select value={templateKey}
+            onChange={(e) => setTemplateKey(e.target.value as TemplateKey)}
+            className="w-full md:w-96 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40">
+            {(Object.keys(TEMPLATE_LABELS) as TemplateKey[]).map((k) => (
+              <option key={k} value={k}>{TEMPLATE_LABELS[k]}</option>
+            ))}
+          </select>
+        </section>
+      )}
+
+      {/* Free-text composer (write-your-own mode) */}
+      {mode === 'free_text' && (
+        <section className="mb-5 space-y-3">
+          <label className="block">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Subject (email only)</span>
+            <input type="text" value={freeTextSubject}
+              onChange={(e) => setFreeTextSubject(e.target.value)}
+              placeholder="An update from Young at Heart Festival"
+              className="w-full md:w-96 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+          </label>
+          <label className="block">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Your message</span>
+            <textarea value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              rows={8}
+              placeholder="Write your message here. Use {{first_name}}, {{business_name}}, {{stall_code}} for merge tags."
+              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+          </label>
+        </section>
+      )}
+
+      {/* Custom message (template mode only) */}
+      {mode === 'template' && (
+        <section className="mb-5">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
+            Optional custom message
+          </label>
+          <textarea value={customMessage}
+            onChange={(e) => setCustomMessage(e.target.value)}
+            rows={4}
+            placeholder="Anything extra to add. Injected as {{custom_message}} in the template."
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+        </section>
+      )}
+
+      {/* Preview pane */}
+      <section className="mb-7 rounded-lg border border-neutral-200 bg-neutral-50">
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-neutral-200">
+          <div className="flex items-center gap-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Preview</h3>
+            {audienceSample.length > 0 && (
+              <label className="flex items-center gap-2 text-xs text-neutral-500">
+                preview as
+                <select value={previewVendorId}
+                  onChange={(e) => setPreviewVendorId(e.target.value)}
+                  className="rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40">
+                  {audienceSample.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.contact_name || '(no name)'}{a.business_name ? ` - ${a.business_name}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+          <button type="button"
+            onClick={spin}
+            disabled={spinning}
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium text-neutral-700 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed">
+            {spinning ? 'Spinning...' : 'Spin'}
+          </button>
+        </div>
+        <div className="px-4 py-4">
+          {previewLoading && <p className="text-sm text-neutral-500">Rendering...</p>}
+          {previewError && <p className="text-sm text-red-600">{previewError}</p>}
+          {preview && !previewLoading && !previewError && (
+            <>
+              {preview.subject && preview.subject !== '(no subject)' && (
+                <p className="text-xs text-neutral-500 mb-2">
+                  Subject: <span className="text-neutral-800 font-medium">{preview.subject}</span>
+                </p>
+              )}
+              <pre className="whitespace-pre-wrap font-sans text-sm text-neutral-800 leading-relaxed">{preview.body_text}</pre>
+            </>
+          )}
+          {spinError && <p className="mt-3 text-xs text-red-600">{spinError}</p>}
+        </div>
       </section>
 
       {/* Count + Send */}
@@ -292,13 +513,44 @@ export default function BroadcastPage() {
         </section>
       )}
 
+      {/* Spin variants modal */}
+      {spinVariants && spinVariants.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-neutral-900">Pick a spin</h3>
+              <button type="button" onClick={() => setSpinVariants(null)}
+                className="text-sm text-neutral-500 hover:text-neutral-800">Close</button>
+            </div>
+            <div className="p-6 space-y-4">
+              {spinVariants.map((v, i) => (
+                <div key={i} className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Variant {i + 1}</p>
+                  <pre className="whitespace-pre-wrap font-sans text-sm text-neutral-800 leading-relaxed">{v}</pre>
+                  <div className="mt-3 flex justify-end">
+                    <button type="button" onClick={() => acceptSpin(v)}
+                      className="rounded-md bg-[#cd2653] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b22149]">
+                      Use this
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Confirm modal */}
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-semibold text-neutral-900">Confirm broadcast</h3>
             <p className="mt-2 text-sm text-neutral-600">
-              You are about to send <strong className="text-neutral-900">{TEMPLATE_LABELS[templateKey]}</strong> via
+              You are about to send {mode === 'template' ? (
+                <><strong className="text-neutral-900">{TEMPLATE_LABELS[templateKey]}</strong></>
+              ) : (
+                <><strong className="text-neutral-900">your custom message</strong></>
+              )} via
               {' '}<strong className="text-neutral-900">
                 {channel === 'mail' ? 'Email' : channel === 'wa' ? 'WhatsApp' : 'Email and WhatsApp'}
               </strong>{' '}

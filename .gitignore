@@ -49,3 +49,9 @@ scripts/resume-cron.log
 scripts/resume-launchd.out
 scripts/resume-launchd.err
 scripts/.verification-blast.DONE
+
+# playwright
+/test-results
+/playwright-report
+/playwright/.cache
+/blob-report

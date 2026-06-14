@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { BOT_ADMINS, adminPhones } from '@/lib/bot/admins'
 import { BotInboxClient, type AdminThread, type GuestThread, type MailThread } from './BotInboxClient'
 import { redirect } from 'next/navigation'
+import { lookupPhones, type ContactBadge, type PhoneContact } from '@/lib/contacts/lookup-by-phone'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,15 +73,15 @@ export default async function BotInboxPage() {
     .limit(2000)
   const guestMessages = (guestRows || []) as WaMessage[]
 
-  // Resolve vendor names from vendor_applications by phone (for header label)
+  // Resolve every phone against vendor_applications AND ticket_buyers via
+  // last-9-digit suffix matching. The previous IN-clause exact-match missed
+  // rows whose vendor row was stored as +27... but wa_messages came in as 27...
+  // (Meta WABA strips the leading +). Same problem for ticket buyers whose
+  // phones often have a leading 0 from the WC checkout form.
   const uniquePhones = Array.from(new Set(guestMessages.map((m) => m.wa_phone)))
-  const { data: vendorRows } = uniquePhones.length
-    ? await db.from('vendor_applications').select('business_name, contact_name, phone').in('phone', uniquePhones)
-    : { data: [] as Array<{ business_name?: string; contact_name?: string; phone?: string }> }
-  const vendorByPhone = new Map<string, { business_name: string; contact_name: string }>()
-  for (const v of vendorRows || []) {
-    if (v.phone) vendorByPhone.set(v.phone, { business_name: v.business_name || '', contact_name: v.contact_name || '' })
-  }
+  const phoneContacts: Map<string, PhoneContact> = uniquePhones.length
+    ? await lookupPhones(uniquePhones, db)
+    : new Map<string, PhoneContact>()
 
   function isMarker(body: string | null): boolean {
     if (!body) return true
@@ -104,11 +105,14 @@ export default async function BotInboxPage() {
     const unread = lastOutAt
       ? visible.filter((m) => m.direction === 'in' && m.created_at > lastOutAt).length
       : visible.filter((m) => m.direction === 'in').length
-    const v = vendorByPhone.get(phone)
+    const c = phoneContacts.get(phone)
     return {
       phone,
-      label: v?.business_name || v?.contact_name || phone,
-      sublabel: v ? (v.business_name && v.contact_name ? v.contact_name : phone) : '',
+      label: c?.displayName || phone,
+      sublabel: c?.displayName ? phone : '',
+      badge: (c?.badge || 'unknown') as ContactBadge,
+      vendorApplicationId: c?.vendorApplicationId || null,
+      ticketBuyerEmail: c?.ticketBuyerEmail || null,
       messages: visible,
       handover: handoverState(mine),
       latestAt: latest?.created_at || null,

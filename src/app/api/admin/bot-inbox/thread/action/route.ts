@@ -9,9 +9,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 interface ActionBody {
   threadKey: string                      // E.164 phone for wa, lower-cased email for mail
   channel: 'wa' | 'mail'
-  action: 'snooze' | 'assign_me' | 'done' | 'reopen' | 'unassign'
+  action: 'snooze' | 'assign_me' | 'done' | 'reopen' | 'unassign' | 'tag' | 'link_vendor' | 'link_ticket'
   snoozeHours?: number                   // only used when action === 'snooze'
+  tag?: 'payment' | 'load-in' | 'badges' | 'contract' | 'refund' | 'general' | null
+  vendorApplicationId?: string | null
+  ticketBuyerEmail?: string | null
 }
+
+const ALLOWED_TAGS = new Set(['payment', 'load-in', 'badges', 'contract', 'refund', 'general'])
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -58,6 +63,20 @@ export async function POST(req: Request) {
     case 'reopen':
       update.status = 'open'
       update.snoozed_until = null
+      break
+    case 'tag': {
+      const t = body.tag
+      if (t !== null && t !== undefined && !ALLOWED_TAGS.has(t)) {
+        return NextResponse.json({ error: `tag must be one of ${[...ALLOWED_TAGS].join(',')} or null` }, { status: 400 })
+      }
+      update.tag = t || null
+      break
+    }
+    case 'link_vendor':
+      update.vendor_application_id = body.vendorApplicationId || null
+      break
+    case 'link_ticket':
+      update.ticket_buyer_email = body.ticketBuyerEmail || null
       break
     default:
       return NextResponse.json({ error: 'unknown action' }, { status: 400 })
