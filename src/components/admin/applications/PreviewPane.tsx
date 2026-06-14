@@ -53,46 +53,71 @@ export function PreviewPane({
   const [suggest, setSuggest] = useState<SuggestResponse | null>(null)
   const [suggestErr, setSuggestErr] = useState(false)
   const [events, setEvents] = useState<AuditEvent[]>([])
+  // Activity list is gated: 460 rows x j/k = 460 events calls is wasteful.
+  // Operator opts in per row by clicking "Show activity".
+  const [showEvents, setShowEvents] = useState(false)
+
+  // Reset event-pane state whenever the focused row changes so the previous
+  // row's events don't ghost into the next one.
+  useEffect(() => {
+    setEvents([])
+    setShowEvents(false)
+  }, [row?.id])
 
   // Pull suggestions whenever the focused row changes. Best-effort.
+  // 250ms debounce + AbortController so a fast j/k walk through the queue
+  // doesn't fire one /suggest call per row (was 460 Haiku calls on a full pass).
   useEffect(() => {
     if (!row) {
       setSuggest(null)
       setSuggestErr(false)
-      setEvents([])
       return
     }
-    let abort = false
+    const controller = new AbortController()
     setSuggest(null)
     setSuggestErr(false)
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/admin/applications/suggest?id=${row.id}`)
-        if (!abort && res.ok) {
-          const data = (await res.json()) as SuggestResponse
-          setSuggest(data)
-        } else if (!abort) {
-          setSuggestErr(true)
-        }
-      } catch {
-        if (!abort) setSuggestErr(true)
-      }
-    })()
-    ;(async () => {
-      try {
-        const res = await fetch(`/api/admin/applications/events?application_id=${row.id}&limit=20`)
-        if (!abort && res.ok) {
-          const data = await res.json()
-          setEvents(data.events ?? [])
-        }
-      } catch {
-        if (!abort) setEvents([])
-      }
-    })()
+    const timer = setTimeout(() => {
+      fetch(`/api/admin/applications/suggest?id=${row.id}`, { signal: controller.signal })
+        .then(async (res) => {
+          if (res.ok) {
+            const data = (await res.json()) as SuggestResponse
+            setSuggest(data)
+          } else {
+            setSuggestErr(true)
+          }
+        })
+        .catch((err) => {
+          if ((err as Error).name !== 'AbortError') setSuggestErr(true)
+        })
+    }, 250)
     return () => {
-      abort = true
+      clearTimeout(timer)
+      controller.abort()
     }
   }, [row?.id])
+
+  // Audit log: only fetch when the operator explicitly asks for it.
+  // Same 250ms debounce + AbortController shape as the suggest fetch.
+  useEffect(() => {
+    if (!row || !showEvents) return
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      fetch(`/api/admin/applications/events?application_id=${row.id}&limit=20`, { signal: controller.signal })
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json()
+            setEvents(data.events ?? [])
+          }
+        })
+        .catch((err) => {
+          if ((err as Error).name !== 'AbortError') setEvents([])
+        })
+    }, 250)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [row?.id, showEvents])
 
   if (!row) {
     return (
@@ -243,10 +268,23 @@ export function PreviewPane({
           </section>
         )}
 
-        {/* Audit log */}
+        {/* Audit log — gated to keep j/k walks cheap. */}
         <section className="space-y-1.5">
-          <div className="text-[10px] uppercase tracking-wider text-neutral-400">Activity</div>
-          {events.length === 0 ? (
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] uppercase tracking-wider text-neutral-400">Activity</div>
+            {!showEvents && (
+              <button
+                type="button"
+                onClick={() => setShowEvents(true)}
+                className="text-[11px] text-neutral-600 hover:text-neutral-900 underline-offset-2 hover:underline"
+              >
+                Show activity
+              </button>
+            )}
+          </div>
+          {!showEvents ? (
+            <div className="text-[11px] text-neutral-400">Activity hidden by default.</div>
+          ) : events.length === 0 ? (
             <div className="text-[11px] text-neutral-400">No activity yet.</div>
           ) : (
             <ul className="space-y-1">

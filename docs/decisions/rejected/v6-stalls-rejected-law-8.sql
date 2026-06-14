@@ -1,3 +1,4 @@
+-- REJECTED: violates CTH-DOCTRINE Law 8. Stalls live as ⟦STALL:code⟧ markers on vendor_applications.admin_notes. DO NOT RUN.
 -- =====================================================
 -- Migration V6: Stall inventory + allocation (booth map)
 -- Run in Supabase SQL Editor (after v5). ADDITIVE ONLY.

@@ -3,6 +3,7 @@
 // Shortcuts cheatsheet overlay. Triggered by `?`. Closes on Escape or click.
 
 import { cn } from '@/lib/utils'
+import { Z_CLASS } from '@/lib/z'
 
 const SHORTCUTS: Array<{ keys: string[]; label: string }> = [
   { keys: ['j'], label: 'Focus next row' },
@@ -23,7 +24,10 @@ export function ShortcutsOverlay({ open, onClose }: { open: boolean; onClose: ()
   if (!open) return null
   return (
     <div
-      className="fixed inset-0 z-50 bg-neutral-900/60 backdrop-blur-sm flex items-center justify-center p-6"
+      className={cn(
+        'fixed inset-0 bg-neutral-900/60 backdrop-blur-sm flex items-center justify-center p-6',
+        Z_CLASS.modal
+      )}
       onClick={onClose}
       role="dialog"
       aria-modal="true"

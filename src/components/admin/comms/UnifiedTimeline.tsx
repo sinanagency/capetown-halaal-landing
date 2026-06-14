@@ -13,8 +13,10 @@
  * Data source: /api/admin/comms/timeline (this slice).
  */
 
-import { useEffect, useState } from 'react'
-import { MessageCircle, Mail, StickyNote, ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Loader2, MessageCircle, Mail, StickyNote, ArrowDownLeft, ArrowUpRight, ChevronDown, ChevronUp } from 'lucide-react'
+
+const PAGE_SIZE = 50
 
 interface Row {
   id: string
@@ -64,21 +66,45 @@ export function UnifiedTimeline({ contactId, phone, email }: Props) {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [offset, setOffset] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  // Fetch one page. When `append=true` we keep prior rows; otherwise reset.
+  const fetchPage = useCallback(
+    async (pageOffset: number, append: boolean): Promise<void> => {
+      const sp = new URLSearchParams()
+      if (contactId) sp.set('contactId', contactId)
+      if (phone) sp.set('phone', phone)
+      if (email) sp.set('email', email)
+      sp.set('limit', String(PAGE_SIZE))
+      sp.set('offset', String(pageOffset))
+      try {
+        const r = await fetch(`/api/admin/comms/timeline?${sp.toString()}`)
+        const d = await r.json()
+        const pageRows: Row[] = d.rows || []
+        setRows((prev) => (append && prev ? [...prev, ...pageRows] : pageRows))
+        setHasMore(!!d.pagination?.has_more)
+        setOffset(pageOffset + pageRows.length)
+      } catch (e) {
+        setError(String((e as Error)?.message || e))
+      }
+    },
+    [contactId, phone, email]
+  )
 
   useEffect(() => {
     let cancelled = false
-    const sp = new URLSearchParams()
-    if (contactId) sp.set('contactId', contactId)
-    if (phone) sp.set('phone', phone)
-    if (email) sp.set('email', email)
     setRows(null)
     setError(null)
-    fetch(`/api/admin/comms/timeline?${sp.toString()}`)
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled) setRows(d.rows || []) })
-      .catch((e) => { if (!cancelled) setError(String(e?.message || e)) })
+    setOffset(0)
+    setHasMore(false)
+    ;(async () => {
+      await fetchPage(0, false)
+      if (cancelled) return
+    })()
     return () => { cancelled = true }
-  }, [contactId, phone, email])
+  }, [fetchPage])
 
   if (error) {
     return <p className="text-sm text-red-600">Failed to load timeline: {error}</p>
@@ -90,7 +116,17 @@ export function UnifiedTimeline({ contactId, phone, email }: Props) {
     return <p className="text-sm text-neutral-500">No comms yet across WhatsApp, email, or notes.</p>
   }
 
+  async function loadOlder() {
+    setLoadingMore(true)
+    try {
+      await fetchPage(offset, true)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
   return (
+    <>
     <ol className="space-y-2.5">
       {rows.map((r) => {
         const isExp = expanded.has(r.id)
@@ -147,6 +183,19 @@ export function UnifiedTimeline({ contactId, phone, email }: Props) {
         )
       })}
     </ol>
+    {hasMore && (
+      <div className="pt-3 flex justify-center">
+        <button
+          onClick={loadOlder}
+          disabled={loadingMore}
+          className="text-xs text-neutral-600 hover:text-[#cd2653] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-neutral-200 hover:border-neutral-400 disabled:opacity-60"
+        >
+          {loadingMore && <Loader2 className="w-3 h-3 animate-spin" />}
+          {loadingMore ? 'Loading...' : 'Load older'}
+        </button>
+      </div>
+    )}
+    </>
   )
 }
 

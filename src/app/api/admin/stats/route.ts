@@ -24,11 +24,6 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Get full application data for stats + revenue estimation
-    const { data: applications } = await admin
-      .from('vendor_applications')
-      .select('status, preferred_booth_tier, special_requirements, product_categories')
-
     // Booth tier price map for revenue estimation
     const TIER_PRICES: Record<string, number> = {
       'marquee-table-2x2': 3700,
@@ -43,11 +38,26 @@ export async function GET() {
       'food-truck-8m': 8500,
     }
 
-    const total_apps = applications?.length || 0
-    const approved = applications?.filter(a => a.status === 'approved').length || 0
-    const pending = applications?.filter(a => a.status === 'pending').length || 0
-    const rejected = applications?.filter(a => a.status === 'rejected').length || 0
-    const info_requested = applications?.filter(a => a.status === 'info_requested').length || 0
+    // 1. Status counts via 5 parallel head:count queries (no row payload).
+    //    Used to pull the full table on every 60s timer.
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+
+    const [total, approved_r, pending_r, infoReq_r, rejected_r, recent_r] = await Promise.all([
+      admin.from('vendor_applications').select('*', { count: 'exact', head: true }),
+      admin.from('vendor_applications').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
+      admin.from('vendor_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      admin.from('vendor_applications').select('*', { count: 'exact', head: true }).eq('status', 'info_requested'),
+      admin.from('vendor_applications').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
+      admin.from('vendor_applications').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo.toISOString()),
+    ])
+
+    const total_apps = total.count ?? 0
+    const approved = approved_r.count ?? 0
+    const pending = pending_r.count ?? 0
+    const rejected = rejected_r.count ?? 0
+    const info_requested = infoReq_r.count ?? 0
+    const recentCount = recent_r.count ?? 0
 
     // Existing shape kept for dashboard back-compat; `total` is total application count (not approved vendors).
     const stats = {
@@ -58,21 +68,26 @@ export async function GET() {
       info_requested,
     }
 
-    // Estimated revenue from all non-rejected applications
+    // 2. Revenue + categories need row payloads, but only for non-rejected
+    //    applications. Pull a narrow projection (no business_description,
+    //    no admin_notes) so the response size stays small even at 25K rows.
+    const { data: nonRejectedApps } = await admin
+      .from('vendor_applications')
+      .select('preferred_booth_tier, special_requirements, product_categories')
+      .neq('status', 'rejected')
+
     let estimatedRevenue = 0
     const categoryBreakdown: Record<string, number> = {}
-    for (const app of (applications || [])) {
-      if (app.status !== 'rejected') {
-        const tier = app.preferred_booth_tier || ''
-        estimatedRevenue += TIER_PRICES[tier] || 0
+    for (const app of (nonRejectedApps || [])) {
+      const tier = app.preferred_booth_tier || ''
+      estimatedRevenue += TIER_PRICES[tier] || 0
 
-        // Try to get stall_price from special_requirements JSON
-        if (!TIER_PRICES[tier] && app.special_requirements) {
-          try {
-            const sr = JSON.parse(app.special_requirements)
-            if (sr.stall_price) estimatedRevenue += Number(sr.stall_price) || 0
-          } catch {}
-        }
+      // Try to get stall_price from special_requirements JSON
+      if (!TIER_PRICES[tier] && app.special_requirements) {
+        try {
+          const sr = JSON.parse(app.special_requirements)
+          if (sr.stall_price) estimatedRevenue += Number(sr.stall_price) || 0
+        } catch {}
       }
 
       // Category breakdown
@@ -81,17 +96,6 @@ export async function GET() {
         categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1
       }
     }
-
-    // Get recent applications (last 7 days)
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-
-    const { data: recentApps } = await admin
-      .from('vendor_applications')
-      .select('created_at')
-      .gte('created_at', weekAgo.toISOString())
-
-    stats.total = applications?.length || 0
 
     // Clean application-pipeline counts, exposed alongside the legacy `stats` block.
     const applicationStats = {
@@ -105,7 +109,7 @@ export async function GET() {
     return NextResponse.json({
       stats,
       applicationStats,
-      recentCount: recentApps?.length || 0,
+      recentCount,
       estimatedRevenue,
       categoryBreakdown,
     })

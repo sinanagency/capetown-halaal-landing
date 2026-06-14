@@ -195,6 +195,12 @@ export default function ApplicationsWorkbenchPage() {
   // ---- keyboard layer --------------------------------------------------------
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // When an overlay or drawer is open, swallow every key except Escape.
+      // Samreen reads the cheatsheet with the queue still mounted; without
+      // this guard, `a`/`r`/`i`/`t`/`j`/`k` silently fire against the focused
+      // row behind the overlay and approve/reject the wrong vendor.
+      if ((shortcutsOpen || dedupeOpen) && e.key !== 'Escape') return
+
       // Don't hijack the user's typing into inputs / textareas.
       const target = e.target as HTMLElement | null
       const tag = target?.tagName?.toLowerCase()
@@ -361,6 +367,14 @@ export default function ApplicationsWorkbenchPage() {
               selectedIds={selectedIds}
               onFocus={setFocusedId}
               onOpen={(id) => window.open(`/admin/applications/${id}`, '_self')}
+              // Mobile-only row actions. Same intents as the desktop keyboard
+              // shortcuts; reuses the single-row action endpoint via runAction.
+              onAction={(id, action) => {
+                if (action.kind === 'approve') runAction(id, 'approve')
+                else if (action.kind === 'reject') runAction(id, 'reject', { reason: action.reason })
+                else if (action.kind === 'request_info') runAction(id, 'request_info', { reason: action.reason })
+                else if (action.kind === 'tag') runAction(id, 'tag', { sector: action.sector })
+              }}
             />
           )}
         </div>

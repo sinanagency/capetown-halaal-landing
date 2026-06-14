@@ -55,3 +55,7 @@ scripts/.verification-blast.DONE
 /playwright-report
 /playwright/.cache
 /blob-report
+
+# transient sprint artifacts
+.claude/worktrees/
+public/stalls.excel-extracted.json.bak

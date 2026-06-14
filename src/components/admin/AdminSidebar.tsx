@@ -4,7 +4,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Settings as SettingsIcon } from 'lucide-react'
+import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon } from 'lucide-react'
+import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -288,7 +289,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="md:hidden sticky top-0 z-40 flex items-center justify-between bg-white border-b border-neutral-200 px-3 py-2">
+      <div className={cn('md:hidden sticky top-0 flex items-center justify-between bg-white border-b border-neutral-200 px-3 py-2', Z_CLASS.drawer)}>
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
@@ -298,22 +299,39 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
           <Menu className="w-5 h-5" />
         </button>
         <div className="text-sm font-semibold text-neutral-900">Young at Heart Admin</div>
-        <span
-          className={cn(
-            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
-            badge.cls
-          )}
-          title={`Role: ${badge.label}`}
-        >
-          <BadgeIcon className="w-3 h-3" />
-          {badge.label}
-        </span>
+        <div className="flex items-center gap-1">
+          {/* Mobile search trigger: dispatches a synthetic Cmd+K so CommandK
+              (which already owns the keydown listener) opens. Avoids the
+              cross-component coupling problem of wiring a setOpen ref into a
+              component owned by a sibling agent. */}
+          <button
+            type="button"
+            onClick={() => {
+              const ev = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true })
+              document.dispatchEvent(ev)
+            }}
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center text-neutral-700 hover:text-neutral-900"
+            aria-label="Open command palette"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border',
+              badge.cls
+            )}
+            title={`Role: ${badge.label}`}
+          >
+            <BadgeIcon className="w-3 h-3" />
+            {badge.label}
+          </span>
+        </div>
       </div>
 
       {/* Mobile drawer overlay */}
       {mobileOpen && (
         <div
-          className="md:hidden fixed inset-0 z-40 bg-black/40"
+          className={cn('md:hidden fixed inset-0 bg-black/40', Z_CLASS.drawer)}
           onClick={() => setMobileOpen(false)}
           aria-hidden="true"
         />
@@ -323,8 +341,9 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
       <aside
         className={cn(
           'bg-white border-r border-neutral-200 flex flex-col',
-          // mobile: drawer
-          'fixed inset-y-0 left-0 z-50 w-72 transform transition-transform md:relative md:translate-x-0 md:w-64 md:min-h-screen',
+          // mobile: drawer (sits above the overlay backdrop on the modal layer)
+          'fixed inset-y-0 left-0 w-72 transform transition-transform md:relative md:translate-x-0 md:w-64 md:min-h-screen',
+          Z_CLASS.modal,
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         )}
       >

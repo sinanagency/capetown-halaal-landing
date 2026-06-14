@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { X, Sparkles, ListChecks, MessageCircle, ArrowRight } from 'lucide-react'
+import { Z_CLASS } from '@/lib/z'
 
 // Welcome-modal that fires ONCE per vendor on first portal landing. We check
 // for a localStorage flag (cth_portal_welcomed) before showing. The parent
@@ -36,7 +37,7 @@ export function WelcomeModal({ firstName, alreadyDismissedServer }: { firstName:
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1B1A17]/60 backdrop-blur-sm"
+      className={`fixed inset-0 ${Z_CLASS.modal} flex items-center justify-center p-4 bg-[#1B1A17]/60 backdrop-blur-sm`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="cth-welcome-title"

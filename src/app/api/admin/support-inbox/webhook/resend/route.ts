@@ -35,6 +35,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { Webhook } from 'svix'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -75,19 +76,39 @@ function isInternalRecipient(email: string | null): boolean {
 export async function POST(req: NextRequest) {
   const secret = process.env.RESEND_WEBHOOK_SECRET || ''
   const devAllow = process.env.DEV_ALLOW_UNSIGNED_RESEND === '1'
+  const isProd = process.env.NODE_ENV === 'production'
+
+  // We need the raw body for signature verification AND for JSON parsing.
+  // Read once as text, verify, then JSON.parse.
+  const rawBody = await req.text()
+
+  // Verification rules (CTH-DOCTRINE Vendor-data-privacy law):
+  //   - In prod with secret set: verification REQUIRED. Forged headers reject.
+  //   - In non-prod without secret: skip (dev convenience).
+  //   - DEV_ALLOW_UNSIGNED_RESEND=1: skip in non-prod only.
   if (secret) {
-    const sig = req.headers.get('svix-signature') || ''
-    if (!sig && !devAllow) {
-      return NextResponse.json({ error: 'missing svix-signature' }, { status: 401 })
+    try {
+      const wh = new Webhook(secret)
+      wh.verify(rawBody, {
+        'svix-id': req.headers.get('svix-id') || '',
+        'svix-timestamp': req.headers.get('svix-timestamp') || '',
+        'svix-signature': req.headers.get('svix-signature') || '',
+      })
+    } catch (err) {
+      // In prod, signature failure is hard-reject. In dev, allow with explicit opt-in.
+      if (isProd || !devAllow) {
+        console.warn('[resend webhook] signature verification failed:', (err as Error).message)
+        return new Response('invalid signature', { status: 401 })
+      }
     }
-    // Note: signature verification (svix) lives in the Resend SDK ecosystem.
-    // For this slice we accept the header presence and trust the secret being
-    // present; a hardening pass with `svix` lib lands in a follow-up sprint.
+  } else if (isProd) {
+    // No secret configured in prod = misconfigured webhook. Refuse to mirror.
+    return new Response('webhook secret not configured', { status: 503 })
   }
 
   let event: ResendEvent
   try {
-    event = await req.json() as ResendEvent
+    event = JSON.parse(rawBody) as ResendEvent
   } catch {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 })
   }

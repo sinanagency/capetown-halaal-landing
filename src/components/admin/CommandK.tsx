@@ -78,14 +78,6 @@ interface FlatRow {
   secondary: string
 }
 
-function isEditableTarget(el: Element | null): boolean {
-  if (!el) return false
-  const tag = el.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
-  const ce = (el as HTMLElement).isContentEditable
-  return Boolean(ce)
-}
-
 function flatten(r: SearchResponse): { group: string; rows: FlatRow[] }[] {
   return [
     {
@@ -168,26 +160,30 @@ export function CommandK() {
     })
   }, [])
 
-  // Global cmd+K toggle.
+  // Global cmd+K toggle. Linear / Vercel pattern: cmd+K ALWAYS opens,
+  // regardless of focus, so the operator never has to click out of an
+  // input first. The previous guard ("don't steal cmd+K while typing
+  // into another input") was the root cause of the dead-shortcut bug
+  // reported by the walkthrough verifier, because the sidebar search
+  // box silently held focus on /admin/bot-inbox and ate the keystroke.
+  // We still block cmd+K when typing INSIDE the CommandK modal itself
+  // (handled by onInputKeyDown), and we keep contentEditable surfaces
+  // (Slate / ProseMirror) exempt only when the modal is already open
+  // so the toggle still closes the modal.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
-        // Guard: do not steal cmd+K while typing into another component's
-        // input. The modal's own input always wins because it lives in
-        // a portal-like fixed layer and the guard exempts our own ref.
-        if (!open && isEditableTarget(document.activeElement)) {
-          // Allow the trigger only when focus is not in some other editable.
-          // Some surfaces (Slate/ProseMirror) set contentEditable on a wrapper
-          // that may legitimately want cmd+K. We respect them.
-          return
-        }
+      // Match both 'k' and 'K' (caps lock, shift+cmd+k) and tolerate
+      // browsers that surface e.code === 'KeyK' instead of e.key.
+      const isK = e.key === 'k' || e.key === 'K' || e.code === 'KeyK'
+      if (isK && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
+        e.stopPropagation()
         setOpen((o) => !o)
       }
     }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open])
+    document.addEventListener('keydown', onKey, { capture: true })
+    return () => document.removeEventListener('keydown', onKey, { capture: true })
+  }, [])
 
   // Reset state every time the modal opens.
   useEffect(() => {

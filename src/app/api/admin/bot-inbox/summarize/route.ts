@@ -11,13 +11,16 @@ import { toE164 } from '@/lib/whatsapp'
 
 // If DGX is unset, fall back to Anthropic Haiku (already installed + used by
 // /api/admin/inbox/summarize). Never block the bot-inbox UI on DGX availability.
-async function askLLM(systemPrompt: string, msgs: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<string> {
+type Engine = 'dgx' | 'cloud'
+
+async function askLLM(systemPrompt: string, msgs: Array<{ role: 'user' | 'assistant'; content: string }>): Promise<{ text: string; engine: Engine }> {
   if (dgxConfigured()) {
     try {
-      return await askDgx(
+      const text = await askDgx(
         [{ role: 'system' as const, content: systemPrompt }, ...msgs],
         { maxTokens: 600 },
       )
+      return { text, engine: 'dgx' }
     } catch (e) {
       if (!(e instanceof DgxNotConfigured)) throw e
       console.warn('[bot-inbox/summarize] DGX not configured, falling back to Anthropic')
@@ -35,7 +38,8 @@ async function askLLM(systemPrompt: string, msgs: Array<{ role: 'user' | 'assist
     messages: msgs,
   })
   const block = resp.content[0]
-  return block && block.type === 'text' ? block.text : ''
+  const text = block && block.type === 'text' ? block.text : ''
+  return { text, engine: 'cloud' }
 }
 
 export const runtime = 'nodejs'
@@ -93,10 +97,10 @@ export async function POST(req: NextRequest) {
   const systemFull = `${SYSTEM}\n\n=== VENDOR INFO ===\n${vendorBriefing}\n\n=== INSTRUCTIONS ===\nUse the vendor's first name if known. Refer to specifics where it helps. The conversation messages follow next.`
 
   try {
-    const raw = await askLLM(systemFull, msgs)
+    const { text: raw, engine } = await askLLM(systemFull, msgs)
     // Strip any code fences or prose around the JSON.
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) return NextResponse.json({ ok: true, summary: raw.slice(0, 200), context: '', suggestions: [] })
+    if (!jsonMatch) return NextResponse.json({ ok: true, summary: raw.slice(0, 200), context: '', suggestions: [], engine })
     const parsed = JSON.parse(jsonMatch[0])
     return NextResponse.json({
       ok: true,
@@ -105,6 +109,7 @@ export async function POST(req: NextRequest) {
       suggestions: Array.isArray(parsed.suggestions)
         ? parsed.suggestions.slice(0, 3).map((s: unknown) => String(s).slice(0, 280))
         : [],
+      engine,
     })
   } catch (e) {
     return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 500 })

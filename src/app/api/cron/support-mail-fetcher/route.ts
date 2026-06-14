@@ -278,5 +278,17 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
   }
 
   const durationMs = Date.now() - started
+  // Heartbeat: emit a site_event on EVERY run, even when fetched=0. This makes
+  // silent cron outages visible — if no heartbeat for >10 min, the cron is down.
+  try {
+    const supabaseHb = createAdminClient()
+    await supabaseHb.from('site_events').insert({
+      session_id: 'support-inbox-cron',
+      event_type: 'support_mail_fetcher_heartbeat',
+      path: '/api/cron/support-mail-fetcher',
+      metadata: { fetched, written, skipped, errors_count: errors.length, host, durationMs },
+    })
+  } catch { /* swallow */ }
+
   return NextResponse.json({ ok: errors.length === 0, fetched, written, skipped, errors, host, durationMs })
 }

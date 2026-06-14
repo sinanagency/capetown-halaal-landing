@@ -1,58 +1,90 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { getExhibitorContext } from '@/lib/exhibitor'
 import {
   STALL_LIST, STALL_GRID, STALL_ZONES, TYPE_META,
   parseAllocation, tierLabel, type StallType,
 } from '@/lib/stalls'
 
-// Public lookup: a vendor enters the email they applied with and sees their
-// stall ("you are here") + the neighbouring businesses. Only returns data when
-// the email matches a real application; business names of non-neighbours are
-// never exposed.
-export async function POST(req: NextRequest) {
+// CTH-DOCTRINE Law 2 (vendor-data-privacy).
+//
+// This endpoint was previously unauthenticated and accepted an email in the
+// POST body. Anyone could enumerate which emails had vendor applications, AND
+// receive the matched vendor's stall_code + the business_name of 8 nearest
+// neighbour vendors. That was a direct Law 2 leak.
+//
+// New rules:
+//   - Caller MUST be a signed-in exhibitor (getExhibitorContext).
+//   - The vendor identity is the SESSION vendor — no body-supplied email.
+//   - The owner sees their own business_name + stall code.
+//   - Non-owner neighbour stalls carry only the SECTOR LABEL ("Fashion & Style"),
+//     never another vendor's business_name. The full floor grid carries zone
+//     metadata only — no per-stall occupant names.
+export async function POST() {
   try {
-    const { email } = await req.json().catch(() => ({}))
-    if (!email || typeof email !== 'string') return NextResponse.json({ error: 'Enter your email' }, { status: 400 })
+    const ctx = await getExhibitorContext()
+    if (!ctx?.application) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    type AppRow = {
+      id: string
+      business_name: string
+      email: string
+      product_categories: string[] | null
+      preferred_booth_tier: string | null
+      status: string
+      admin_notes: string | null
+    }
+    const app = ctx.application as unknown as AppRow
 
     const admin = createAdminClient()
     const { data: apps } = await admin
       .from('vendor_applications')
-      .select('id, business_name, email, product_categories, preferred_booth_tier, status, admin_notes')
+      .select('id, business_name, admin_notes')
 
-    const codeToName = new Map<string, string>()
-    let me: { business_name: string; stall: string | null; stall_status: string; tier: string | null; status: string; categories: string[] } | null = null
-    const target = email.trim().toLowerCase()
-
-    for (const a of apps || []) {
-      const { stall, status } = parseAllocation(a.admin_notes as string)
-      if (stall) codeToName.set(stall, a.business_name)
-      if ((a.email || '').trim().toLowerCase() === target) {
-        me = { business_name: a.business_name, stall, stall_status: status, tier: a.preferred_booth_tier, status: a.status, categories: a.product_categories || [] }
-      }
+    // codeToOwner maps stall code → owning application id (to gate name reveal).
+    const codeToOwner = new Map<string, string>()
+    for (const a of (apps || []) as Array<{ id: string; business_name: string; admin_notes: string | null }>) {
+      const { stall } = parseAllocation(a.admin_notes)
+      if (stall) codeToOwner.set(stall, a.id)
     }
 
-    if (!me) return NextResponse.json({ error: 'No application found for that email.' }, { status: 404 })
+    const myAlloc = parseAllocation(app.admin_notes)
+    const me = {
+      business_name: app.business_name,
+      stall: myAlloc.stall,
+      stall_status: myAlloc.status,
+      tier: app.preferred_booth_tier,
+      status: app.status,
+      categories: app.product_categories || [],
+    }
 
-    // geometry for the whole plan, names only where relevant
-    const myStall = me.stall ? STALL_LIST.find((s) => s.code === me!.stall) : null
+    const myStall = me.stall ? STALL_LIST.find((s) => s.code === me.stall) : null
 
+    // Neighbours: 8 closest allocated stalls, but business_name is REPLACED
+    // with the sector/zone label. Owner identity stays private.
     let neighbours: { code: string; type: StallType; business_name: string; zone: string }[] = []
     if (myStall) {
-      const cx = myStall.col + myStall.w / 2, cy = myStall.row + myStall.h / 2
+      const cx = myStall.col + myStall.w / 2
+      const cy = myStall.row + myStall.h / 2
       neighbours = STALL_LIST
-        .filter((s) => s.code !== myStall.code && codeToName.has(s.code))
+        .filter((s) => s.code !== myStall.code && codeToOwner.has(s.code))
         .map((s) => ({ s, d: Math.hypot(s.col + s.w / 2 - cx, s.row + s.h / 2 - cy) }))
         .sort((a, b) => a.d - b.d)
         .slice(0, 8)
-        .map(({ s }) => ({ code: s.code, type: s.type, business_name: codeToName.get(s.code)!, zone: TYPE_META[s.type].label }))
+        .map(({ s }) => ({
+          code: s.code,
+          type: s.type,
+          business_name: TYPE_META[s.type].label, // Law 2: sector label only, never another vendor's name
+          zone: TYPE_META[s.type].label,
+        }))
     }
 
-    const neighbourCodes = new Set(neighbours.map((n) => n.code))
+    // Public grid: no per-stall occupant names — only allocation status + type.
+    // Only the owner's own stall reveals a business_name.
     const stalls = STALL_LIST.map((s) => ({
       code: s.code, type: s.type, num: s.num, col: s.col, row: s.row, w: s.w, h: s.h,
-      status: (codeToName.has(s.code) ? 'allocated' : 'available') as 'allocated' | 'available',
-      // expose business name only for the vendor's own stall + immediate neighbours
-      occupant: s.code === me.stall || neighbourCodes.has(s.code) ? { business_name: codeToName.get(s.code) } : null,
+      status: (codeToOwner.has(s.code) ? 'allocated' : 'available') as 'allocated' | 'available',
+      occupant: s.code === me.stall ? { business_name: me.business_name } : null,
     }))
 
     return NextResponse.json({

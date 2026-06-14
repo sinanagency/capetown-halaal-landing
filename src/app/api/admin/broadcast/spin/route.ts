@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { stripEmDashes } from '@/lib/festival-brain/system-prompt'
 
 export const maxDuration = 60
 
@@ -79,7 +80,9 @@ export async function POST(req: NextRequest) {
     })
 
     const raw = response.content[0]?.type === 'text' ? response.content[0].text : ''
-    const variants = parseVariants(raw)
+    // Post-generation em-dash filter (CTH-DOCTRINE law 7). The system prompt
+    // already asks the model not to use them, but we never trust LLM output.
+    const variants = parseVariants(raw).map((v) => stripEmDashes(v))
     if (variants.length === 0) {
       return NextResponse.json({ error: 'No variants produced', raw }, { status: 502 })
     }

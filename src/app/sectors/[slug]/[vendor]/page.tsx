@@ -1,8 +1,13 @@
+// CTH-DOCTRINE Law 2 (vendor-data-privacy). The public vendor profile MUST
+// NOT render stall_code unless the vendor has explicitly opted-in via
+// portalState.profile.publish_stall === true. Without an opt-in toggle in the
+// UI yet, this defaults to FALSE — the "Stall {code}" badge will not appear
+// for anyone until vendors get a publish toggle in their portal next sprint.
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { vendorSlug } from '@/lib/slugify'
-import { parsePortalState } from '@/lib/portal-state'
+import { parsePortalState, type VendorProfile } from '@/lib/portal-state'
 import { parseAllocation } from '@/lib/stalls'
 
 export const dynamic = 'force-dynamic'
@@ -57,6 +62,12 @@ async function fetchVendor(sectorSlug: string, vendorSlugParam: string) {
     if (sig?.signedUrl) galleryUrls.push(sig.signedUrl)
   }
 
+  // Law 2: stall_code only when allocated AND publish_stall opt-in is true.
+  const publishStall = Boolean(
+    (profile as VendorProfile & { publish_stall?: boolean }).publish_stall,
+  )
+  const stallCode = alloc.status === 'allocated' && publishStall ? alloc.stall : null
+
   return {
     business_name: match.business_name,
     tagline: profile.tagline || null,
@@ -64,7 +75,7 @@ async function fetchVendor(sectorSlug: string, vendorSlugParam: string) {
     menu: profile.menu || [],
     logo_url: logoUrl,
     gallery_urls: galleryUrls,
-    stall_code: alloc.stall,
+    stall_code: stallCode,
     website: profile.website || match.website,
     instagram: profile.instagram || match.instagram,
     facebook: profile.facebook || match.facebook,

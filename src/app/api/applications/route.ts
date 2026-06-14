@@ -19,6 +19,12 @@ import {
 
 const APPLY_ENDPOINT = 'applications'
 
+// Escape user input before embedding in a Postgres ILIKE pattern.
+// Mirror of /api/admin/search/route.ts:75 — must stay in sync.
+function ilikeEscape(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => '\\' + m)
+}
+
 // Phone: accepts +27817534892, 0817534892, 27817534892, (081) 753 4892.
 // Server strips non-digits and validates against SA mobile pattern.
 const SA_MOBILE_RE = /^(\+?27|0)[1-9]\d{8}$/
@@ -253,8 +259,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
+      // Strip PostgREST filter delimiters (comma, parens) before escaping the
+      // ILIKE wildcards; cap to 100 chars so an attacker cannot flood the OR clause.
+      const safeSearch = ilikeEscape(search.slice(0, 100).replace(/[,()]/g, ' '))
+      const pattern = `%${safeSearch}%`
       query = query.or(
-        `business_name.ilike.%${search}%,contact_name.ilike.%${search}%,email.ilike.%${search}%`
+        `business_name.ilike.${pattern},contact_name.ilike.${pattern},email.ilike.${pattern}`
       )
     }
 

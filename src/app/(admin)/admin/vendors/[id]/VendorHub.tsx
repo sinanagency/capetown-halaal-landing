@@ -17,14 +17,32 @@
  */
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   MessageSquare, FileText, CreditCard, FolderOpen, MapPin, ClipboardList,
   History, Sparkles, AlertTriangle, Check, X, RefreshCw, ExternalLink, Loader2,
+  Users,
 } from 'lucide-react'
 import { UnifiedTimeline } from '@/components/admin/comms/UnifiedTimeline'
 import type { PortalState, DocRecord } from '@/lib/portal-state'
+import { Z_CLASS } from '@/lib/z'
 import { REQUIRED_DOC_LABELS, REQUIRED_DOC_TYPES } from './doc-types'
+
+// Sections rendered in the hub, in scroll order. The pill bar at the top
+// renders one anchor per entry, and IntersectionObserver highlights the active
+// one as Samreen scrolls. Keep ids stable: chase links from elsewhere may
+// hash-link to them.
+const HUB_SECTIONS: Array<{ id: string; label: string }> = [
+  { id: 'summary',  label: 'Summary' },
+  { id: 'contract', label: 'Contract' },
+  { id: 'payments', label: 'Payments' },
+  { id: 'documents',label: 'Documents' },
+  { id: 'booth',    label: 'Booth' },
+  { id: 'comms',    label: 'Comms' },
+  { id: 'tasks',    label: 'Tasks' },
+  { id: 'staff',    label: 'Staff' },
+  { id: 'audit',    label: 'Audit' },
+]
 
 interface AuditEvent {
   id: string
@@ -62,6 +80,33 @@ function fmtMoney(n?: number | null): string {
 export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours, events: initialEvents }: Props) {
   const [portal, setPortal] = useState<PortalState>(initialPortal)
   const [events, setEvents] = useState<AuditEvent[]>(initialEvents)
+  const [activeSection, setActiveSection] = useState<string>(HUB_SECTIONS[0].id)
+  const sectionsRootRef = useRef<HTMLElement | null>(null)
+
+  // IntersectionObserver fires every time a section crosses the viewport's
+  // upper-third band. We pick the entry closest to the top of that band as the
+  // "active" one for the pill highlight. Cheap, no scroll listener.
+  useEffect(() => {
+    const root = sectionsRootRef.current
+    if (!root) return
+    const targets = HUB_SECTIONS
+      .map((s) => document.getElementById(s.id))
+      .filter((el): el is HTMLElement => !!el)
+    if (targets.length === 0) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible[0]?.target?.id) setActiveSection(visible[0].target.id)
+      },
+      { rootMargin: '-80px 0px -60% 0px', threshold: 0 }
+    )
+    targets.forEach((t) => observer.observe(t))
+    return () => observer.disconnect()
+  }, [])
+
   const id = String(app.id)
   const businessName = String(app.business_name || 'Vendor')
   const contactName = String(app.contact_name || '')
@@ -133,14 +178,45 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      {/* Sticky horizontal pill bar: one pill per section. Mobile: horizontal
+          scroll. Active pill is highlighted via IntersectionObserver above.
+          Uses drawer z-index so it sits below modals but above content. */}
+      <nav
+        aria-label="Vendor sections"
+        className={`sticky top-0 ${Z_CLASS.drawer} bg-white border-b border-neutral-200`}
+      >
+        <div className="max-w-5xl mx-auto px-4 overflow-x-auto">
+          <ul className="flex items-center gap-1 py-2 whitespace-nowrap">
+            {HUB_SECTIONS.map((s) => {
+              const active = activeSection === s.id
+              return (
+                <li key={s.id}>
+                  <a
+                    href={`#${s.id}`}
+                    aria-current={active ? 'true' : undefined}
+                    className={`inline-flex items-center text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                      active
+                        ? 'bg-[#cd2653] text-white border-[#cd2653]'
+                        : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
+                    }`}
+                  >
+                    {s.label}
+                  </a>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      </nav>
+
+      <main ref={sectionsRootRef} className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {/* ─── 2: AI Summary ─── */}
-        <Section icon={<Sparkles className="w-4 h-4 text-[#cd2653]" />} title="Summary">
+        <Section id="summary" icon={<Sparkles className="w-4 h-4 text-[#cd2653]" />} title="Summary">
           <AISummary id={id} />
         </Section>
 
         {/* ─── 3: Contract ─── */}
-        <Section icon={<FileText className="w-4 h-4 text-[#cd2653]" />} title="Contract">
+        <Section id="contract" icon={<FileText className="w-4 h-4 text-[#cd2653]" />} title="Contract">
           <ContractSection
             applicationId={id}
             contractSignedAt={contractSignedAt}
@@ -151,7 +227,7 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
         </Section>
 
         {/* ─── 4: Payments ─── */}
-        <Section icon={<CreditCard className="w-4 h-4 text-[#cd2653]" />} title="Payments">
+        <Section id="payments" icon={<CreditCard className="w-4 h-4 text-[#cd2653]" />} title="Payments">
           <PaymentsSection
             applicationId={id}
             payment={portal.payment}
@@ -161,7 +237,7 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
         </Section>
 
         {/* ─── 5: Documents ─── */}
-        <Section icon={<FolderOpen className="w-4 h-4 text-[#cd2653]" />} title="Documents">
+        <Section id="documents" icon={<FolderOpen className="w-4 h-4 text-[#cd2653]" />} title="Documents">
           <DocumentsSection
             applicationId={id}
             docs={portal.docs || []}
@@ -171,17 +247,17 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
         </Section>
 
         {/* ─── 6: Booth + neighbours ─── */}
-        <Section icon={<MapPin className="w-4 h-4 text-[#cd2653]" />} title="Booth">
+        <Section id="booth" icon={<MapPin className="w-4 h-4 text-[#cd2653]" />} title="Booth">
           <BoothSection stall={stall} neighbours={neighbours} />
         </Section>
 
         {/* ─── 7: Unified comms timeline ─── */}
-        <Section icon={<MessageSquare className="w-4 h-4 text-[#cd2653]" />} title="Comms timeline">
+        <Section id="comms" icon={<MessageSquare className="w-4 h-4 text-[#cd2653]" />} title="Comms timeline">
           <UnifiedTimeline contactId={id} phone={phone || undefined} email={email || undefined} />
         </Section>
 
-        {/* ─── 8: Tasks/Blockers checklist ─── */}
-        <Section icon={<ClipboardList className="w-4 h-4 text-[#cd2653]" />} title="Outstanding gates">
+        {/* ─── 8: Tasks ─── */}
+        <Section id="tasks" icon={<ClipboardList className="w-4 h-4 text-[#cd2653]" />} title="Tasks">
           <BlockersChecklist
             applicationId={id}
             blockers={blockers}
@@ -193,8 +269,13 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
           />
         </Section>
 
-        {/* ─── 9: Audit log ─── */}
-        <Section icon={<History className="w-4 h-4 text-[#cd2653]" />} title="Audit log">
+        {/* ─── 9: Staff ─── */}
+        <Section id="staff" icon={<Users className="w-4 h-4 text-[#cd2653]" />} title="Staff">
+          <StaffSection staff={portal.staff || []} passAllowance={portal.passAllowance} />
+        </Section>
+
+        {/* ─── 10: Audit log ─── */}
+        <Section id="audit" icon={<History className="w-4 h-4 text-[#cd2653]" />} title="Audit log">
           <AuditLog events={events} />
         </Section>
       </main>
@@ -203,12 +284,61 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Staff section: shows the gate-badges roster the vendor submitted via the
+// exhibitor portal. Empty-state is explicit so the section is never invisible,
+// matching the walkthrough verifier's contract that all 10 sections render.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function StaffSection({ staff, passAllowance }: { staff: NonNullable<PortalState['staff']>; passAllowance?: number }) {
+  const allowance = typeof passAllowance === 'number' ? passAllowance : null
+  if (staff.length === 0) {
+    return (
+      <div>
+        <p className="text-sm text-neutral-600">No staff submitted yet.</p>
+        {allowance != null && (
+          <p className="text-xs text-neutral-500 mt-1">Allowance: {allowance} gate badge{allowance === 1 ? '' : 's'}.</p>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <Pill tone="neutral">{staff.length} on roster</Pill>
+        {allowance != null && (
+          <Pill tone={staff.length > allowance ? 'red' : 'emerald'}>
+            {staff.length} of {allowance} badge{allowance === 1 ? '' : 's'} used
+          </Pill>
+        )}
+      </div>
+      <ul className="divide-y divide-neutral-100">
+        {staff.map((s) => (
+          <li key={s.id} className="py-2 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-neutral-900 truncate">{s.name || 'Unnamed'}</p>
+              <p className="text-xs text-neutral-500 truncate">
+                {s.phone ? <span className="font-mono mr-2">{s.phone}</span> : null}
+                {s.id_number ? <span className="font-mono mr-2">ID {s.id_number}</span> : null}
+                {s.vehicle_reg ? <span className="font-mono">car {s.vehicle_reg}</span> : null}
+              </p>
+            </div>
+            <span className="text-[10px] text-neutral-400 flex-shrink-0">{fmtDate(s.added_at)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Section atoms
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Section({ id, icon, title, children }: { id?: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-white rounded-2xl border border-neutral-200 p-5 sm:p-6">
+    // `scroll-mt-16` gives the in-page anchor jump enough breathing room so the
+    // sticky pill bar doesn't cover the section heading.
+    <section id={id} className="bg-white rounded-2xl border border-neutral-200 p-5 sm:p-6 scroll-mt-16">
       <h2 className="font-serif text-lg text-[#1B1A17] mb-4 flex items-center gap-2">
         {icon} {title}
       </h2>

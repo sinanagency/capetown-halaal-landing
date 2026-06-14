@@ -130,7 +130,7 @@ const SPECS: Record<TemplateKey, TemplateSpec> = {
     // stall_allocation_notice) keep the human signoff because an admin
     // actually reviews each one before send. Mass announcement defaults to
     // the bot signoff for transparency.
-    signoff: '— Zanii AI on behalf of Young at Heart Festival',
+    signoff: 'Zanii AI on behalf of Young at Heart Festival',
   },
 }
 
@@ -141,7 +141,7 @@ const SPECS: Record<TemplateKey, TemplateSpec> = {
  * label was explicitly rejected (KT memory feedback_sasa_always_first_person
  * + memory feedback_sasa_nisria_only — same family of brand laws).
  */
-export const BOT_SIGNOFF = '— Zanii AI on behalf of Young at Heart Festival'
+export const BOT_SIGNOFF = 'Zanii AI on behalf of Young at Heart Festival'
 export const HUMAN_SIGNOFF = 'Warm regards,'
 
 // ---- public render ---------------------------------------------------------

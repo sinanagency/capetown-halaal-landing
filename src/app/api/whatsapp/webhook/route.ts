@@ -303,6 +303,41 @@ async function logMessage(row: {
     status: row.status,
     provider_message_id: row.providerMessageId || null,
   })
+  // Spine: keep wa_threads in lockstep with wa_messages so the admin Bot Inbox
+  // can render. Prod schema is migration v9 (PK = wa_phone). Inbound bumps
+  // last_inbound_at + unread_count; outbound bumps last_outbound_at and zeroes
+  // unread. Best-effort: a failure here never blocks the 200 to Meta.
+  try {
+    await touchThread(db, row.wa_phone, row.direction)
+  } catch (e) {
+    console.error('wa_threads touch error', e)
+  }
+}
+
+async function touchThread(
+  db: ReturnType<typeof createAdminClient>,
+  waPhone: string,
+  direction: 'in' | 'out'
+) {
+  if (!waPhone) return
+  const now = new Date().toISOString()
+  // Read first so we can compute unread_count without race-prone increments.
+  const { data: existing } = await db
+    .from('wa_threads')
+    .select('wa_phone,unread_count')
+    .eq('wa_phone', waPhone)
+    .maybeSingle()
+
+  const prevUnread = (existing as { unread_count?: number } | null)?.unread_count ?? 0
+  const row: Record<string, unknown> = { wa_phone: waPhone }
+  if (direction === 'in') {
+    row.last_inbound_at = now
+    row.unread_count = prevUnread + 1
+  } else {
+    row.last_outbound_at = now
+    row.unread_count = 0
+  }
+  await db.from('wa_threads').upsert(row, { onConflict: 'wa_phone' })
 }
 
 async function logStatuses(statuses: Array<{ messageId: string; status: string; recipient: string; errorMessage?: string }>) {

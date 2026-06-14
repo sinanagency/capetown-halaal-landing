@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+// Submit a WhatsApp template to Meta for approval via Graph API.
+// Usage:  node scripts/submit-whatsapp-template.mjs <template_name>
+// Reads body verbatim from docs/whatsapp-templates.md.
+
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repo = path.resolve(here, '..')
+const envPath = path.join(repo, '.env.local')
+if (fs.existsSync(envPath)) {
+  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^([A-Z0-9_]+)=(.*)$/i)
+    if (!m) continue
+    const k = m[1]; let v = m[2]
+    if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1)
+    if (!process.env[k]) process.env[k] = v.replace(/\\n$/, '')
+  }
+}
+
+const NAME = process.argv[2]
+if (!NAME) { console.error('usage: submit-whatsapp-template.mjs <template_name>'); process.exit(1) }
+const TOKEN = (process.env.WHATSAPP_TOKEN || '').trim()
+const WABA = (process.env.WHATSAPP_BUSINESS_ID || '').trim()
+if (!TOKEN || !WABA) { console.error('WHATSAPP_TOKEN / WHATSAPP_BUSINESS_ID missing'); process.exit(1) }
+
+// Read body verbatim from the markdown doc, section per template name.
+const doc = fs.readFileSync(path.join(repo, 'docs/whatsapp-templates.md'), 'utf8')
+const sectionRe = new RegExp(`\\\`${NAME}\\\`[\\s\\S]*?\\*\\*Body:\\*\\*\\s*\\n\\s*\\n\`\`\`\\n([\\s\\S]*?)\\n\`\`\``, 'i')
+const m = doc.match(sectionRe)
+if (!m) { console.error(`template ${NAME} not found in docs/whatsapp-templates.md`); process.exit(1) }
+const body = m[1].trim()
+
+// Variable examples for Meta approval (they require a sample of each {{N}})
+const VAR_SAMPLES = {
+  vendor_application_approved: ['Samreen', 'Samreen Test Stall', '1 September 2026'],
+  vendor_payment_confirmation: ['Samreen', 'R6 500', 'MARQUEE Full Space 3x3m'],
+}
+const examples = VAR_SAMPLES[NAME] || []
+
+const payload = {
+  name: NAME,
+  language: 'en',
+  category: 'UTILITY',
+  components: [
+    {
+      type: 'BODY',
+      text: body,
+      ...(examples.length ? { example: { body_text: [examples] } } : {}),
+    },
+  ],
+}
+
+console.log(`Submitting ${NAME} to WABA ${WABA}…`)
+const res = await fetch(`https://graph.facebook.com/v20.0/${WABA}/message_templates`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${TOKEN}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(payload),
+})
+const json = await res.json()
+console.log(JSON.stringify(json, null, 2))
+if (!res.ok) process.exit(1)
+console.log(`\n✓ Submitted. Approval typically takes 5-60 min.`)
+console.log(`Check status:  node scripts/list-whatsapp-templates.mjs`)

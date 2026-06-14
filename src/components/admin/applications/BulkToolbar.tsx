@@ -27,12 +27,18 @@ export function BulkToolbar({
 
   return (
     <div className="flex items-center gap-2 bg-neutral-900 text-white rounded-lg px-3 py-1.5 shadow-md">
-      <span className="text-sm font-medium px-1">{count} selected</span>
+      {/* aria-live so screen readers + accessibility tooling pick up the
+          selection-count change as the operator presses `x`. Without this, the
+          number flips silently. */}
+      <span role="status" aria-live="polite" className="text-sm font-medium px-1">
+        {count} selected
+      </span>
       <span className="w-px h-5 bg-neutral-700" />
 
       <button
         disabled={busy}
         onClick={() => onRun('approve')}
+        aria-label={`Approve ${count} selected applications`}
         className="px-2.5 py-1 text-xs rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 inline-flex items-center gap-1.5"
       >
         <CheckCircle2 className="w-3.5 h-3.5" /> Approve {count}
@@ -42,6 +48,9 @@ export function BulkToolbar({
         <button
           disabled={busy}
           onClick={() => setInfoOpen((v) => !v)}
+          aria-label={`Request info from ${count} selected applications`}
+          aria-haspopup="menu"
+          aria-expanded={infoOpen}
           className={cn(
             'px-2.5 py-1 text-xs rounded-md bg-sky-600 hover:bg-sky-500 disabled:opacity-50 inline-flex items-center gap-1.5'
           )}
@@ -73,6 +82,7 @@ export function BulkToolbar({
           if (!window.confirm(`Reject ${count} applications as spam?`)) return
           onRun('reject', { reason: 'spam' })
         }}
+        aria-label={`Reject ${count} selected applications as spam`}
         className="px-2.5 py-1 text-xs rounded-md bg-rose-600 hover:bg-rose-500 disabled:opacity-50 inline-flex items-center gap-1.5"
       >
         <XCircle className="w-3.5 h-3.5" /> Reject as spam
@@ -82,6 +92,9 @@ export function BulkToolbar({
         <button
           disabled={busy}
           onClick={() => setTagOpen((v) => !v)}
+          aria-label={`Tag sector on ${count} selected applications`}
+          aria-haspopup="menu"
+          aria-expanded={tagOpen}
           className="px-2.5 py-1 text-xs rounded-md bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50 inline-flex items-center gap-1.5"
         >
           <Tag className="w-3.5 h-3.5" /> Tag sector
@@ -107,6 +120,7 @@ export function BulkToolbar({
       <span className="w-px h-5 bg-neutral-700" />
       <button
         onClick={onClear}
+        aria-label="Clear selection"
         className="px-2 py-1 text-xs rounded-md hover:bg-neutral-800 inline-flex items-center gap-1"
       >
         <X className="w-3.5 h-3.5" /> Clear

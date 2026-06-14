@@ -132,16 +132,10 @@ export default function FollowUpPage() {
     }
   }, [])
 
-  if (loading) {
-    return (
-      <PageShell>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-[#E5E5E5]/60" />
-        </div>
-      </PageShell>
-    )
-  }
-
+  // All derived data + hooks MUST run on every render. Do not place
+  // useMemo / useEffect below an early `return`, that is a hooks-rules
+  // violation that crashes the client with "Rendered fewer hooks than
+  // expected" the first time `loading` flips false.
   const failed = ticketData?.failedOrders || []
   const pending = ticketData?.pendingOrders || []
   const captured = analyticsData?.capturedEmails || []
@@ -165,6 +159,16 @@ export default function FollowUpPage() {
     for (const r of allRows) m.set(r.key, r)
     return m
   }, [allRows])
+
+  if (loading) {
+    return (
+      <PageShell>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 animate-spin text-[#E5E5E5]/60" />
+        </div>
+      </PageShell>
+    )
+  }
 
   function toggleSelected(key: ChaseRowKey) {
     setSelected((prev) => {

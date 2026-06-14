@@ -62,9 +62,20 @@ export async function findDupeCandidates(
   const emailKey = typeof row.email === 'string' ? row.email.trim().toLowerCase() : ''
 
   // Pull candidate pool. We can't push regexp_replace into a PostgREST
-  // filter ergonomically, so we narrow on email first when available and
-  // do the phone match in-process. The phone-last9 index still wins on the
-  // wider phone-only fetch via the SDK's filter syntax (ilike on last 9).
+  // filter ergonomically (the SDK has no native bind for functional indexes),
+  // so the phone-last9 functional index added by the 2026-06-15 pipeline
+  // migration is currently UNUSED by this query: an `ilike phone like %<last9>`
+  // scan is what hits the table. That is fine at <5K rows (current production
+  // is ~1.1K vendor_applications and the seq scan stays under 30ms locally),
+  // but is the right thing to revisit if we ever push past ~25K rows. Two
+  // future options when that happens:
+  //   1. Define a Supabase RPC (`fn_find_dupes_by_last9(p_last9 text)`) and
+  //      call it via `db.rpc(...)` so the planner reads the functional index.
+  //   2. Add a generated `phone_last9_normalized` column + a regular btree
+  //      index on it, and switch this filter to `.eq('phone_last9_normalized',
+  //      phoneKey)`. That is the simpler refactor, at the cost of one column.
+  // Leaving the ilike scan in place is a deliberate choice; the index stays
+  // on disk for the day we flip to one of those approaches.
   const promises: Array<Promise<{ data: DupeRow[] | null }>> = []
 
   if (phoneKey) {

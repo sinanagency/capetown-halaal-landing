@@ -21,6 +21,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// Escape user input before embedding in a Postgres ILIKE pattern.
+// Mirror of /api/admin/search/route.ts:75 — must stay in sync.
+function ilikeEscape(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => '\\' + m)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -63,8 +69,12 @@ export async function GET(request: NextRequest) {
       q = q.eq('sector', sector)
     }
     if (search) {
+      // Strip PostgREST filter delimiters (comma, parens) before escaping the
+      // ILIKE wildcards; cap to 100 chars so an attacker cannot flood the OR clause.
+      const safeSearch = ilikeEscape(search.slice(0, 100).replace(/[,()]/g, ' '))
+      const pattern = `%${safeSearch}%`
       q = q.or(
-        `business_name.ilike.%${search}%,contact_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`
+        `business_name.ilike.${pattern},contact_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`
       )
     }
     if (order === 'newest') {

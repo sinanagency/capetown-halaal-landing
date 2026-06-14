@@ -6,7 +6,7 @@
 // detection on the backend). Each cluster shows all members compactly with
 // a radio for "keeper"; submit posts to /api/admin/applications/dedupe.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { X, Loader2 } from 'lucide-react'
 import type { WorkbenchApplication } from './types'
@@ -47,6 +47,23 @@ export function DedupeDrawer({
   // usually the canonical application; later ones tend to be duplicates).
   const [keeperByCluster, setKeeperByCluster] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+
+  // Drawer-local ESC handler. The page-level onKey at applications/page.tsx
+  // bails when the focused element is an INPUT, so when Samreen tab-focuses a
+  // keeper radio inside the drawer, ESC is swallowed by the radio and the
+  // drawer can't close. Capture phase runs before the page handler, so this
+  // ESC fires regardless of focus.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, onClose])
 
   if (!open) return null
 

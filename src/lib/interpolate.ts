@@ -65,6 +65,11 @@ export function renderTemplate(template: string, vars: InterpolateVars): string 
 export function cleanupWhitespace(input: string): string {
   let s = input
 
+  // CTH-DOCTRINE law 7: no em-dashes or en-dashes anywhere vendor-facing.
+  // Replace ` — ` / ` – ` (used as sentence breaks) with `, `, then collapse
+  // any orphan em/en dashes to a comma so they can never land in outbound copy.
+  s = s.replace(/\s+[—–]\s+/g, ', ').replace(/[—–]/g, ',')
+
   // Empty possessive: " 's order" -> " order", "'s order" at line-start -> "order".
   // We match `'s` (or `’s`) when preceded by either whitespace or the start
   // of a line, indicating the noun it was attached to is gone.

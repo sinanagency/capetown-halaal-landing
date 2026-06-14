@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { vendorSlug } from '@/lib/slugify'
-import { parsePortalState } from '@/lib/portal-state'
+import { parsePortalState, type VendorProfile } from '@/lib/portal-state'
 import { parseAllocation } from '@/lib/stalls'
 
 // Sector slug → product_categories label, same map as the parent /api/sectors/[slug].
@@ -27,6 +27,14 @@ const SLUG_TO_SECTOR: Record<string, string> = {
  *  - vendor IS in this sector (product_categories contains the sector label)
  *  - profile has a logo path stored
  *  - profile has a write-up (long_description OR fall back to business_description)
+ *
+ * Stall-code gate (CTH-DOCTRINE Law 2):
+ *  - stall_code is returned ONLY when:
+ *      (a) parseAllocation(admin_notes).status === 'allocated' AND
+ *      (b) portalState.profile.publish_stall === true
+ *  - publish_stall is an opt-in flag (default false). Without it, stall_code
+ *    is OMITTED from the public payload. Vendors should not have their stall
+ *    location surfaced publicly without explicit consent.
  */
 export async function GET(
   _req: NextRequest,
@@ -66,6 +74,13 @@ export async function GET(
     return NextResponse.json({ error: 'Profile incomplete' }, { status: 404 })
   }
 
+  // Law 2: stall_code requires explicit vendor opt-in via publish_stall on
+  // the portal profile. Optional-chained → undefined defaults to false.
+  const publishStall = Boolean(
+    (profile as VendorProfile & { publish_stall?: boolean }).publish_stall,
+  )
+  const stallCode = alloc.status === 'allocated' && publishStall ? alloc.stall : null
+
   // Public payload: deliberately omits contact_person, email, phone, address,
   // payment_status, admin_notes raw, per Doctrine Law 2.
   return NextResponse.json({
@@ -77,7 +92,7 @@ export async function GET(
       menu: profile.menu || [],
       photo_gallery: profile.photo_gallery || [],
       logo_path: profile.logo_path || null,
-      stall_code: alloc.stall || null,
+      stall_code: stallCode,
       website: profile.website || match.website || null,
       instagram: profile.instagram || match.instagram || null,
       facebook: profile.facebook || match.facebook || null,

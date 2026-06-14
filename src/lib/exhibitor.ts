@@ -33,18 +33,19 @@ export async function getExhibitorContext(): Promise<ExhibitorContext | null> {
       .maybeSingle()
     application = data ?? null
   }
-  // Fallback: if the metadata link is missing OR the linked row no longer
-  // exists (orphan id from a prior demo/seed reset), match by email. This
-  // prevents the contract gate from silently no-op'ing because the auth user
-  // points at a deleted application row.
+  // CTH-DOCTRINE Law 2 (vendor-data-privacy).
+  // Email fallback removed for Law 2 safety. Vendors must have application_id
+  // in their user_metadata or a verified auth_user_id link. A case-insensitive
+  // email match was an unbounded join key — Supabase Auth lets users change
+  // their email after sign-up, so an attacker could land on a victim's
+  // application row by spoofing the email address. Fail closed: refuse to
+  // bind the session to any application when the metadata link is missing.
   if (!application && user.email) {
-    const { data } = await admin
-      .from('vendor_applications')
-      .select('*')
-      .ilike('email', user.email)
-      .limit(1)
-      .maybeSingle()
-    application = data ?? null
+    console.warn(
+      '[exhibitor] no application_id on user_metadata for',
+      user.id,
+      '— refusing email fallback (Law 2). Re-link this auth user via admin.',
+    )
   }
 
   return {

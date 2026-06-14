@@ -66,9 +66,18 @@ type Selection =
   | { kind: 'guest'; idx: number }
   | { kind: 'mail'; idx: number }
 
+// Locale-independent formatter so SSR (Node ICU) and CSR (V8 ICU) emit
+// the same string. The previous `toLocaleString('en-GB', ...)` call was
+// the source of React hydration error #418 because Node's "en-GB" month
+// abbreviation ("Jun") vs the browser's ("Jun.") or a non-breaking space
+// could differ on Samreen's Chrome build. Output shape: "15 Jun 14:32".
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function pad2(n: number): string { return n < 10 ? `0${n}` : String(n) }
 function fmt(iso: string | null): string {
   if (!iso) return ''
-  return new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return `${pad2(d.getDate())} ${MONTH_ABBR[d.getMonth()]} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
 export function BotInboxClient({
@@ -319,7 +328,7 @@ interface ActiveThreadProps {
 function ActiveThread({ active }: ActiveThreadProps) {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
-  const [summary, setSummary] = useState<{ summary: string; context: string; suggestions: string[] } | null>(null)
+  const [summary, setSummary] = useState<{ summary: string; context: string; suggestions: string[]; engine?: 'dgx' | 'cloud' } | null>(null)
   const [summarizing, setSummarizing] = useState(false)
   const sorted = useMemo(() => [...active.messages].sort((a, b) => a.created_at.localeCompare(b.created_at)), [active.messages])
 
@@ -354,7 +363,7 @@ function ActiveThread({ active }: ActiveThreadProps) {
       })
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || 'summary failed')
-      setSummary({ summary: j.summary || '', context: j.context || '', suggestions: j.suggestions || [] })
+      setSummary({ summary: j.summary || '', context: j.context || '', suggestions: j.suggestions || [], engine: j.engine })
     } catch (e) {
       alert(e instanceof Error ? e.message : 'summary failed')
     } finally {
@@ -409,6 +418,16 @@ function ActiveThread({ active }: ActiveThreadProps) {
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-[#cd2653]" />
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#cd2653]">AI summary &amp; suggested replies</p>
+            {summary?.engine === 'dgx' && (
+              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200" title="On-prem DGX inference">
+                AI: DGX
+              </span>
+            )}
+            {summary?.engine === 'cloud' && (
+              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200" title="DGX unavailable, summarising via cloud fallback">
+                AI: cloud fallback
+              </span>
+            )}
             <button
               onClick={fetchSummary}
               disabled={summarizing}
@@ -580,7 +599,7 @@ function ThreadActions({
   return (
     <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center gap-2 flex-wrap">
       {status === 'snoozed' && snoozedUntil && (
-        <Pill tone="brand">snoozed until {new Date(snoozedUntil).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</Pill>
+        <Pill tone="brand">snoozed until {fmt(snoozedUntil)}</Pill>
       )}
       {status === 'done' && <Pill tone="neutral">done</Pill>}
       {assignee && <Pill tone="neutral">assigned</Pill>}
