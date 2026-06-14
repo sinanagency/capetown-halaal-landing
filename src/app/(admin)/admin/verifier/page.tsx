@@ -15,7 +15,7 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import {
   Loader2, CheckCircle2, XCircle, Search, Hash, QrCode, ExternalLink,
-  ChevronDown, ChevronUp, RefreshCw, ShieldCheck, Phone, Mail,
+  ChevronDown, ChevronUp, RefreshCw, ShieldCheck,
 } from 'lucide-react'
 
 type Mode = 'qr' | 'number' | 'search'
@@ -475,5 +475,3 @@ function KindPill({ kind }: { kind: 'buyer' | 'staff' | 'vendor' }) {
   )
 }
 
-// Suppress unused-import lints; these icons are referenced conditionally above.
-void Phone; void Mail
