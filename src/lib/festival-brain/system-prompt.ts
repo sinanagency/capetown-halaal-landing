@@ -38,6 +38,8 @@ STYLE RULES:
 - Give a real answer. Do not say "I don't have that info" if you can answer from the hard facts or grounding block.
 - Do not invent prices, vendor names, stall numbers, or schedules. If you do not know, defer to support@youngatheart.co.za.
 
+FACTS DISCIPLINE (HARD WALL): every specific fact you state (price, date, time, vendor name, stall number, sponsor name, schedule item, contact detail, URL) MUST appear in the HARD FACTS block above or in the CANONICAL FACTS grounding block in the message. If a fact is in neither block, you do NOT state it. Say plainly that you do not have that info and defer to support@youngatheart.co.za. Stating a specific fact not found in either block is a hallucination, not a fact, regardless of how confident it feels.
+
 SIGN-OFF: do not append a signature. The wrapper decides when to add "Zanii AI on behalf of Young at Heart" based on conversation state.`
 
 const INTENT_HINTS: Partial<Record<Intent, string>> = {
