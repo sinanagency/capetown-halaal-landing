@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import DocumentsManager, { type DocView } from '@/components/exhibitor/DocumentsManager'
 import { PageShell, PageHeader } from '@/components/chrome/PageChrome'
 import { requirePaid } from '@/lib/exhibitor-paygate'
+import MiniTaskStrip from '@/components/exhibitor/MiniTaskStrip'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,7 @@ export default async function DocumentsPage() {
 
   return (
     <PageShell>
+      <MiniTaskStrip activeKey="documents" />
       <PageHeader
         kicker="Documents"
         title="Compliance & paperwork"

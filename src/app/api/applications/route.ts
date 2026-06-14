@@ -6,6 +6,7 @@ import { sendEmail } from '@/lib/email/resend'
 import { ApplicationConfirmation } from '@/lib/email/templates/ApplicationConfirmation'
 import { recordConsent } from '@/lib/wa-consent'
 import { toE164 } from '@/lib/whatsapp'
+import { scoreCompleteness } from '@/lib/ai/completeness-scorer'
 import {
   checkHoneypot,
   checkEmail,
@@ -18,17 +19,27 @@ import {
 
 const APPLY_ENDPOINT = 'applications'
 
-// Validation schema for new applications
+// Phone: accepts +27817534892, 0817534892, 27817534892, (081) 753 4892.
+// Server strips non-digits and validates against SA mobile pattern.
+const SA_MOBILE_RE = /^(\+?27|0)[1-9]\d{8}$/
+const stripPhone = (raw: string) => raw.replace(/[^\d+]/g, '')
+
+// 2026-06-14 (Agent 9): required-field surface cut from 9 to 5 to halve
+// /apply drop-offs (111 in last window). Optional fields land in the queue
+// with a low completeness_score so Samreen can chase if she wants to approve.
 const applicationSchema = z.object({
   business_name: z.string().min(1, 'Business name required'),
-  business_description: z.string().optional(),
-  product_categories: z.array(z.string()).default([]),
+  business_description: z.string().optional().default(''),
+  product_categories: z.array(z.string()).min(1, 'Pick at least one category').default([]),
   website: z.string().url().optional().or(z.literal('')),
   instagram: z.string().optional(),
   facebook: z.string().optional(),
   contact_name: z.string().min(1, 'Contact name required'),
   email: z.string().email('Valid email required'),
-  phone: z.string().min(1, 'Phone number required'),
+  phone: z.string().min(1, 'Phone number required').refine(
+    (v) => SA_MOBILE_RE.test(stripPhone(v)),
+    'Enter a valid SA mobile number',
+  ),
   preferred_booth_tier: z.string().optional(),
   special_requirements: z.string().optional(),
 })
@@ -87,11 +98,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Compute completeness server-side so the admin queue can rank by it
+    // and Samreen can see at a glance which applications need chasing.
+    const completeness = scoreCompleteness({
+      contact_name: validated.contact_name,
+      business_name: validated.business_name,
+      business_description: validated.business_description,
+      product_categories: validated.product_categories,
+      phone: stripPhone(validated.phone),
+      email: validated.email,
+      instagram: validated.instagram,
+      facebook: validated.facebook,
+      website: validated.website || null,
+      special_requirements: validated.special_requirements,
+      preferred_booth_tier: validated.preferred_booth_tier,
+    })
+
     const { data, error } = await supabase
       .from('vendor_applications')
       .insert({
         ...validated,
+        phone: stripPhone(validated.phone),
         website: validated.website || null,
+        completeness_score: completeness.score,
       })
       .select()
       .single()

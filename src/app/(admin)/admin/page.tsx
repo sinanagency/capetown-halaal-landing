@@ -12,7 +12,6 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts'
-import { ActivityFeed } from '@/components/admin/ActivityFeed'
 
 interface Stats {
   total: number
@@ -199,7 +198,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <Link href="/admin/tickets" className="bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 hover:shadow-sm transition-all group">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Revenue</span>
@@ -225,13 +224,24 @@ export default function AdminDashboard() {
 
         <Link href="/admin/applications" className="bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 hover:shadow-sm transition-all group">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Vendors</span>
+            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Apps</span>
             <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
               <Users className="w-4 h-4 text-purple-600" />
             </div>
           </div>
           <p className="text-2xl font-bold text-neutral-900 tracking-tight">{vendorStats?.total || 0}</p>
           <p className="text-xs text-neutral-400 mt-1">Est. {formatCurrency(estimatedRevenue)} revenue</p>
+        </Link>
+
+        <Link href="/admin/applications?status=approved" className="bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 hover:shadow-sm transition-all group">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Approved</span>
+            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+              <Users className="w-4 h-4 text-green-600" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-neutral-900 tracking-tight">{vendorStats?.approved || 0}</p>
+          <p className="text-xs text-neutral-400 mt-1">Confirmed vendors</p>
         </Link>
 
         <Link href="/admin/applications?status=pending" className="bg-white rounded-xl border border-neutral-200 p-5 hover:border-neutral-300 hover:shadow-sm transition-all group">
@@ -459,9 +469,6 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-
-      {/* Activity Feed */}
-      <ActivityFeed />
 
       {/* Bottom Row: Recent Orders + Pending Apps */}
       <div className="grid lg:grid-cols-2 gap-6">

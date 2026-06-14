@@ -43,12 +43,19 @@ export async function GET() {
       'food-truck-8m': 8500,
     }
 
+    const total_apps = applications?.length || 0
+    const approved = applications?.filter(a => a.status === 'approved').length || 0
+    const pending = applications?.filter(a => a.status === 'pending').length || 0
+    const rejected = applications?.filter(a => a.status === 'rejected').length || 0
+    const info_requested = applications?.filter(a => a.status === 'info_requested').length || 0
+
+    // Existing shape kept for dashboard back-compat; `total` is total application count (not approved vendors).
     const stats = {
-      total: applications?.length || 0,
-      pending: applications?.filter(a => a.status === 'pending').length || 0,
-      approved: applications?.filter(a => a.status === 'approved').length || 0,
-      rejected: applications?.filter(a => a.status === 'rejected').length || 0,
-      info_requested: applications?.filter(a => a.status === 'info_requested').length || 0,
+      total: total_apps,
+      pending,
+      approved,
+      rejected,
+      info_requested,
     }
 
     // Estimated revenue from all non-rejected applications
@@ -86,8 +93,18 @@ export async function GET() {
 
     stats.total = applications?.length || 0
 
+    // Clean application-pipeline counts, exposed alongside the legacy `stats` block.
+    const applicationStats = {
+      total_apps,
+      approved,
+      pending,
+      rejected,
+      info_requested,
+    }
+
     return NextResponse.json({
       stats,
+      applicationStats,
       recentCount: recentApps?.length || 0,
       estimatedRevenue,
       categoryBreakdown,

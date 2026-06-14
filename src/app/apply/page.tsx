@@ -59,36 +59,107 @@ const STEPS = [
 
 type FormState = 'idle' | 'submitting' | 'success' | 'error'
 
+// Save-draft: form contents are persisted to localStorage on every change so
+// vendors who bail mid-flow can resume within 14 days. Cleared on submit.
+const DRAFT_KEY = 'cth_apply_draft'
+const DRAFT_TTL_MS = 14 * 24 * 60 * 60 * 1000
+
+// Forgiving phone: accepts spaces, dashes, parens, +. Server strips non-digits
+// and runs the SA mobile regex. UI just gives feedback after blur.
+const SA_MOBILE_RE = /^(\+?27|0)[1-9]\d{8}$/
+const stripPhone = (raw: string) => raw.replace(/[^\d+]/g, '')
+const isValidPhone = (v: string) => SA_MOBILE_RE.test(stripPhone(v))
+
+// Tolerant email pattern. RFC-perfect validation lives server-side.
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+const isValidEmail = (v: string) => EMAIL_RE.test(v.trim())
+
+const INITIAL_FORM = {
+  // Step 1: Business Info
+  email: '',
+  item_category: '',
+  stall_brand_name: '',
+  business_description: '',
+  traded_before: '',
+  contact_person: '',
+  whatsapp_number: '',
+  social_media_links: '',
+  // Step 2: Stall Selection
+  stall_type: '',
+  // Step 3: Requirements
+  hired_chairs: '0',
+  hired_tables: '0',
+  electrical_appliances: {} as Record<string, number>,
+  appliance_details: '',
+  uses_gas: '',
+  // Step 4: Documents & Terms
+  accepts_cancellation: false,
+  accepts_terms: false,
+  accepts_comms: false,
+}
+
 export default function ApplyPage() {
   const [step, setStep] = useState(1)
   const [formState, setFormState] = useState<FormState>('idle')
   const [error, setError] = useState('')
   // Honeypot: hidden field bots auto-fill, humans never see. Submission silently dropped if non-empty.
   const [companyWebsiteUrl, setCompanyWebsiteUrl] = useState('')
+  // Draft banner: shown once on mount if a recent draft exists.
+  const [draftBanner, setDraftBanner] = useState<{ ts: number } | null>(null)
+  // Inline-validation tracking. A field only shows red after it has been
+  // blurred once so the form does not yell at someone still typing.
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
 
-  const [form, setForm] = useState({
-    // Step 1: Business Info
-    email: '',
-    item_category: '',
-    stall_brand_name: '',
-    business_description: '',
-    traded_before: '',
-    contact_person: '',
-    whatsapp_number: '',
-    social_media_links: '',
-    // Step 2: Stall Selection
-    stall_type: '',
-    // Step 3: Requirements
-    hired_chairs: '0',
-    hired_tables: '0',
-    electrical_appliances: {} as Record<string, number>,
-    appliance_details: '',
-    uses_gas: '',
-    // Step 4: Documents & Terms
-    accepts_cancellation: false,
-    accepts_terms: false,
-    accepts_comms: false,
-  })
+  const [form, setForm] = useState(INITIAL_FORM)
+
+  // Hydrate draft on mount. Surfaces a banner; user opts in to restore so we
+  // never silently clobber a fresh attempt.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { ts: number; form: typeof INITIAL_FORM }
+      if (!parsed || typeof parsed.ts !== 'number' || !parsed.form) return
+      if (Date.now() - parsed.ts > DRAFT_TTL_MS) {
+        window.localStorage.removeItem(DRAFT_KEY)
+        return
+      }
+      setDraftBanner({ ts: parsed.ts })
+    } catch {
+      // ignore corrupt draft
+    }
+  }, [])
+
+  // Save draft on every field change. Debounced via microtask: cheap enough
+  // (one JSON.stringify of a small object) that no real debounce is needed.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (formState === 'success') return
+    try {
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ ts: Date.now(), form }))
+    } catch {
+      // localStorage can throw in private mode; the form still works without it.
+    }
+  }, [form, formState])
+
+  const restoreDraft = () => {
+    if (typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(DRAFT_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as { ts: number; form: typeof INITIAL_FORM }
+      if (parsed?.form) setForm({ ...INITIAL_FORM, ...parsed.form })
+    } catch {}
+    setDraftBanner(null)
+  }
+
+  const discardDraft = () => {
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(DRAFT_KEY) } catch {}
+    }
+    setDraftBanner(null)
+  }
 
   // Track step changes
   useEffect(() => {
@@ -98,6 +169,7 @@ export default function ApplyPage() {
   const set = (field: string, value: string | boolean | string[] | Record<string, number>) => {
     setForm(f => ({ ...f, [field]: value }))
   }
+  const markTouched = (field: string) => setTouched(t => ({ ...t, [field]: true }))
 
   const setApplianceQty = (val: string, qty: number) => {
     if (val === 'none') {
@@ -121,13 +193,35 @@ export default function ApplyPage() {
   }, 0)
   const totalEstimate = (selectedStall?.price || 0) + electricalCost
 
+  // 2026-06-14: required-field surface cut to the 5 the festival actually needs
+  // to start a conversation. Everything else (description, traded_before, socials,
+  // stall_type, electrical, gas) is optional now and required to approve. Samreen
+  // chases low-completeness applications via the queue.
   const canProceed = () => {
-    if (step === 1) return form.email && form.item_category && form.stall_brand_name && form.business_description && form.traded_before && form.contact_person && form.whatsapp_number && form.social_media_links
-    if (step === 2) return form.stall_type
-    if (step === 3) return Object.keys(form.electrical_appliances).length > 0 && form.uses_gas
+    if (step === 1) {
+      return (
+        form.stall_brand_name.trim() !== '' &&
+        form.contact_person.trim() !== '' &&
+        isValidPhone(form.whatsapp_number) &&
+        isValidEmail(form.email) &&
+        form.item_category !== ''
+      )
+    }
+    if (step === 2) return true // stall_type optional
+    if (step === 3) return true // appliances + gas optional
     if (step === 4) return form.accepts_cancellation && form.accepts_terms && form.accepts_comms
     return false
   }
+
+  // 5 hard requirements + however many optional the vendor has filled so far.
+  // Drives the inline "X of 5 required complete" strip under the step header.
+  const requiredFilled = [
+    form.stall_brand_name.trim() !== '',
+    form.contact_person.trim() !== '',
+    isValidPhone(form.whatsapp_number),
+    isValidEmail(form.email),
+    form.item_category !== '',
+  ].filter(Boolean).length
 
   const handleSubmit = async () => {
     setFormState('submitting')
@@ -165,9 +259,16 @@ export default function ApplyPage() {
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Submission failed')
+      // Submit succeeded: clear the saved draft so a future visit lands clean.
+      if (typeof window !== 'undefined') {
+        try { window.localStorage.removeItem(DRAFT_KEY) } catch {}
+      }
       setFormState('success')
       track('apply_success', { metadata: { business: form.stall_brand_name } })
     } catch (err) {
+      // Submit failure recovery: never clear field values, never collapse the
+      // form to a blank state. Keep the user where they were, show the reason,
+      // let them retry.
       setFormState('error')
       setError(err instanceof Error ? err.message : 'Something went wrong')
     }
@@ -178,16 +279,34 @@ export default function ApplyPage() {
       <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-neutral-900 mb-2">Application Submitted</h1>
-          <p className="text-neutral-600 mb-2">Thank you for applying to trade at Young at Heart Festival 2026.</p>
-          <p className="text-neutral-500 text-sm mb-4">Your application will be assessed by the selection committee. If successful, you will receive login details to your exhibitor portal where you can select your booth, make payment, and sign the terms and conditions.</p>
-          <p className="text-sm font-medium text-neutral-700 mb-4">Estimated Total: R{totalEstimate.toLocaleString()}</p>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
-            <p className="text-xs text-amber-800">A confirmation email has been sent to your inbox. If you don&apos;t see it, please check your spam or junk folder and mark it as &quot;not spam&quot;.</p>
+          <h1 className="text-2xl font-bold text-neutral-900 mb-2">Application received</h1>
+          <p className="text-neutral-600 mb-4">Thank you for applying to trade at Young at Heart Festival 2026.</p>
+
+          <div className="bg-white border border-neutral-200 rounded-lg p-4 mb-4 text-left">
+            <p className="text-sm font-semibold text-neutral-900 mb-2">What happens next</p>
+            <ol className="text-sm text-neutral-600 space-y-1.5 list-decimal list-inside">
+              <li>The selection committee reviews your application within 7 to 10 days.</li>
+              <li>If anything is missing, our team will reach out on WhatsApp or email.</li>
+              <li>If accepted, you receive exhibitor portal login details to choose your booth, pay, and sign the terms.</li>
+            </ol>
           </div>
-          <Link href="/" className="inline-block px-6 py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors">
-            Return to Home
-          </Link>
+
+          {totalEstimate > 0 && (
+            <p className="text-sm font-medium text-neutral-700 mb-4">Estimated total: R{totalEstimate.toLocaleString()}</p>
+          )}
+
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-6">
+            <p className="text-xs text-amber-800">Check your inbox for a confirmation email. If you don&apos;t see it, check your spam or junk folder and mark it as &quot;not spam&quot;.</p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            <Link href="/" className="inline-block px-6 py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors">
+              Back to festival home
+            </Link>
+            <a href="https://youngatheart.co.za" className="inline-block px-6 py-3 bg-white text-neutral-700 border border-neutral-200 font-medium rounded-lg hover:bg-neutral-50 transition-colors">
+              Young at Heart 2026
+            </a>
+          </div>
         </div>
       </div>
     )
@@ -225,10 +344,47 @@ export default function ApplyPage() {
             ))}
           </div>
 
+          {/* Draft banner: surfaced once on mount if a recent draft exists. */}
+          {draftBanner && (
+            <div className="flex items-start gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg mb-6">
+              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-blue-900 font-medium mb-1">We saved your progress.</p>
+                <p className="text-xs text-blue-700 mb-3">Continue where you left off, or start over with a blank form.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={restoreDraft} className="px-3 py-1.5 text-xs font-medium bg-[#cd2653] text-white rounded-md hover:bg-[#b82049] transition-colors">Continue</button>
+                  <button type="button" onClick={discardDraft} className="px-3 py-1.5 text-xs font-medium bg-white text-neutral-700 border border-neutral-200 rounded-md hover:bg-neutral-50 transition-colors">Start fresh</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Required-completion strip. Halves perceived form length: people see
+              there are only 5 things they actually need to enter to apply. */}
+          <div className="mb-6 px-4 py-3 bg-white border border-neutral-200 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-neutral-700">{requiredFilled} of 5 required fields complete</span>
+              <span className="text-xs text-neutral-400">Everything else is optional</span>
+            </div>
+            <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#cd2653] transition-all duration-300"
+                style={{ width: `${(requiredFilled / 5) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Sticky error banner: stays on screen on submit failure so the
+              vendor sees why their submit failed. Field values are preserved. */}
           {formState === 'error' && (
             <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-lg mb-6">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
+              <div className="flex-1">
+                <p className="text-sm text-red-700 mb-2">{error || 'Submission failed. Your details are still here.'}</p>
+                <button type="button" onClick={handleSubmit} className="px-3 py-1.5 text-xs font-medium bg-[#cd2653] text-white rounded-md hover:bg-[#b82049] transition-colors">
+                  Try again
+                </button>
+              </div>
             </div>
           )}
 
@@ -255,47 +411,75 @@ export default function ApplyPage() {
                 </h2>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Email *</label>
-                  <input type="email" required value={form.email} onChange={e => set('email', e.target.value)}
-                    onBlur={e => {
-                      const email = e.target.value.trim()
-                      if (email && email.includes('@')) {
-                        track('apply_email_captured', { metadata: { email, name: form.contact_person || '', business: form.stall_brand_name || '' } })
-                        fetch('/api/analytics/capture-email', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ email, name: form.contact_person, business: form.stall_brand_name, company_website_url: companyWebsiteUrl }),
-                          keepalive: true,
-                        }).catch(() => {})
-                      }
-                    }}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="you@business.com" />
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Email <span className="text-[#cd2653]">*</span></label>
+                  <div className="relative">
+                    <input type="email" required value={form.email} onChange={e => set('email', e.target.value)}
+                      onBlur={e => {
+                        markTouched('email')
+                        const email = e.target.value.trim()
+                        if (email && email.includes('@')) {
+                          track('apply_email_captured', { metadata: { email, name: form.contact_person || '', business: form.stall_brand_name || '' } })
+                          fetch('/api/analytics/capture-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email, name: form.contact_person, business: form.stall_brand_name, company_website_url: companyWebsiteUrl }),
+                            keepalive: true,
+                          }).catch(() => {})
+                        }
+                      }}
+                      className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent ${
+                        touched.email && !isValidEmail(form.email) ? 'border-red-300' : touched.email && isValidEmail(form.email) ? 'border-green-300' : 'border-neutral-200'
+                      }`} placeholder="you@business.com" />
+                    {touched.email && isValidEmail(form.email) && (
+                      <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    )}
+                  </div>
+                  {touched.email && !isValidEmail(form.email) && form.email !== '' && (
+                    <p className="text-xs text-red-600 mt-1">Please enter a valid email address.</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Item Category *</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Item Category <span className="text-[#cd2653]">*</span></label>
                   <select required value={form.item_category} onChange={e => set('item_category', e.target.value)}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent bg-white">
+                    onBlur={() => markTouched('item_category')}
+                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent bg-white ${
+                      touched.item_category && !form.item_category ? 'border-red-300' : touched.item_category && form.item_category ? 'border-green-300' : 'border-neutral-200'
+                    }`}>
                     <option value="">Select category</option>
                     {ITEM_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
+                  {touched.item_category && !form.item_category && (
+                    <p className="text-xs text-red-600 mt-1">Pick at least one category.</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Stall / Brand Name *</label>
-                  <input type="text" required value={form.stall_brand_name} onChange={e => set('stall_brand_name', e.target.value)}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="Your stall or brand name" />
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Stall / Brand Name <span className="text-[#cd2653]">*</span></label>
+                  <div className="relative">
+                    <input type="text" required value={form.stall_brand_name} onChange={e => set('stall_brand_name', e.target.value)}
+                      onBlur={() => markTouched('stall_brand_name')}
+                      className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent ${
+                        touched.stall_brand_name && !form.stall_brand_name.trim() ? 'border-red-300' : touched.stall_brand_name && form.stall_brand_name.trim() ? 'border-green-300' : 'border-neutral-200'
+                      }`} placeholder="Your stall or brand name" />
+                    {touched.stall_brand_name && form.stall_brand_name.trim() !== '' && (
+                      <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    )}
+                  </div>
+                  {touched.stall_brand_name && !form.stall_brand_name.trim() && (
+                    <p className="text-xs text-red-600 mt-1">Tell us your stall or brand name.</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Detailed description of Business/Goods or menu items *</label>
-                  <p className="text-xs text-neutral-500 mb-2">Please list all items being sold</p>
-                  <textarea required value={form.business_description} onChange={e => set('business_description', e.target.value)} rows={4}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none" placeholder="List all products/menu items you will be selling..." />
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Business or menu description <span className="text-neutral-400 font-normal">(optional)</span></label>
+                  <p className="text-xs text-neutral-500 mb-2">Helpful but not required. Add it now or share with the team if your application is shortlisted.</p>
+                  <textarea value={form.business_description} onChange={e => set('business_description', e.target.value)} rows={3}
+                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none" placeholder="List the products or menu items you plan to sell..." />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Have you traded with Cape Town Halaal before? *</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Have you traded with Cape Town Halaal before? <span className="text-neutral-400 font-normal">(optional)</span></label>
                   <div className="flex gap-3">
                     {['Yes', 'No'].map(opt => (
                       <button key={opt} type="button" onClick={() => set('traded_before', opt)}
@@ -313,20 +497,43 @@ export default function ApplyPage() {
                 </h2>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Contact Person (owner) *</label>
-                  <input type="text" required value={form.contact_person} onChange={e => set('contact_person', e.target.value)}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="Full name" />
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Contact Person (owner) <span className="text-[#cd2653]">*</span></label>
+                  <div className="relative">
+                    <input type="text" required value={form.contact_person} onChange={e => set('contact_person', e.target.value)}
+                      onBlur={() => markTouched('contact_person')}
+                      className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent ${
+                        touched.contact_person && !form.contact_person.trim() ? 'border-red-300' : touched.contact_person && form.contact_person.trim() ? 'border-green-300' : 'border-neutral-200'
+                      }`} placeholder="Full name" />
+                    {touched.contact_person && form.contact_person.trim() !== '' && (
+                      <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    )}
+                  </div>
+                  {touched.contact_person && !form.contact_person.trim() && (
+                    <p className="text-xs text-red-600 mt-1">We need a name to contact you.</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">WhatsApp Number *</label>
-                  <input type="tel" required value={form.whatsapp_number} onChange={e => set('whatsapp_number', e.target.value)}
-                    className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent" placeholder="+27 XX XXX XXXX" />
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">WhatsApp Number <span className="text-[#cd2653]">*</span></label>
+                  <div className="relative">
+                    <input type="tel" required value={form.whatsapp_number} onChange={e => set('whatsapp_number', e.target.value)}
+                      onBlur={() => markTouched('whatsapp_number')}
+                      className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent ${
+                        touched.whatsapp_number && !isValidPhone(form.whatsapp_number) ? 'border-red-300' : touched.whatsapp_number && isValidPhone(form.whatsapp_number) ? 'border-green-300' : 'border-neutral-200'
+                      }`} placeholder="0XX XXX XXXX" />
+                    {touched.whatsapp_number && isValidPhone(form.whatsapp_number) && (
+                      <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500" />
+                    )}
+                  </div>
+                  {touched.whatsapp_number && !isValidPhone(form.whatsapp_number) && form.whatsapp_number !== '' && (
+                    <p className="text-xs text-red-600 mt-1">Enter a valid SA mobile, like 0817534892 or +27817534892.</p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1">Social Media Links *</label>
-                  <textarea required value={form.social_media_links} onChange={e => set('social_media_links', e.target.value)} rows={2}
+                  <label className="block text-sm font-medium text-neutral-700 mb-1">Social Media Links <span className="text-neutral-400 font-normal">(optional)</span></label>
+                  <p className="text-xs text-neutral-500 mb-2">Helps the selection committee. Share now or follow up later.</p>
+                  <textarea value={form.social_media_links} onChange={e => set('social_media_links', e.target.value)} rows={2}
                     className="w-full px-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent resize-none" placeholder="Instagram, Facebook, TikTok links..." />
                 </div>
               </div>
@@ -376,7 +583,7 @@ export default function ApplyPage() {
                 <p className="text-xs text-neutral-500">1 table and 2 chairs are included with every stall. Select your electrical appliances and quantities below.</p>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Electrical Appliances *</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Electrical Appliances <span className="text-neutral-400 font-normal">(optional)</span></label>
 
                   {/* None option */}
                   <button type="button" onClick={() => setApplianceQty('none', form.electrical_appliances['none'] ? 0 : 1)}
@@ -417,7 +624,7 @@ export default function ApplyPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">Do you make use of Gas? (Gas certification required) *</label>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Do you make use of Gas? (Gas certification required) <span className="text-neutral-400 font-normal">(optional)</span></label>
                   <div className="flex gap-3">
                     {['Yes', 'No'].map(opt => (
                       <button key={opt} type="button" onClick={() => set('uses_gas', opt)}

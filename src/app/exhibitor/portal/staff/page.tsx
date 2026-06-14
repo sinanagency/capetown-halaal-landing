@@ -6,6 +6,7 @@ import { requirePaid } from '@/lib/exhibitor-paygate'
 import {
   PageShell, PageHeader, Card
 } from '@/components/chrome/PageChrome'
+import MiniTaskStrip from '@/components/exhibitor/MiniTaskStrip'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,6 +26,7 @@ export default async function StaffPage() {
 
   return (
     <PageShell>
+      <MiniTaskStrip activeKey="staff" />
       <Card className="max-w-3xl mx-auto">
         <PageHeader
           kicker="Gate Access"

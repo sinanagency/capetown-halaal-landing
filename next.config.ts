@@ -48,6 +48,11 @@ const nextConfig: NextConfig = {
     // Legacy static portal page is gone, send any old link to the real login.
     return [
       { source: '/exhibitor.html', destination: '/exhibitor/login', permanent: true },
+      // Legacy vendor-ops workspace was renamed to allocation. 301 so any
+      // bookmarks/links in older docs/emails land on the live map. The
+      // vendor-ops page files remain on disk for one sprint as a safety net.
+      { source: '/admin/vendor-ops', destination: '/admin/allocation', permanent: true },
+      { source: '/admin/vendor-ops/:path*', destination: '/admin/allocation', permanent: true },
     ];
   },
 };

@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { Search, Phone, Mail, MapPin, FileCheck, AlertTriangle, Users } from 'lucide-react'
+import { Search, Phone, Mail, MapPin, FileCheck, AlertTriangle, Users, Send, Download, Loader2 } from 'lucide-react'
+import { VendorBulkComposer } from './VendorBulkComposer'
 
 export interface VendorRow {
   id: string
@@ -38,6 +39,48 @@ const PAYMENT_PILL: Record<string, string> = {
 export function VendorsList({ rows }: { rows: VendorRow[] }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [composerOpen, setComposerOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function selectAllVisible(visibleIds: string[], on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      for (const id of visibleIds) {
+        if (on) next.add(id)
+        else next.delete(id)
+      }
+      return next
+    })
+  }
+
+  async function exportCsv() {
+    setExporting(true)
+    try {
+      const params = new URLSearchParams()
+      if (selected.size > 0) params.set('ids', Array.from(selected).join(','))
+      else params.set('status', 'approved')
+      const url = `/api/admin/vendors/csv?${params.toString()}`
+      // Trigger download via a temporary anchor.
+      const a = document.createElement('a')
+      a.href = url
+      a.download = ''
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -80,6 +123,42 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
         </div>
       </div>
 
+      {/* Bulk action toolbar */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <button
+          type="button"
+          disabled={selected.size === 0}
+          onClick={() => setComposerOpen(true)}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border',
+            selected.size === 0
+              ? 'border-neutral-200 text-neutral-400 cursor-not-allowed'
+              : 'border-[#cd2653] bg-[#cd2653] text-white hover:bg-[#b01f45]'
+          )}
+        >
+          <Send className="w-3.5 h-3.5" />
+          Message selected ({selected.size})
+        </button>
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={exporting}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium border border-neutral-300 text-neutral-700 hover:border-neutral-500 disabled:opacity-60"
+        >
+          {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          Export CSV ({selected.size > 0 ? `${selected.size} selected` : 'all approved'})
+        </button>
+        {selected.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setSelected(new Set())}
+            className="text-xs text-neutral-500 hover:underline"
+          >
+            Clear selection
+          </button>
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-2 mb-4">
         {([
           { k: 'all', label: 'All' },
@@ -119,6 +198,15 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 border-b border-neutral-200 text-left text-xs uppercase tracking-wide text-neutral-500">
               <tr>
+                <th className="pl-4 pr-2 py-2 w-8">
+                  <input
+                    type="checkbox"
+                    checked={filtered.length > 0 && filtered.every((r) => selected.has(r.id))}
+                    onChange={(e) => selectAllVisible(filtered.map((r) => r.id), e.target.checked)}
+                    aria-label="Select all visible"
+                    className="rounded border-neutral-300"
+                  />
+                </th>
                 <th className="px-4 py-2">Business</th>
                 <th className="px-4 py-2">Contact</th>
                 <th className="px-4 py-2 w-24">Stall</th>
@@ -134,6 +222,15 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
                   key={r.id}
                   className="border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50/60"
                 >
+                  <td className="pl-4 pr-2 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(r.id)}
+                      onChange={() => toggleSelected(r.id)}
+                      aria-label={`Select ${r.business_name}`}
+                      className="rounded border-neutral-300"
+                    />
+                  </td>
                   <td className="px-4 py-3 max-w-[260px]">
                     <Link
                       href={`/admin/vendors/${r.id}`}
@@ -223,6 +320,22 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
           </table>
         )}
       </div>
+
+      {composerOpen && (
+        <VendorBulkComposer
+          recipients={rows
+            .filter((r) => selected.has(r.id))
+            .map((r) => ({
+              id: r.id,
+              business_name: r.business_name,
+              contact_name: r.contact_name,
+              email: r.email,
+              phone: r.phone,
+              stall: r.stall,
+            }))}
+          onClose={() => setComposerOpen(false)}
+        />
+      )}
     </div>
   )
 }

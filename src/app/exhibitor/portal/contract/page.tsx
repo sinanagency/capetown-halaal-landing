@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { CONTRACT_SECTIONS, CONTRACT_ACCEPTANCE_LINE, CONTRACT_DATE_RANGE, CONTRACT_VENUE } from '@/lib/contract/copy'
 import { ContractSignPanel } from '@/components/exhibitor/ContractSignPanel'
+import MiniTaskStrip from '@/components/exhibitor/MiniTaskStrip'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,10 @@ export default async function ContractPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-10">
-      {/* Header chrome — Cape Town Halaal + Young at Heart marks */}
+      {/* 4-task mini progress strip. Same data as the Overview checklist. */}
+      <MiniTaskStrip activeKey="contract" />
+
+      {/* Header chrome, Cape Town Halaal + Young at Heart marks */}
       <header className="text-center mb-10">
         <h1 className="font-serif text-3xl text-[#1B1A17] tracking-tight">Vendor Contract 2026</h1>
         <p className="mt-2 text-sm text-neutral-600">

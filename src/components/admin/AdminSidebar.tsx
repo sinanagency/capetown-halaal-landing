@@ -4,22 +4,63 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail } from 'lucide-react'
+import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Settings as SettingsIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import type { AdminRole } from '@/lib/admin-rbac'
 
-const navigation = [
-  { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-  { name: 'Ticket Sales', href: '/admin/tickets', icon: Ticket },
-  { name: 'Applications', href: '/admin/applications', icon: FileText },
-  { name: 'Vendors', href: '/admin/vendors', icon: Users },
-  { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
-  { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
-  { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
-  { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-  { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
+type NavItem = { name: string; href: string; icon: typeof LayoutDashboard }
+type NavGroup = { label: string | null; items: NavItem[] }
+
+// Sidebar is now grouped into labelled sections. The DASHBOARD group has a
+// null label (no header rendered) so the top item still feels primary. Every
+// other group renders a small uppercase header above its items.
+const navGroups: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { name: 'Applications', href: '/admin/applications', icon: FileText },
+      { name: 'Vendors', href: '/admin/vendors', icon: Users },
+      { name: 'Allocation', href: '/admin/allocation', icon: Map },
+    ],
+  },
+  {
+    label: 'Communications',
+    items: [
+      { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
+      { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
+      { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
+    ],
+  },
+  {
+    label: 'Money',
+    items: [
+      { name: 'Ticket Sales', href: '/admin/tickets', icon: Ticket },
+      { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [
+      { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
+    ],
+  },
+  {
+    label: 'Settings',
+    items: [
+      { name: 'Activity Feed', href: '/admin/settings/activity', icon: SettingsIcon },
+      { name: 'Operators', href: '/admin/settings/operators', icon: SettingsIcon },
+      { name: 'Audit Log', href: '/admin/settings/audit', icon: SettingsIcon },
+      { name: 'Comms Health', href: '/admin/settings/comms-health', icon: SettingsIcon },
+    ],
+  },
 ]
 
 interface AdminSidebarProps {
@@ -40,6 +81,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
   const BadgeIcon = badge.Icon
   const [mobileOpen, setMobileOpen] = useState(false)
   const [supportUnread, setSupportUnread] = useState(0)
+  const [pendingApps, setPendingApps] = useState<number | null>(null)
 
   // Close drawer on route change
   useEffect(() => {
@@ -67,27 +109,57 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
     return () => { cancelled = true; clearInterval(id) }
   }, [])
 
+  // Poll pending application count for the Applications badge. Reads from the
+  // shared /api/admin/stats endpoint. Falls back to no badge if the shape
+  // differs (e.g. endpoint not yet updated by sibling work). Polls every 60s.
+  useEffect(() => {
+    let cancelled = false
+    const tick = async () => {
+      if (document.hidden) return
+      try {
+        const res = await fetch('/api/admin/stats')
+        if (!res.ok) return
+        const j = await res.json()
+        if (cancelled) return
+        // Endpoint nests stats under `stats.pending` per current route.ts.
+        // Accept either top-level `pending` or `stats.pending` to be resilient.
+        const pending =
+          typeof j?.pending === 'number' ? j.pending :
+          typeof j?.stats?.pending === 'number' ? j.stats.pending :
+          null
+        setPendingApps(pending)
+      } catch { /* swallow */ }
+    }
+    tick()
+    const id = setInterval(tick, 60000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/admin/login')
   }
 
+  const isItemActive = (href: string) =>
+    pathname === href || (href !== '/admin' && pathname.startsWith(href))
+
   const sidebarBody = (
     <>
-      {/* Logo */}
-      <div className="p-6 border-b border-neutral-200 flex items-center justify-between">
-        <div className="flex items-center gap-3 min-w-0">
+      {/* Logo: image above text, centred. Doubled from 40x53 to 72x96 so the
+          brand reads more clearly at the top of the panel. */}
+      <div className="p-6 border-b border-neutral-200 relative">
+        <div className="flex flex-col items-center text-center gap-2">
           <Image
             src="/logo.png"
             alt="Young at Heart"
-            width={40}
-            height={53}
+            width={72}
+            height={96}
             priority
-            className="h-10 w-auto flex-shrink-0"
+            className="h-20 w-auto"
           />
-          <div className="min-w-0">
-            <h1 className="text-lg font-bold text-neutral-900 leading-tight truncate">
+          <div>
+            <h1 className="text-lg font-bold text-neutral-900 leading-tight">
               Young at Heart
             </h1>
             <p className="text-xs text-neutral-500 mt-0.5">Admin Portal</p>
@@ -96,7 +168,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
-          className="md:hidden -m-2 p-2 text-neutral-500 hover:text-neutral-900 min-h-[44px] min-w-[44px]"
+          className="md:hidden absolute top-3 right-3 -m-2 p-2 text-neutral-500 hover:text-neutral-900 min-h-[44px] min-w-[44px]"
           aria-label="Close menu"
         >
           <X className="w-5 h-5" />
@@ -104,35 +176,49 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        {navigation.map((item) => {
-          const isActive = pathname === item.href ||
-            (item.href !== '/admin' && pathname.startsWith(item.href))
+      <nav className="flex-1 p-3 overflow-y-auto">
+        {navGroups.map((group, gi) => (
+          <div key={group.label ?? `group-${gi}`} className="space-y-1">
+            {group.label && (
+              <p className="px-4 mt-6 mb-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
+                {group.label}
+              </p>
+            )}
+            {group.items.map((item) => {
+              const isActive = isItemActive(item.href)
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-[#cd2653] text-white'
+                      : 'text-neutral-600 hover:bg-neutral-100'
+                  )}
+                >
+                  <item.icon className="w-4.5 h-4.5" />
+                  <span className="flex-1">{item.name}</span>
+                  {item.href === '/admin/support-inbox' && supportUnread > 0 && (
+                    <span className={cn(
+                      'text-[10px] font-bold rounded-full px-1.5 py-0.5',
+                      isActive ? 'bg-white text-[#cd2653]' : 'bg-[#cd2653] text-white'
+                    )}>{supportUnread}</span>
+                  )}
+                  {item.href === '/admin/applications' && pendingApps !== null && pendingApps > 0 && (
+                    <span className={cn(
+                      'text-[10px] font-bold rounded-full px-1.5 py-0.5',
+                      isActive ? 'bg-white text-[#cd2653]' : 'bg-[#cd2653] text-white'
+                    )}>{pendingApps}</span>
+                  )}
+                </Link>
+              )
+            })}
+          </div>
+        ))}
 
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                'flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-[#cd2653] text-white'
-                  : 'text-neutral-600 hover:bg-neutral-100'
-              )}
-            >
-              <item.icon className="w-4.5 h-4.5" />
-              <span className="flex-1">{item.name}</span>
-              {item.href === '/admin/support-inbox' && supportUnread > 0 && (
-                <span className={cn(
-                  'text-[10px] font-bold rounded-full px-1.5 py-0.5',
-                  isActive ? 'bg-white text-[#cd2653]' : 'bg-[#cd2653] text-white'
-                )}>{supportUnread}</span>
-              )}
-            </Link>
-          )
-        })}
-
-        <div className="pt-4 mt-4 border-t border-neutral-100">
+        {/* External group lives at the bottom, separated by a divider. */}
+        <div className="pt-4 mt-6 border-t border-neutral-100">
           <p className="px-4 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">External</p>
           <a
             href="https://tickets.youngatheart.co.za"

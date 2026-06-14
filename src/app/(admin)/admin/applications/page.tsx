@@ -1,834 +1,420 @@
 'use client'
 
-import { useEffect, useMemo, useState, useCallback, Suspense } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+// Triage workbench: two-pane layout (queue + preview), full keyboard layer,
+// bulk actions, dedupe drawer, live "X to go" counter.
+//
+// All side-effecting actions go through three admin endpoints introduced
+// alongside this page:
+//   /api/admin/applications/[id]/action  (single-row, j/k driven)
+//   /api/admin/applications/bulk         (multi-row, toolbar driven)
+//   /api/admin/applications/dedupe       (keeper + supersede list)
+//
+// The queue feed comes from /api/admin/applications (windowed + counted).
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import type { VendorApplication, ApplicationStatus } from '@/lib/supabase/types'
+import { Loader2, Layers, Search } from 'lucide-react'
+import { QueueList } from '@/components/admin/applications/QueueList'
+import { PreviewPane } from '@/components/admin/applications/PreviewPane'
+import { ShortcutsOverlay } from '@/components/admin/applications/ShortcutsOverlay'
+import { DedupeDrawer } from '@/components/admin/applications/DedupeDrawer'
+import { BulkToolbar } from '@/components/admin/applications/BulkToolbar'
 import {
-  Search,
-  Loader2,
-  FileText,
-  Mail,
-  Phone,
-  CheckCircle2,
-  XCircle,
-  HelpCircle,
-  ChevronDown,
-  X,
-  Inbox,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { scoreCompleteness } from '@/lib/triage/completeness'
-import {
-  findDuplicateClusters,
-} from '@/lib/triage/duplicates'
-import {
-  matchesBucket,
-  type BucketKey,
-} from '@/lib/triage/buckets'
+  SECTOR_CYCLE,
+  type WorkbenchApplication,
+} from '@/components/admin/applications/types'
 
-// --- chip definitions -------------------------------------------------------
+const QUEUE_LIMIT = 200
 
-type ChipGroup = 'status' | 'sector' | 'tier' | 'flag'
-
-interface Chip {
-  key: string
-  label: string
-  group: ChipGroup
-  bucket?: BucketKey
-  status?: ApplicationStatus
-  sector?: string
-  tier?: string
+function phoneLast9(phone: string | null | undefined): string {
+  return (phone ?? '').replace(/\D+/g, '').slice(-9)
 }
 
-const STATUS_CHIPS: Chip[] = [
-  { key: 'pending', label: 'Pending', group: 'status', status: 'pending' },
-  { key: 'approved', label: 'Approved', group: 'status', status: 'approved' },
-  { key: 'rejected', label: 'Rejected', group: 'status', status: 'rejected' },
-  { key: 'info_requested', label: 'Info requested', group: 'status', status: 'info_requested' },
-]
-
-const FLAG_CHIPS: Chip[] = [
-  { key: 'has_email', label: 'Has email', group: 'flag', bucket: 'has_email' },
-  { key: 'has_phone', label: 'Has phone', group: 'flag', bucket: 'has_phone' },
-  { key: 'has_docs', label: 'Has docs', group: 'flag', bucket: 'has_docs' },
-  { key: 'contract_signed', label: 'Contract signed', group: 'flag', bucket: 'contract_signed' },
-  { key: 'paid', label: 'Paid', group: 'flag', bucket: 'paid' },
-  { key: 'over_30d_pending', label: 'Over 30d pending', group: 'flag', bucket: 'over_30d_pending' },
-  { key: 'traded_before', label: 'Traded before', group: 'flag', bucket: 'traded_before' },
-  { key: 'ready_to_approve', label: 'Ready to approve', group: 'flag', bucket: 'ready_to_approve' },
-  { key: 'duplicates', label: 'Duplicates', group: 'flag', bucket: 'duplicates' },
-]
-
-// --- status pill ------------------------------------------------------------
-
-const STATUS_PILL: Record<ApplicationStatus, string> = {
-  pending: 'bg-amber-50 text-amber-700 border-amber-200',
-  approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  rejected: 'bg-rose-50 text-rose-700 border-rose-200',
-  info_requested: 'bg-sky-50 text-sky-700 border-sky-200',
-}
-
-const STATUS_LABEL: Record<ApplicationStatus, string> = {
-  pending: 'Pending',
-  approved: 'Approved',
-  rejected: 'Rejected',
-  info_requested: 'Info req.',
-}
-
-// --- helpers ----------------------------------------------------------------
-
-function formatShort(d: string): string {
-  const dt = new Date(d)
-  if (Number.isNaN(dt.getTime())) return ''
-  return dt.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short' })
-}
-
-function completenessFor(row: VendorApplication): number {
-  return typeof row.completeness_score === 'number'
-    ? row.completeness_score
-    : scoreCompleteness(row)
-}
-
-function CompletenessBadge({ score }: { score: number }) {
-  const tone =
-    score >= 80
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      : score >= 50
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : 'bg-rose-50 text-rose-700 border-rose-200'
-  return (
-    <span
-      title={`Completeness ${score}/100`}
-      className={cn(
-        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[11px] font-medium tabular-nums',
-        tone
-      )}
-    >
-      {score}
-    </span>
-  )
-}
-
-// --- inner page (Suspense-wrapped to satisfy useSearchParams) ---------------
-
-function ApplicationsPageInner() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [applications, setApplications] = useState<VendorApplication[]>([])
+export default function ApplicationsWorkbenchPage() {
+  // ---- queue state ----
+  const [rows, setRows] = useState<WorkbenchApplication[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [actionBusy, setActionBusy] = useState(false)
-  const [showTemplateMenu, setShowTemplateMenu] = useState(false)
+  const [pendingTotal, setPendingTotal] = useState<number>(0)
+  const [search, setSearch] = useState('')
 
-  // Parse multi-select chip state from URL
-  const activeKeys = useMemo<Set<string>>(() => {
-    const raw = searchParams.get('chips') ?? ''
-    return new Set(raw ? raw.split(',').filter(Boolean) : [])
-  }, [searchParams])
+  // ---- triage UI state ----
+  const [focusedId, setFocusedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [busy, setBusy] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [dedupeOpen, setDedupeOpen] = useState(false)
+  const [hint, setHint] = useState<string | null>(null)
 
-  // Load all applications once; filtering is client-side because Samreen
-  // works through ~few hundred rows and needs instant chip-toggle feedback.
+  // ---- load the queue ----
+  const reload = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        status: 'pending,info_requested',
+        order: 'oldest',
+        limit: String(QUEUE_LIMIT),
+      })
+      if (search.trim()) params.set('search', search.trim())
+      const res = await fetch(`/api/admin/applications?${params.toString()}`)
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        console.error('queue load failed:', j)
+        return
+      }
+      const data = await res.json()
+      const list = (data.applications ?? []) as WorkbenchApplication[]
+      setRows(list)
+      setPendingTotal(data.pending_total ?? 0)
+      // Keep focus where it was if still present; otherwise pick the first row.
+      setFocusedId((prev) => (prev && list.some((r) => r.id === prev) ? prev : list[0]?.id ?? null))
+    } finally {
+      setLoading(false)
+    }
+  }, [search])
+
   useEffect(() => {
-    let abort = false
-    async function load() {
-      setLoading(true)
-      try {
-        const res = await fetch('/api/applications')
-        if (res.ok) {
-          const data = await res.json()
-          if (!abort) setApplications(data.applications ?? [])
-        }
-      } catch (err) {
-        console.error('Failed to load applications:', err)
-      } finally {
-        if (!abort) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      abort = true
-    }
-  }, [])
+    reload()
+  }, [reload])
 
-  // Decorate with client-side duplicate markers if the server hasn't already.
-  const decorated = useMemo<VendorApplication[]>(() => {
-    if (!applications.length) return applications
-    const needsClustering = applications.some((r) => !r.dup_marker)
-    if (!needsClustering) return applications
-    const clusters = findDuplicateClusters(applications)
-    return applications.map((r) =>
-      r.dup_marker ? r : { ...r, dup_marker: clusters.get(r.id) ?? null }
-    )
-  }, [applications])
-
-  // Derive sector and tier chips from the data so we never hardcode them.
-  const sectorChips = useMemo<Chip[]>(() => {
-    const seen = new Set<string>()
-    for (const r of decorated) {
-      for (const c of r.product_categories ?? []) {
-        if (c) seen.add(c)
-      }
-    }
-    return [...seen]
-      .sort()
-      .slice(0, 20)
-      .map<Chip>((c) => ({
-        key: `sector:${c}`,
-        label: c,
-        group: 'sector',
-        sector: c,
-      }))
-  }, [decorated])
-
-  const tierChips = useMemo<Chip[]>(() => {
-    const seen = new Set<string>()
-    for (const r of decorated) {
-      if (r.preferred_booth_tier) seen.add(r.preferred_booth_tier)
-    }
-    return [...seen]
-      .sort()
-      .map<Chip>((c) => ({
-        key: `tier:${c}`,
-        label: c,
-        group: 'tier',
-        tier: c,
-      }))
-  }, [decorated])
-
-  // Filter pipeline
-  const filtered = useMemo<VendorApplication[]>(() => {
-    if (!decorated.length) return decorated
-    const q = searchQuery.trim().toLowerCase()
-    const chips = [
-      ...STATUS_CHIPS,
-      ...FLAG_CHIPS,
-      ...sectorChips,
-      ...tierChips,
-    ].filter((c) => activeKeys.has(c.key))
-
-    const statusKeys = new Set(chips.filter((c) => c.group === 'status').map((c) => c.status!))
-    const sectorKeys = new Set(chips.filter((c) => c.group === 'sector').map((c) => c.sector!))
-    const tierKeys = new Set(chips.filter((c) => c.group === 'tier').map((c) => c.tier!))
-    const flagBuckets = chips.filter((c) => c.group === 'flag' && c.bucket).map((c) => c.bucket!)
-
-    return decorated.filter((r) => {
-      if (statusKeys.size > 0 && !statusKeys.has(r.status)) return false
-      if (sectorKeys.size > 0) {
-        const cats = r.product_categories ?? []
-        if (!cats.some((c) => sectorKeys.has(c))) return false
-      }
-      if (tierKeys.size > 0 && (!r.preferred_booth_tier || !tierKeys.has(r.preferred_booth_tier))) {
-        return false
-      }
-      for (const b of flagBuckets) {
-        if (!matchesBucket(r, b)) return false
-      }
-      if (q) {
-        const hay = (
-          (r.business_name ?? '') +
-          ' ' +
-          (r.contact_name ?? '') +
-          ' ' +
-          (r.email ?? '') +
-          ' ' +
-          (r.phone ?? '')
-        ).toLowerCase()
-        if (!hay.includes(q)) return false
-      }
-      return true
-    })
-  }, [decorated, activeKeys, searchQuery, sectorChips, tierChips])
-
-  // Counts shown next to every chip
-  const counts = useMemo<Record<string, number>>(() => {
-    const result: Record<string, number> = {}
-    if (!decorated.length) return result
-    for (const c of STATUS_CHIPS) {
-      result[c.key] = decorated.filter((r) => r.status === c.status).length
-    }
-    for (const c of FLAG_CHIPS) {
-      result[c.key] = decorated.filter((r) => matchesBucket(r, c.bucket!)).length
-    }
-    for (const c of sectorChips) {
-      result[c.key] = decorated.filter((r) => (r.product_categories ?? []).includes(c.sector!)).length
-    }
-    for (const c of tierChips) {
-      result[c.key] = decorated.filter((r) => r.preferred_booth_tier === c.tier).length
-    }
-    return result
-  }, [decorated, sectorChips, tierChips])
-
-  // --- chip toggle helpers --------------------------------------------------
-
-  const setChips = useCallback(
-    (next: Set<string>) => {
-      const params = new URLSearchParams(searchParams.toString())
-      if (next.size === 0) {
-        params.delete('chips')
-      } else {
-        params.set('chips', [...next].join(','))
-      }
-      router.push(`/admin/applications?${params.toString()}`)
-    },
-    [router, searchParams]
+  // ---- derived: focused row + phone-cluster siblings ----
+  const focused = useMemo<WorkbenchApplication | null>(
+    () => rows.find((r) => r.id === focusedId) ?? null,
+    [rows, focusedId]
   )
 
-  const toggleChip = useCallback(
-    (key: string) => {
-      const next = new Set(activeKeys)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      setChips(next)
-    },
-    [activeKeys, setChips]
-  )
+  const duplicateSiblings = useMemo<WorkbenchApplication[]>(() => {
+    if (!focused) return []
+    const key = phoneLast9(focused.phone)
+    if (!key) return []
+    return rows.filter((r) => r.id !== focused.id && phoneLast9(r.phone) === key)
+  }, [rows, focused])
 
-  const clearChips = useCallback(() => setChips(new Set()), [setChips])
-
-  // --- selection -----------------------------------------------------------
-
-  const allFilteredSelected = filtered.length > 0 && filtered.every((r) => selected.has(r.id))
-  const toggleSelectAll = useCallback(() => {
-    if (allFilteredSelected) {
-      const next = new Set(selected)
-      for (const r of filtered) next.delete(r.id)
-      setSelected(next)
-    } else {
-      const next = new Set(selected)
-      for (const r of filtered) next.add(r.id)
-      setSelected(next)
-    }
-  }, [allFilteredSelected, filtered, selected])
-
-  const toggleRow = useCallback((id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+  // ---- optimistic update + revert helpers ----
+  const flashHint = useCallback((msg: string) => {
+    setHint(msg)
+    window.setTimeout(() => setHint(null), 1500)
   }, [])
 
-  const clearSelection = useCallback(() => setSelected(new Set()), [])
+  const applyOptimistic = useCallback(
+    (id: string, patch: Partial<WorkbenchApplication>) => {
+      let prev: WorkbenchApplication | null = null
+      setRows((rs) => {
+        const idx = rs.findIndex((r) => r.id === id)
+        if (idx < 0) return rs
+        prev = rs[idx]
+        const next = [...rs]
+        next[idx] = { ...prev, ...patch }
+        return next
+      })
+      return () => {
+        if (!prev) return
+        setRows((rs) => rs.map((r) => (r.id === id ? (prev as WorkbenchApplication) : r)))
+      }
+    },
+    []
+  )
 
-  // --- bulk actions --------------------------------------------------------
+  // ---- single-row action -----------------------------------------------------
+  const runAction = useCallback(
+    async (
+      id: string,
+      action: 'approve' | 'reject' | 'request_info' | 'tag' | 'snooze',
+      payload?: { reason?: string; sector?: string; snooze_hours?: number }
+    ) => {
+      // Optimistic patch
+      let patch: Partial<WorkbenchApplication> = {}
+      if (action === 'approve') patch = { status: 'approved', approved_at: new Date().toISOString() }
+      if (action === 'reject') patch = { status: 'rejected' }
+      if (action === 'request_info') patch = { status: 'info_requested' }
+      if (action === 'tag' && payload?.sector) patch = { sector: payload.sector }
+      const revert = applyOptimistic(id, patch)
 
-  const runBulk = useCallback(
-    async (action: 'approve' | 'reject' | 'request_info' | 'send_template', templateKey?: string) => {
-      if (selected.size === 0) return
-      const confirmMsg =
-        action === 'reject'
-          ? `Reject ${selected.size} applications? This will email each applicant.`
-          : action === 'approve'
-            ? `Approve ${selected.size} applications? Each will get an approval email + WA template.`
-            : action === 'request_info'
-              ? `Request info from ${selected.size} applicants?`
-              : `Send the "${templateKey}" template to ${selected.size} applicants?`
-      if (!window.confirm(confirmMsg)) return
+      // Decrement counter on terminal moves out of the pending pool.
+      const decrement = action === 'approve' || action === 'reject'
+      if (decrement) setPendingTotal((n) => Math.max(0, n - 1))
 
-      setActionBusy(true)
+      setBusy(true)
       try {
-        const res = await fetch('/api/applications/bulk', {
+        const res = await fetch(`/api/admin/applications/${id}/action`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ids: [...selected],
-            action,
-            template_key: templateKey,
-          }),
+          body: JSON.stringify({ action, ...(payload ?? {}) }),
         })
-        const json = await res.json()
         if (!res.ok) {
-          window.alert(json?.error || 'Bulk action failed.')
-          return
+          const j = await res.json().catch(() => ({}))
+          revert()
+          if (decrement) setPendingTotal((n) => n + 1)
+          window.alert(j?.error || 'Action failed.')
+          return false
         }
-        window.alert(
-          `Done. ${json.ok}/${json.processed} succeeded${json.failed ? `, ${json.failed} failed.` : '.'}`
-        )
-
-        // Reload list
-        const refresh = await fetch('/api/applications')
-        if (refresh.ok) {
-          const data = await refresh.json()
-          setApplications(data.applications ?? [])
-        }
-        setSelected(new Set())
-        setShowTemplateMenu(false)
+        flashHint(action === 'tag' ? `tagged ${payload?.sector}` : action.replace('_', ' '))
+        return true
       } catch (err) {
-        console.error('Bulk action error:', err)
-        window.alert('Bulk action failed.')
+        revert()
+        if (decrement) setPendingTotal((n) => n + 1)
+        console.error(err)
+        window.alert('Action failed.')
+        return false
       } finally {
-        setActionBusy(false)
+        setBusy(false)
       }
     },
-    [selected]
+    [applyOptimistic, flashHint]
   )
 
-  // --- render --------------------------------------------------------------
-
-  return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Applications</h1>
-          <p className="text-sm text-neutral-500">
-            {decorated.length} total, {filtered.length} shown
-          </p>
-        </div>
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-          <input
-            type="text"
-            placeholder="Search business, name, email, phone"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
-          />
-        </div>
-      </div>
-
-      {/* Chip rail — status always visible, sector/tier/flags collapsed into
-          summary groups. Active chips from collapsed groups remain visible
-          inline so the operator never loses sight of what's filtering. */}
-      <div className="mb-4 space-y-2">
-        <ChipRow
-          title="Status"
-          chips={STATUS_CHIPS}
-          active={activeKeys}
-          counts={counts}
-          onToggle={toggleChip}
-        />
-
-        <div className="flex flex-wrap items-start gap-2">
-          {sectorChips.length > 0 && (
-            <ChipGroup
-              label="Sector"
-              chips={sectorChips}
-              active={activeKeys}
-              counts={counts}
-              onToggle={toggleChip}
-            />
-          )}
-          {tierChips.length > 0 && (
-            <ChipGroup
-              label="Booth tier"
-              chips={tierChips}
-              active={activeKeys}
-              counts={counts}
-              onToggle={toggleChip}
-            />
-          )}
-          <ChipGroup
-            label="Flags"
-            chips={FLAG_CHIPS}
-            active={activeKeys}
-            counts={counts}
-            onToggle={toggleChip}
-          />
-          {activeKeys.size > 0 && (
-            <button
-              onClick={clearChips}
-              className="text-xs text-neutral-500 hover:text-neutral-900 inline-flex items-center gap-1 px-2 py-1.5"
-            >
-              <X className="w-3 h-3" /> Clear all
-            </button>
-          )}
-        </div>
-
-        {/* Active-chip strip: keeps selected sector/tier/flag chips visible
-            even when their group is collapsed. */}
-        {activeKeys.size > 0 && (() => {
-          const collapsedActive = [...sectorChips, ...tierChips, ...FLAG_CHIPS].filter((c) =>
-            activeKeys.has(c.key)
-          )
-          if (collapsedActive.length === 0) return null
-          return (
-            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-              <span className="text-[10px] uppercase tracking-wide text-neutral-400">Active:</span>
-              {collapsedActive.map((c) => (
-                <button
-                  key={c.key}
-                  onClick={() => toggleChip(c.key)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#cd2653] text-white text-[11px] font-medium"
-                >
-                  {c.label}
-                  <X className="w-2.5 h-2.5 opacity-80" />
-                </button>
-              ))}
-            </div>
-          )
-        })()}
-      </div>
-
-      {/* Table */}
-      <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-neutral-500">
-            <Inbox className="w-10 h-10 mb-3 text-neutral-300" />
-            <p>No applications match these filters.</p>
-            {activeKeys.size > 0 && (
-              <button
-                onClick={clearChips}
-                className="mt-3 text-sm text-[#cd2653] hover:underline"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-neutral-50 border-b border-neutral-200 text-left text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="w-10 px-3 py-2">
-                  <input
-                    type="checkbox"
-                    aria-label="Select all filtered"
-                    checked={allFilteredSelected}
-                    onChange={toggleSelectAll}
-                    className="cursor-pointer"
-                  />
-                </th>
-                <th className="px-3 py-2">Business</th>
-                <th className="px-3 py-2">Contact</th>
-                <th className="px-3 py-2 w-16">Reach</th>
-                <th className="px-3 py-2">Sector</th>
-                <th className="px-3 py-2">Tier</th>
-                <th className="px-3 py-2 w-12">Score</th>
-                <th className="px-3 py-2 w-20">Applied</th>
-                <th className="px-3 py-2 w-24">Status</th>
-                <th className="px-3 py-2 w-24 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <Row
-                  key={r.id}
-                  app={r}
-                  selected={selected.has(r.id)}
-                  onToggle={() => toggleRow(r.id)}
-                />
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Sticky bulk action bar */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
-          <div className="bg-neutral-900 text-white rounded-xl shadow-2xl flex items-center gap-2 px-3 py-2">
-            <span className="text-sm font-medium px-2">
-              {selected.size} selected
-            </span>
-            <span className="w-px h-6 bg-neutral-700" />
-            <button
-              onClick={() => runBulk('approve')}
-              disabled={actionBusy}
-              className="px-3 py-1.5 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 inline-flex items-center gap-1.5"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Approve all
-            </button>
-            <button
-              onClick={() => runBulk('request_info')}
-              disabled={actionBusy}
-              className="px-3 py-1.5 text-sm rounded-lg bg-sky-600 hover:bg-sky-500 disabled:opacity-50 inline-flex items-center gap-1.5"
-            >
-              <HelpCircle className="w-4 h-4" />
-              Request info
-            </button>
-            <button
-              onClick={() => runBulk('reject')}
-              disabled={actionBusy}
-              className="px-3 py-1.5 text-sm rounded-lg bg-rose-600 hover:bg-rose-500 disabled:opacity-50 inline-flex items-center gap-1.5"
-            >
-              <XCircle className="w-4 h-4" />
-              Reject
-            </button>
-            <div className="relative">
-              <button
-                onClick={() => setShowTemplateMenu((v) => !v)}
-                disabled={actionBusy}
-                className="px-3 py-1.5 text-sm rounded-lg bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50 inline-flex items-center gap-1.5"
-              >
-                Send template
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              {showTemplateMenu && (
-                <div className="absolute bottom-full mb-2 right-0 bg-white text-neutral-900 rounded-lg shadow-xl border border-neutral-200 min-w-[220px] overflow-hidden">
-                  {[
-                    'vendor_application_reminder',
-                    'vendor_payment_reminder',
-                    'vendor_contract_reminder',
-                    'vendor_event_briefing',
-                  ].map((tpl) => (
-                    <button
-                      key={tpl}
-                      onClick={() => runBulk('send_template', tpl)}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100"
-                    >
-                      {tpl}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <span className="w-px h-6 bg-neutral-700" />
-            <button
-              onClick={clearSelection}
-              className="px-3 py-1.5 text-sm rounded-lg hover:bg-neutral-800"
-            >
-              Clear
-            </button>
-            {actionBusy && <Loader2 className="w-4 h-4 animate-spin ml-1" />}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// --- subcomponents ----------------------------------------------------------
-
-function ChipRow({
-  title,
-  chips,
-  active,
-  counts,
-  onToggle,
-  trailing,
-}: {
-  title: string
-  chips: Chip[]
-  active: Set<string>
-  counts: Record<string, number>
-  onToggle: (key: string) => void
-  trailing?: React.ReactNode
-}) {
-  return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-[11px] uppercase tracking-wide text-neutral-400 w-16 shrink-0">
-        {title}
-      </span>
-      {chips.map((c) => {
-        const on = active.has(c.key)
-        const count = counts[c.key] ?? 0
-        return (
-          <button
-            key={c.key}
-            onClick={() => onToggle(c.key)}
-            className={cn(
-              'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors',
-              on
-                ? 'bg-[#cd2653] text-white border-[#cd2653]'
-                : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-            )}
-          >
-            {c.label}
-            <span
-              className={cn(
-                'text-[10px] px-1 rounded tabular-nums',
-                on ? 'bg-white/20' : 'bg-neutral-100 text-neutral-500'
-              )}
-            >
-              {count}
-            </span>
-          </button>
-        )
-      })}
-      {trailing}
-    </div>
-  )
-}
-
-// Collapsible chip group. Uses <details> for native a11y + keyboard support.
-// Shows a count of currently-active chips in the summary so the operator
-// knows the group is filtering even when closed.
-function ChipGroup({
-  label,
-  chips,
-  active,
-  counts,
-  onToggle,
-}: {
-  label: string
-  chips: Chip[]
-  active: Set<string>
-  counts: Record<string, number>
-  onToggle: (key: string) => void
-}) {
-  const activeCount = chips.filter((c) => active.has(c.key)).length
-  return (
-    <details className="group">
-      <summary
-        className={cn(
-          'list-none cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium select-none',
-          activeCount > 0
-            ? 'bg-[#cd2653]/10 text-[#cd2653] border-[#cd2653]/30'
-            : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-        )}
-      >
-        {label}
-        {activeCount > 0 && (
-          <span className="text-[10px] px-1 rounded tabular-nums bg-[#cd2653] text-white">
-            {activeCount}
-          </span>
-        )}
-        <ChevronDown className="w-3 h-3 transition-transform group-open:rotate-180" />
-      </summary>
-      <div className="mt-2 p-3 bg-white border border-neutral-200 rounded-xl shadow-sm flex flex-wrap gap-1.5 max-w-2xl">
-        {chips.map((c) => {
-          const on = active.has(c.key)
-          const count = counts[c.key] ?? 0
-          return (
-            <button
-              key={c.key}
-              onClick={() => onToggle(c.key)}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors',
-                on
-                  ? 'bg-[#cd2653] text-white border-[#cd2653]'
-                  : 'bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400'
-              )}
-            >
-              {c.label}
-              <span
-                className={cn(
-                  'text-[10px] px-1 rounded tabular-nums',
-                  on ? 'bg-white/20' : 'bg-neutral-100 text-neutral-500'
-                )}
-              >
-                {count}
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    </details>
-  )
-}
-
-function Row({
-  app,
-  selected,
-  onToggle,
-}: {
-  app: VendorApplication
-  selected: boolean
-  onToggle: () => void
-}) {
-  const score = completenessFor(app)
-  const primarySector = app.product_categories?.[0]
-  return (
-    <tr
-      className={cn(
-        'h-14 border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50/60',
-        selected && 'bg-rose-50/40'
-      )}
-    >
-      <td className="px-3">
-        <input
-          type="checkbox"
-          aria-label={`Select ${app.business_name}`}
-          checked={selected}
-          onChange={onToggle}
-          className="cursor-pointer"
-        />
-      </td>
-      <td className="px-3 max-w-[280px]">
-        <Link
-          href={`/admin/applications/${app.id}`}
-          className="font-medium text-neutral-900 hover:text-[#cd2653] truncate block"
-          title={app.business_name}
-        >
-          {app.business_name}
-        </Link>
-        {app.dup_marker && (
-          <span className="text-[10px] text-rose-600 font-medium">
-            possible duplicate
-          </span>
-        )}
-      </td>
-      <td className="px-3 text-neutral-600 truncate max-w-[160px]" title={app.contact_name}>
-        {app.contact_name}
-      </td>
-      <td className="px-3">
-        <div className="flex items-center gap-1.5 text-neutral-500">
-          <Mail
-            className={cn('w-3.5 h-3.5', app.email ? 'text-emerald-600' : 'text-neutral-300')}
-            aria-label={app.email ? `Email: ${app.email}` : 'No email'}
-          />
-          <Phone
-            className={cn('w-3.5 h-3.5', app.phone ? 'text-emerald-600' : 'text-neutral-300')}
-            aria-label={app.phone ? `Phone: ${app.phone}` : 'No phone'}
-          />
-        </div>
-      </td>
-      <td className="px-3">
-        {primarySector ? (
-          <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 text-[11px]">
-            {primarySector}
-          </span>
-        ) : (
-          <span className="text-neutral-300 text-[11px]">—</span>
-        )}
-      </td>
-      <td className="px-3">
-        {app.preferred_booth_tier ? (
-          <span className="px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-700 text-[11px]">
-            {app.preferred_booth_tier}
-          </span>
-        ) : (
-          <span className="text-neutral-300 text-[11px]">—</span>
-        )}
-      </td>
-      <td className="px-3">
-        <CompletenessBadge score={score} />
-      </td>
-      <td className="px-3 text-neutral-500 text-[11px] tabular-nums">
-        {formatShort(app.created_at)}
-      </td>
-      <td className="px-3">
-        <span
-          className={cn(
-            'inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium',
-            STATUS_PILL[app.status]
-          )}
-        >
-          {STATUS_LABEL[app.status]}
-        </span>
-      </td>
-      <td className="px-3 text-right">
-        <Link
-          href={`/admin/applications/${app.id}`}
-          className="inline-flex items-center gap-1 text-[#cd2653] text-xs font-medium hover:underline"
-        >
-          <FileText className="w-3.5 h-3.5" /> Open
-        </Link>
-      </td>
-    </tr>
-  )
-}
-
-// --- exported page (Suspense for useSearchParams in client component) -------
-
-export default function ApplicationsPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-6 h-6 animate-spin text-neutral-400" />
-        </div>
+  // ---- bulk action -----------------------------------------------------------
+  const runBulk = useCallback(
+    async (
+      action: 'approve' | 'reject' | 'request_info' | 'tag',
+      payload?: { reason?: string; sector?: string }
+    ) => {
+      const ids = [...selectedIds]
+      if (ids.length === 0) return
+      setBusy(true)
+      try {
+        const res = await fetch('/api/admin/applications/bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids, action, ...(payload ?? {}) }),
+        })
+        const j = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          window.alert(j?.error || 'Bulk action failed.')
+          return
+        }
+        flashHint(`${action.replace('_', ' ')} ×${j.ok ?? ids.length}`)
+        setSelectedIds(new Set())
+        await reload()
+      } finally {
+        setBusy(false)
       }
-    >
-      <ApplicationsPageInner />
-    </Suspense>
+    },
+    [selectedIds, reload, flashHint]
+  )
+
+  // ---- keyboard layer --------------------------------------------------------
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      // Don't hijack the user's typing into inputs / textareas.
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName?.toLowerCase()
+      if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+
+      // Modals close on Escape.
+      if (e.key === 'Escape') {
+        if (shortcutsOpen) setShortcutsOpen(false)
+        if (dedupeOpen) setDedupeOpen(false)
+        return
+      }
+
+      if (e.key === '?') {
+        e.preventDefault()
+        setShortcutsOpen((v) => !v)
+        return
+      }
+
+      if (rows.length === 0) return
+      const idx = focusedId ? rows.findIndex((r) => r.id === focusedId) : -1
+
+      if (e.key === 'j') {
+        e.preventDefault()
+        const next = rows[Math.min(rows.length - 1, Math.max(0, idx + 1))]
+        if (next) setFocusedId(next.id)
+        return
+      }
+      if (e.key === 'k') {
+        e.preventDefault()
+        const prev = rows[Math.max(0, idx - 1)]
+        if (prev) setFocusedId(prev.id)
+        return
+      }
+      if (e.key === 'x') {
+        e.preventDefault()
+        if (!focusedId) return
+        setSelectedIds((s) => {
+          const next = new Set(s)
+          if (next.has(focusedId)) next.delete(focusedId)
+          else next.add(focusedId)
+          return next
+        })
+        return
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (focusedId) window.open(`/admin/applications/${focusedId}`, '_self')
+        return
+      }
+      if (e.key === 'm') {
+        e.preventDefault()
+        setDedupeOpen(true)
+        return
+      }
+      if (!focusedId) return
+
+      if (e.key === 'a') {
+        e.preventDefault()
+        runAction(focusedId, 'approve')
+        return
+      }
+      if (e.key === 'r') {
+        e.preventDefault()
+        const reason = window.prompt('Reason for reject?') ?? ''
+        if (!reason.trim()) {
+          flashHint('reject cancelled')
+          return
+        }
+        runAction(focusedId, 'reject', { reason })
+        return
+      }
+      if (e.key === 'i') {
+        e.preventDefault()
+        // Picker is the bulk-toolbar dropdown when selection exists; for the
+        // single-row case we use a quick prompt of template labels.
+        const reason = window.prompt(
+          'Info-request reason (free text, or leave blank for the default "Outstanding documents" template):',
+          'We still need your halaal certificate and trading licence to finalise review.'
+        )
+        if (reason === null) return
+        runAction(focusedId, 'request_info', { reason })
+        return
+      }
+      if (e.key === 't') {
+        e.preventDefault()
+        const current = focused?.sector ?? ''
+        const i = SECTOR_CYCLE.indexOf(current)
+        const next = SECTOR_CYCLE[(i + 1) % SECTOR_CYCLE.length]
+        runAction(focusedId, 'tag', { sector: next })
+        return
+      }
+      if (e.key === 's') {
+        e.preventDefault()
+        runAction(focusedId, 'snooze')
+        return
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [rows, focusedId, focused, runAction, shortcutsOpen, dedupeOpen, flashHint])
+
+  // ---- render ---------------------------------------------------------------
+  const selectedCount = selectedIds.size
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-0px)] bg-neutral-50">
+      {/* Top bar */}
+      <header className="flex items-center gap-3 px-5 py-2.5 border-b border-neutral-200 bg-white">
+        <div className="flex items-baseline gap-2">
+          <span className="text-lg font-semibold tabular-nums text-neutral-900">
+            {pendingTotal}
+          </span>
+          <span className="text-sm text-neutral-500">to go</span>
+        </div>
+        <span className="w-px h-5 bg-neutral-200" />
+        <div className="relative max-w-xs flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search business, contact, email, phone"
+            className="w-full pl-8 pr-2 py-1.5 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#cd2653]"
+          />
+        </div>
+        <button
+          onClick={() => setDedupeOpen(true)}
+          className="ml-auto px-2.5 py-1.5 text-xs rounded-md border border-neutral-200 hover:border-neutral-400 inline-flex items-center gap-1.5 text-neutral-700"
+        >
+          <Layers className="w-3.5 h-3.5" /> Dedupe
+        </button>
+        <Link
+          href="/admin"
+          className="text-xs text-neutral-500 hover:text-neutral-900"
+        >
+          back to dashboard
+        </Link>
+      </header>
+
+      {/* Bulk toolbar (shows above split when selection exists) */}
+      {selectedCount > 0 && (
+        <div className="px-5 py-2 bg-neutral-50 border-b border-neutral-200">
+          <BulkToolbar
+            count={selectedCount}
+            busy={busy}
+            onRun={runBulk}
+            onClear={() => setSelectedIds(new Set())}
+          />
+        </div>
+      )}
+
+      {/* Two-pane body */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[minmax(320px,420px)_1fr]">
+        <div className="border-r border-neutral-200 bg-white flex flex-col min-h-0">
+          {loading ? (
+            <div className="flex-1 flex items-center justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
+            </div>
+          ) : (
+            <QueueList
+              rows={rows}
+              focusedId={focusedId}
+              selectedIds={selectedIds}
+              onFocus={setFocusedId}
+              onOpen={(id) => window.open(`/admin/applications/${id}`, '_self')}
+            />
+          )}
+        </div>
+        <div className="bg-neutral-50 min-h-0">
+          <PreviewPane row={focused} duplicateSiblings={duplicateSiblings} />
+        </div>
+      </div>
+
+      {/* Footer shortcuts hint */}
+      <footer className="px-5 py-1.5 border-t border-neutral-200 bg-white text-[11px] text-neutral-500 flex items-center gap-3 flex-wrap">
+        <kbd className="kb">j</kbd><span>next</span>
+        <kbd className="kb">k</kbd><span>prev</span>
+        <kbd className="kb">a</kbd><span>approve</span>
+        <kbd className="kb">r</kbd><span>reject</span>
+        <kbd className="kb">i</kbd><span>info</span>
+        <kbd className="kb">t</kbd><span>tag</span>
+        <kbd className="kb">s</kbd><span>snooze</span>
+        <kbd className="kb">x</kbd><span>select</span>
+        <kbd className="kb">m</kbd><span>merge</span>
+        <kbd className="kb">?</kbd><span>help</span>
+        {hint && (
+          <span className="ml-auto text-emerald-600 font-medium">{hint}</span>
+        )}
+      </footer>
+
+      <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <DedupeDrawer
+        open={dedupeOpen}
+        rows={rows}
+        onClose={() => setDedupeOpen(false)}
+        onSubmitted={async () => {
+          setDedupeOpen(false)
+          await reload()
+        }}
+      />
+
+      {/* Tiny inline-only style for footer kbds (Tailwind 4 supports @layer in
+          global css; we keep it scoped here to avoid touching globals). */}
+      <style jsx>{`
+        :global(.kb) {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 18px;
+          height: 18px;
+          padding: 0 4px;
+          border-radius: 3px;
+          border: 1px solid rgb(212 212 216);
+          background: rgb(250 250 250);
+          color: rgb(64 64 64);
+          font-family: ui-monospace, SFMono-Regular, monospace;
+          font-size: 10px;
+        }
+      `}</style>
+    </div>
   )
 }

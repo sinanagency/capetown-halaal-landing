@@ -9,6 +9,7 @@ import { AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import {
   PageShell, PageHeader, Card
 } from '@/components/chrome/PageChrome'
+import MiniTaskStrip from '@/components/exhibitor/MiniTaskStrip'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,6 +58,7 @@ export default async function PaymentsPage() {
 
   return (
     <PageShell>
+      <MiniTaskStrip activeKey="payment" />
       <PageHeader
         kicker="Payments"
         title={status === 'paid' ? 'You are paid in full' : 'Pay your stall fee'}

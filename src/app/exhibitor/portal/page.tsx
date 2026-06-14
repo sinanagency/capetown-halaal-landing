@@ -11,6 +11,8 @@ import { Gauge } from '@/components/exhibitor/Gauge'
 import { PageShell, PageHeader, Card } from '@/components/chrome/PageChrome'
 import { requirePaid } from '@/lib/exhibitor-paygate'
 import { getRequiredDocs } from '@/lib/exhibitor/required-docs'
+import TaskChecklist from '@/components/exhibitor/TaskChecklist'
+import WelcomeModal from '@/components/exhibitor/WelcomeModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -87,9 +89,17 @@ export default async function Overview() {
   const stageIdx = STAGES.indexOf(stage as typeof STAGES[number])
   const dDay = daysUntil('2026-12-11')
   const announcement = (await listAnnouncements())[0]
+  const contactName = (app?.contact_name as string) || ''
+  const firstName = (contactName.trim().split(/\s+/)[0]) || business
 
   return (
     <PageShell>
+      {/* First-login welcome modal. Client component, gated by localStorage flag
+          cth_portal_welcomed. No server marker exists for "vendor was welcomed"
+          on this Supabase instance (grep confirmed), so the server hint is
+          always false and the client flag is the source of truth. */}
+      <WelcomeModal firstName={firstName} alreadyDismissedServer={false} />
+
       <PageHeader
         kicker="Exhibitor portal"
         title={business}
@@ -97,6 +107,11 @@ export default async function Overview() {
       />
 
       <div className="space-y-7">
+        {/* Self-service checklist. Mounted ABOVE the existing dashboard so the
+            "what do I need to do next?" signal lands first. Existing gauge,
+            bento, pipeline and announcement card stay below, unchanged. */}
+        <TaskChecklist />
+
         {/* readiness gauge + stat bento */}
         <div className="grid md:grid-cols-[248px_1fr] gap-4">
           <Card className="flex flex-col items-center justify-center text-center">

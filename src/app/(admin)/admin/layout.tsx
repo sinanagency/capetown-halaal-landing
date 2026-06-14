@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getRole } from '@/lib/admin-rbac'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
+import { CommandK } from '@/components/admin/CommandK'
 import type { AdminRole } from '@/lib/admin-rbac'
 
 export const dynamic = 'force-dynamic'
@@ -35,6 +36,7 @@ export default async function AdminLayout({
       <main className="flex-1 overflow-auto min-w-0">
         {children}
       </main>
+      <CommandK />
     </div>
   )
 }
