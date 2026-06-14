@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon } from 'lucide-react'
+import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -28,6 +28,8 @@ const navGroups: NavGroup[] = [
     label: 'Operations',
     items: [
       { name: 'Applications', href: '/admin/applications', icon: FileText },
+      { name: 'Verifier', href: '/admin/verifier', icon: ShieldCheck },
+      { name: 'People', href: '/admin/people', icon: IdCard },
       { name: 'Vendors', href: '/admin/vendors', icon: Users },
       { name: 'Allocation', href: '/admin/allocation', icon: Map },
     ],

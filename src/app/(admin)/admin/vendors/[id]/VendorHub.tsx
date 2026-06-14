@@ -21,7 +21,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   MessageSquare, FileText, CreditCard, FolderOpen, MapPin, ClipboardList,
   History, Sparkles, AlertTriangle, Check, X, RefreshCw, ExternalLink, Loader2,
-  Users,
+  Users, Ban, Send,
 } from 'lucide-react'
 import { UnifiedTimeline } from '@/components/admin/comms/UnifiedTimeline'
 import type { PortalState, DocRecord } from '@/lib/portal-state'
@@ -270,8 +270,13 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
         </Section>
 
         {/* ─── 9: Staff ─── */}
-        <Section id="staff" icon={<Users className="w-4 h-4 text-[#cd2653]" />} title="Staff">
-          <StaffSection staff={portal.staff || []} passAllowance={portal.passAllowance} />
+        <Section id="staff" icon={<Users className="w-4 h-4 text-[#cd2653]" />} title="Staff register">
+          <StaffSection
+            applicationId={id}
+            staff={portal.staff || []}
+            passAllowance={portal.passAllowance}
+            onUpdated={(staff) => setPortal((p) => ({ ...p, staff }))}
+          />
         </Section>
 
         {/* ─── 10: Audit log ─── */}
@@ -284,48 +289,130 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Staff section: shows the gate-badges roster the vendor submitted via the
-// exhibitor portal. Empty-state is explicit so the section is never invisible,
-// matching the walkthrough verifier's contract that all 10 sections render.
+// Staff register: the canonical admin view of who has a staff badge for this
+// vendor. Each row links to the WC order (FooEvents ticket lives there), shows
+// the FooEvents check-in status, and surfaces revoke + resend admin actions.
 // ─────────────────────────────────────────────────────────────────────────────
 
-function StaffSection({ staff, passAllowance }: { staff: NonNullable<PortalState['staff']>; passAllowance?: number }) {
-  const allowance = typeof passAllowance === 'number' ? passAllowance : null
-  if (staff.length === 0) {
-    return (
-      <div>
-        <p className="text-sm text-neutral-600">No staff submitted yet.</p>
-        {allowance != null && (
-          <p className="text-xs text-neutral-500 mt-1">Allowance: {allowance} gate badge{allowance === 1 ? '' : 's'}.</p>
-        )}
-      </div>
-    )
+const WP_ADMIN_ORDER_URL = (orderId: number | string) =>
+  `https://tickets.youngatheart.co.za/wp-admin/post.php?post=${orderId}&action=edit`
+
+// Samreen sign-off 2026-06-08: hard cap is 3 cars / staff per vendor.
+const GATE_ACCESS_CAP = 3
+
+function StaffSection({
+  applicationId, staff, passAllowance, onUpdated,
+}: {
+  applicationId: string
+  staff: NonNullable<PortalState['staff']>
+  passAllowance?: number
+  onUpdated: (staff: NonNullable<PortalState['staff']>) => void
+}) {
+  const allowance = typeof passAllowance === 'number' ? passAllowance : GATE_ACCESS_CAP
+  const [busy, setBusy] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function revoke(memberId: string) {
+    if (!confirm('Revoke this badge? The FooEvents ticket will be cancelled and the QR will stop working at the gate.')) return
+    setBusy(`${memberId}:revoke`); setErr(null)
+    try {
+      const r = await fetch(`/api/admin/vendors/${applicationId}/staff/${memberId}`, { method: 'DELETE' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(j.error || 'Revoke failed.'); return }
+      if (Array.isArray(j.staff)) onUpdated(j.staff)
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
   }
+
+  async function resend(memberId: string) {
+    setBusy(`${memberId}:resend`); setErr(null)
+    try {
+      const r = await fetch(`/api/admin/vendors/${applicationId}/staff/${memberId}/resend`, { method: 'POST' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setErr(j.error || 'Resend failed.'); return }
+    } catch (e) {
+      setErr((e as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <Pill tone="neutral">{staff.length} on roster</Pill>
-        {allowance != null && (
-          <Pill tone={staff.length > allowance ? 'red' : 'emerald'}>
-            {staff.length} of {allowance} badge{allowance === 1 ? '' : 's'} used
-          </Pill>
-        )}
+        <Pill tone={staff.length > allowance ? 'red' : 'neutral'}>
+          {staff.length} / {allowance} staff
+        </Pill>
+        <Link
+          href={`/admin/verifier?filter=vendor:${applicationId}`}
+          className="text-xs text-[#cd2653] hover:underline inline-flex items-center gap-1"
+        >
+          View all in checker <ExternalLink className="w-3 h-3" />
+        </Link>
       </div>
-      <ul className="divide-y divide-neutral-100">
-        {staff.map((s) => (
-          <li key={s.id} className="py-2 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-neutral-900 truncate">{s.name || 'Unnamed'}</p>
-              <p className="text-xs text-neutral-500 truncate">
-                {s.phone ? <span className="font-mono mr-2">{s.phone}</span> : null}
-                {s.id_number ? <span className="font-mono mr-2">ID {s.id_number}</span> : null}
-                {s.vehicle_reg ? <span className="font-mono">car {s.vehicle_reg}</span> : null}
-              </p>
-            </div>
-            <span className="text-[10px] text-neutral-400 flex-shrink-0">{fmtDate(s.added_at)}</span>
-          </li>
-        ))}
-      </ul>
+      {err && <p className="text-xs text-red-600 mb-2">{err}</p>}
+
+      {staff.length === 0 ? (
+        <p className="text-sm text-neutral-600">No staff registered yet.</p>
+      ) : (
+        <ul className="divide-y divide-neutral-100">
+          {staff.map((s) => {
+            const checkedIn = !!s.checked_in_at
+            return (
+              <li key={s.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-neutral-900 truncate">{s.name || 'Unnamed'}</p>
+                    {s.role && <Pill tone="neutral">{s.role}</Pill>}
+                    {checkedIn ? (
+                      <Pill tone="emerald">checked in {fmtDate(s.checked_in_at)}</Pill>
+                    ) : (
+                      <Pill tone="amber">not yet at gate</Pill>
+                    )}
+                    {s.revoked_at && <Pill tone="red">revoked</Pill>}
+                  </div>
+                  <p className="text-xs text-neutral-500 truncate mt-1">
+                    {s.phone ? <span className="font-mono mr-2">{s.phone}</span> : null}
+                    {s.id_number ? <span className="font-mono mr-2">ID {s.id_number}</span> : null}
+                    {s.vehicle_reg ? <span className="font-mono mr-2">car {s.vehicle_reg}</span> : null}
+                    {s.wc_order_id ? (
+                      <a
+                        href={WP_ADMIN_ORDER_URL(s.wc_order_id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#cd2653] hover:underline inline-flex items-center gap-0.5"
+                      >
+                        WC #{s.wc_order_number || s.wc_order_id} <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : null}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => resend(s.id)}
+                    disabled={busy === `${s.id}:resend` || !s.wc_order_id}
+                    title="Resend the badge PDF to the vendor's WhatsApp"
+                    className="text-xs text-blue-700 hover:underline inline-flex items-center gap-0.5 disabled:opacity-60"
+                  >
+                    {busy === `${s.id}:resend` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />} Resend PDF
+                  </button>
+                  <button
+                    onClick={() => revoke(s.id)}
+                    disabled={busy === `${s.id}:revoke` || !!s.revoked_at}
+                    title="Cancel the WC order so the gate QR stops working"
+                    className="text-xs text-rose-700 hover:underline inline-flex items-center gap-0.5 disabled:opacity-60"
+                  >
+                    {busy === `${s.id}:revoke` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Ban className="w-3 h-3" />} Revoke
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }

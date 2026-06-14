@@ -2,6 +2,15 @@ const WC_BASE = 'https://tickets.youngatheart.co.za/wp-json/wc/v3'
 const WC_KEY = process.env.WC_CONSUMER_KEY || ''
 const WC_SECRET = process.env.WC_CONSUMER_SECRET || ''
 
+// Public WP origin (FooEvents writes ticket post URLs under this host).
+export const WP_ORIGIN = 'https://tickets.youngatheart.co.za'
+
+// The hidden WC product (id 9487, slug staff-badge) FooEvents is wired to.
+// Vendor staff-badge orders are POSTed with this line_item, status=completed,
+// so FooEvents auto-fires its ticket generation hooks. See
+// docs/staff-badges-via-fooevents.md.
+export const STAFF_BADGE_PRODUCT_ID = Number(process.env.STAFF_BADGE_PRODUCT_ID || 9487)
+
 interface WCOrderLineItem {
   id: number
   name: string
@@ -98,6 +107,205 @@ export async function getOrdersCount(): Promise<number> {
 
 export async function getProducts(): Promise<WCProduct[]> {
   return wcFetch<WCProduct[]>('/products', { per_page: '20' })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Staff-badge WC orders (FooEvents-no-fork, Law 3)
+//
+// We POST a real WC order against STAFF_BADGE_PRODUCT_ID with status=completed.
+// FooEvents listens for the woocommerce_order_status_completed hook and
+// auto-generates the ticket post + PDF + QR. We never reimplement any of that.
+// All custom staff metadata (name, ID, vehicle reg, role, vendor link) lives
+// in meta_data so FooEvents check-in scans surface it on the gate.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WCOrderMeta { key: string; value: string }
+
+export interface CreateStaffOrderInput {
+  vendorApplicationId: string
+  vendorFirstName: string
+  vendorLastName: string
+  vendorEmail: string
+  vendorPhone: string
+  vendorBusinessName: string
+  stallCode: string | null
+  staff: {
+    name: string
+    id_number: string
+    vehicle_reg: string
+    role: string
+    portalStaffId: string
+  }
+}
+
+export interface WCOrderCreatedResult {
+  id: number
+  number: string
+  status: string
+  meta_data: WCOrderMeta[]
+  /** FooEvents writes the ticket post id(s) here once generation completes. */
+  fooevents_ticket_id?: string
+  /** Public order-received URL if surfaced by WC. */
+  ticket_pdf_url?: string
+}
+
+interface WCOrderRaw {
+  id: number
+  number: string
+  status: string
+  meta_data?: WCOrderMeta[]
+}
+
+async function wcPost<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
+  if (!WC_KEY || !WC_SECRET) {
+    throw new Error('WooCommerce credentials missing. Set WC_CONSUMER_KEY and WC_CONSUMER_SECRET.')
+  }
+  const url = new URL(`${WC_BASE}${endpoint}`)
+  url.searchParams.set('consumer_key', WC_KEY)
+  url.searchParams.set('consumer_secret', WC_SECRET)
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store',
+  })
+  if (!res.ok) {
+    const txt = await res.text().catch(() => 'no body')
+    console.error(`WooCommerce POST ${endpoint} failed: ${res.status}`, txt)
+    throw new Error(`WooCommerce POST ${endpoint} failed: ${res.status}`)
+  }
+  return res.json()
+}
+
+async function wcGet<T>(endpoint: string): Promise<T> {
+  if (!WC_KEY || !WC_SECRET) {
+    throw new Error('WooCommerce credentials missing. Set WC_CONSUMER_KEY and WC_CONSUMER_SECRET.')
+  }
+  const url = new URL(`${WC_BASE}${endpoint}`)
+  url.searchParams.set('consumer_key', WC_KEY)
+  url.searchParams.set('consumer_secret', WC_SECRET)
+  const res = await fetch(url.toString(), { cache: 'no-store' })
+  if (!res.ok) {
+    const txt = await res.text().catch(() => 'no body')
+    throw new Error(`WooCommerce GET ${endpoint} failed: ${res.status}: ${txt}`)
+  }
+  return res.json()
+}
+
+/** Pull the FooEvents-generated ticket id off an order's meta. Returns
+ *  undefined when generation has not landed yet (caller may poll). */
+function pluckFooEventsTicketId(meta: WCOrderMeta[] | undefined): string | undefined {
+  if (!meta) return undefined
+  // FooEvents serialises tickets under `WooCommerceEventsTickets` /
+  // `_WooCommerceEventsTickets`. Different versions use slightly different
+  // shapes (PHP-serialised string, JSON array, or a single ticket id). We
+  // surface the first ticket id we can extract; the verifier admin agent
+  // reads the order number anyway, so this is a soft signal.
+  const KEYS = ['WooCommerceEventsTickets', '_WooCommerceEventsTickets', 'WooCommerceEventsTicketID']
+  for (const k of KEYS) {
+    const row = meta.find((m) => m.key === k)
+    if (!row || !row.value) continue
+    const v = String(row.value)
+    // try JSON first
+    try {
+      const parsed = JSON.parse(v)
+      if (Array.isArray(parsed) && parsed[0]) return String(parsed[0].id || parsed[0].ID || parsed[0])
+      if (parsed && typeof parsed === 'object') {
+        const first = Object.values(parsed)[0] as unknown
+        if (first && typeof first === 'object' && 'id' in (first as object)) return String((first as { id: unknown }).id)
+      }
+      if (parsed) return String(parsed)
+    } catch { /* not JSON */ }
+    // raw numeric id
+    if (/^\d+$/.test(v)) return v
+    // PHP-serialised shape: best-effort regex for `i:<id>` or `s:<n>:"<id>"`
+    const m = v.match(/i:(\d+);/) || v.match(/"id";s:\d+:"(\d+)"/)
+    if (m) return m[1]
+  }
+  return undefined
+}
+
+/**
+ * Create a completed WC order for a single staff badge. FooEvents auto-fires
+ * ticket generation on the woocommerce_order_status_completed transition.
+ *
+ * Returns the order id + (when available) the FooEvents ticket id. The PDF
+ * URL is surfaced via the order-received endpoint; the FooEvents PDF download
+ * itself is gated behind login on WP, so for vendor delivery we rely on the
+ * existing /api/whatsapp/deliver-ticket pipeline (FooEvents emails the PDF
+ * which our WP hook reposts as base64).
+ */
+export async function createStaffBadgeOrder(input: CreateStaffOrderInput): Promise<WCOrderCreatedResult> {
+  const meta: WCOrderMeta[] = [
+    { key: 'staff_name', value: input.staff.name },
+    { key: 'staff_id_number', value: input.staff.id_number },
+    { key: 'staff_vehicle_reg', value: input.staff.vehicle_reg },
+    { key: 'staff_role', value: input.staff.role },
+    { key: 'vendor_application_id', value: input.vendorApplicationId },
+    { key: 'vendor_portal_staff_id', value: input.staff.portalStaffId },
+    { key: 'stall_code', value: input.stallCode || '' },
+    { key: '_is_staff_badge', value: '1' },
+  ]
+
+  const body = {
+    status: 'completed',
+    set_paid: true,
+    customer_note: `Staff badge for ${input.vendorBusinessName}${input.stallCode ? ` (stall ${input.stallCode})` : ''}`,
+    billing: {
+      first_name: input.vendorFirstName,
+      last_name: input.vendorLastName || input.vendorBusinessName,
+      email: input.vendorEmail,
+      phone: input.vendorPhone,
+      address_1: input.stallCode ? `Vendor stall ${input.stallCode}` : 'Vendor stall (unallocated)',
+      city: 'Cape Town',
+      state: 'WC',
+      country: 'ZA',
+    },
+    line_items: [{ product_id: STAFF_BADGE_PRODUCT_ID, quantity: 1 }],
+    meta_data: meta,
+  }
+
+  const order = await wcPost<WCOrderRaw>('/orders', body)
+
+  // Poll briefly for FooEvents ticket generation (the hook runs on status
+  // completed, but on a busy WP host the post insert can lag by 1–6 seconds).
+  // We poll up to ~10s before giving up — verifier admin still works off
+  // order.number, so missing ticket_id is a soft TODO not a hard failure.
+  let ticketId: string | undefined = pluckFooEventsTicketId(order.meta_data)
+  const startedAt = Date.now()
+  while (!ticketId && Date.now() - startedAt < 10_000) {
+    await new Promise((r) => setTimeout(r, 1500))
+    try {
+      const refreshed = await wcGet<WCOrderRaw>(`/orders/${order.id}`)
+      ticketId = pluckFooEventsTicketId(refreshed.meta_data)
+      if (ticketId) {
+        order.meta_data = refreshed.meta_data
+        break
+      }
+    } catch (e) {
+      console.warn('[wc] poll ticket-id failed', e)
+      break
+    }
+  }
+
+  return {
+    id: order.id,
+    number: order.number,
+    status: order.status,
+    meta_data: order.meta_data || [],
+    fooevents_ticket_id: ticketId,
+    // FooEvents stores the PDF behind an authed WP route. The vendor receives
+    // the PDF via WhatsApp through the existing deliver-ticket pipeline; the
+    // admin link below opens the order edit page where the ticket PDF can be
+    // re-downloaded.
+    ticket_pdf_url: `${WP_ORIGIN}/wp-admin/post.php?post=${order.id}&action=edit`,
+  }
+}
+
+/** Cancel a staff badge WC order. FooEvents invalidates the ticket on the
+ *  woocommerce_order_status_cancelled hook. */
+export async function cancelStaffBadgeOrder(orderId: number): Promise<void> {
+  await wcPost(`/orders/${orderId}`, { status: 'cancelled' })
 }
 
 export async function getTicketStats() {

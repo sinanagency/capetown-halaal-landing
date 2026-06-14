@@ -1,11 +1,22 @@
 import { Info } from 'lucide-react'
 import StandView from '@/components/exhibitor/StandView'
 import { requirePaid } from '@/lib/exhibitor-paygate'
+import { getExhibitorContext } from '@/lib/exhibitor'
+import { parsePortalState } from '@/lib/portal-state'
+import { parseAllocation } from '@/lib/stalls'
+import PublishStallToggle from '@/components/exhibitor/PublishStallToggle'
 
 export const dynamic = 'force-dynamic'
 
 export default async function MyStand() {
   await requirePaid()
+  const ctx = await getExhibitorContext()
+  const app = ctx?.application ?? null
+  const notes = (app?.admin_notes as string) || ''
+  const state = parsePortalState(notes)
+  const hasStall = Boolean(parseAllocation(notes).stall)
+  const initialPublish = Boolean(state.profile?.publish_stall)
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
@@ -22,6 +33,8 @@ export default async function MyStand() {
       </div>
 
       <StandView />
+
+      <PublishStallToggle initialPublish={initialPublish} hasStall={hasStall} />
     </div>
   )
 }

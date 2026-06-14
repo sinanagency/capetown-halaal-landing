@@ -15,6 +15,11 @@ export interface DocRecord {
   note?: string
 }
 
+/** Roles a vendor may register against a staff badge. Lifted from the
+ *  staff-badges-via-fooevents spec (Samreen sign-off 2026-06-12). */
+export type StaffRole = 'owner' | 'manager' | 'staff' | 'driver' | 'support'
+export const STAFF_ROLES: StaffRole[] = ['owner', 'manager', 'staff', 'driver', 'support']
+
 export interface StaffMember {
   id: string
   name: string
@@ -24,6 +29,24 @@ export interface StaffMember {
   id_number: string
   vehicle_reg: string
   added_at: string
+  /** Role on the stall. Defaults to 'staff' when not supplied. */
+  role?: StaffRole
+  /** WC order id once the FooEvents staff-badge order has been created. */
+  wc_order_id?: number
+  /** Public WC order number (often === wc_order_id, but FooEvents permits
+   *  custom prefixes — keep the canonical string). */
+  wc_order_number?: string
+  /** FooEvents-generated ticket post id, when available. May be undefined
+   *  if the hook lagged beyond our 10s poll — the admin order link still
+   *  works as the lookup fallback. */
+  fooevents_ticket_id?: string
+  /** Admin URL where the ticket PDF can be re-downloaded. */
+  ticket_pdf_url?: string
+  /** Whether the FooEvents check-in has fired at the gate. Hydrated by the
+   *  verifier admin from FooEvents attendee status. */
+  checked_in_at?: string
+  /** Set when the WC order has been cancelled (admin revoke). */
+  revoked_at?: string
 }
 
 export interface MenuItem { name: string; price?: string; desc?: string }
@@ -37,6 +60,11 @@ export interface VendorProfile {
   instagram?: string
   facebook?: string
   menu?: MenuItem[]
+  /** Opt-in flag: when true AND the vendor has an allocated stall, the public
+   *  sectors page renders the stall code on the vendor's profile. Default
+   *  false (privacy-first per CTH-DOCTRINE Law 2). UI toggle lives on
+   *  /exhibitor/portal/stand; writer is /api/exhibitor/profile/publish-stall. */
+  publish_stall?: boolean
 }
 
 export interface PortalState {

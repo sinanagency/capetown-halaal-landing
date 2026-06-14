@@ -121,6 +121,7 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
   })
   const amount = input.amount ?? before.payment?.amount ?? pricing.total
 
+  const paidAtIso = new Date().toISOString()
   await updatePortalState(input.applicationId, (s) => ({
     ...s,
     payment: {
@@ -128,10 +129,30 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
       status: 'paid',
       amount,
       provider_ref: input.providerRef || s.payment?.provider_ref,
-      paid_at: s.payment?.paid_at || new Date().toISOString(),
+      paid_at: s.payment?.paid_at || paidAtIso,
     },
     stage: s.stage === 'show_ready' ? 'show_ready' : 'paid',
   }))
+
+  // Broken-wire fix: mirror the portal-state payment to the top-level
+  // vendor_applications columns the admin queue + CSV export + segments read
+  // from. Without this, those surfaces lie about who's paid because they read
+  // the columns, not the base64 marker on admin_notes.
+  // Idempotent: only writes when paid_at IS NULL (first transition into paid).
+  // payment_status is also flipped to 'paid' or 'waived' to match the method.
+  const targetPaymentStatus: 'paid' | 'waived' =
+    input.method === 'waived' ? 'waived' : 'paid'
+  const { error: colErr } = await admin
+    .from('vendor_applications')
+    .update({
+      paid_at: paidAtIso,
+      payment_status: targetPaymentStatus,
+    })
+    .eq('id', input.applicationId)
+    .is('paid_at', null)
+  if (colErr) {
+    console.error('[confirmPayment] column mirror failed:', colErr.message)
+  }
 
   if (alreadyPaid || input.silent) {
     return { ok: true, alreadyPaid, amount }

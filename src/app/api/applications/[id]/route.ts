@@ -9,6 +9,7 @@ import { ApplicationInfoRequested } from '@/lib/email/templates/ApplicationInfoR
 import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
 import { assertRole } from '@/lib/admin-rbac'
+import { capJsonbSize } from '@/lib/audit/cap'
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -90,6 +91,11 @@ export async function PATCH(
 
     const admin = createAdminClient()
 
+    // Snapshot the pre-update row. Used for idempotency check below AND for
+    // the vendor_application_events before_value diff (Logic broken wire #2).
+    let previousStatus: string | null = null
+    let previousReviewedAt: string | null = null
+    let previousApprovedAt: string | null = null
     // Idempotency: if the application is already in the target status, no-op.
     // Re-running approve was previously a destructive action (it reset the
     // vendor's portal password and re-sent the approval email). This guard
@@ -97,9 +103,14 @@ export async function PATCH(
     if (validated.status) {
       const { data: existing } = await admin
         .from('vendor_applications')
-        .select('id, status, reviewed_at, business_name, email, contact_name, payment_status, preferred_booth_tier')
+        .select('id, status, reviewed_at, approved_at, business_name, email, contact_name, payment_status, preferred_booth_tier')
         .eq('id', id)
         .single()
+      if (existing) {
+        previousStatus = (existing.status as string | null) ?? null
+        previousReviewedAt = (existing.reviewed_at as string | null) ?? null
+        previousApprovedAt = (existing.approved_at as string | null) ?? null
+      }
       if (existing && existing.status === validated.status && existing.reviewed_at) {
         return NextResponse.json({
           success: true,
@@ -109,6 +120,16 @@ export async function PATCH(
         })
       }
     }
+
+    // Resolve actor identity for the audit row. The admin_users row may not
+    // exist for super-admins authenticated only via Supabase Auth, so fall
+    // back to user.email when the lookup misses.
+    const { data: actorRow } = await admin
+      .from('admin_users')
+      .select('email')
+      .eq('id', user.id)
+      .maybeSingle()
+    const actorEmail = (actorRow?.email as string | null) || user.email || null
 
     // Update application
     const updateData: Record<string, unknown> = { ...validated }
@@ -130,6 +151,45 @@ export async function PATCH(
     if (error) {
       console.error('Update error:', error)
       return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
+    }
+
+    // Audit event for single-row status changes. The bulk endpoint and the
+    // /api/admin/applications/[id]/action endpoint both write to
+    // vendor_application_events, but the most-used surface (Samreen's keyboard
+    // 'a' on /admin/applications) hits THIS route and was previously silent.
+    // event_type taxonomy mirrors the action route: approved | rejected |
+    // info_requested. Falls back to reviewed for explicit pending writes.
+    if (validated.status && data) {
+      const nowIso = (updateData.reviewed_at as string) || new Date().toISOString()
+      const eventType =
+        validated.status === 'approved' ? 'approved' :
+        validated.status === 'rejected' ? 'rejected' :
+        validated.status === 'info_requested' ? 'info_requested' :
+        'reviewed'
+      const beforeValue = capJsonbSize({
+        status: previousStatus,
+        reviewed_at: previousReviewedAt,
+        approved_at: previousApprovedAt,
+      })
+      const afterValue = capJsonbSize({
+        status: validated.status,
+        reviewed_at: nowIso,
+        approved_at: validated.status === 'approved' ? nowIso : previousApprovedAt,
+      })
+      try {
+        const { error: evErr } = await admin.from('vendor_application_events').insert({
+          application_id: id,
+          event_type: eventType,
+          before_value: beforeValue,
+          after_value: afterValue,
+          actor_email: actorEmail,
+          actor_role: 'operator',
+          note: validated.admin_notes ?? null,
+        })
+        if (evErr) console.error('[applications PATCH] event insert failed:', evErr.message)
+      } catch (e) {
+        console.error('[applications PATCH] event insert threw:', (e as Error).message)
+      }
     }
 
     // On approval, reserve the booth and set payment_due_date = approved_at + 30 days.
