@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email/resend'
 import { ApplicationDelayNotice } from '@/lib/email/templates/ApplicationDelayNotice'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const maxDuration = 300
 
@@ -17,9 +18,7 @@ type AuthResult =
   | { ok: false; response: NextResponse }
 
 async function authorize(request: NextRequest): Promise<AuthResult> {
-  const cronSecret = process.env.CRON_SECRET
-  const authHeader = request.headers.get('authorization')
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+  if (verifyCronAuth(request.headers.get('authorization'))) {
     return { ok: true, caller: 'cron' }
   }
 

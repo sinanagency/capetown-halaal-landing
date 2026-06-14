@@ -3,6 +3,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { sendTicket, toE164, uploadMedia } from '@/lib/whatsapp'
 import { recordConsent } from '@/lib/wa-consent'
 import { wasTicketDelivered } from '@/lib/idempotency-guards'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
+import { normalizeEmail } from '@/lib/email-normalize'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -19,9 +21,7 @@ export const maxDuration = 60
 //   - pdfUrl:       fallback — a public https URL Meta can fetch instead.
 //   - ticketSummary e.g. "2x Weekend Pass"
 export async function POST(request: NextRequest) {
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  const authHeader = request.headers.get('authorization')
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (!verifyCronAuth(request.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -109,10 +109,14 @@ export async function POST(request: NextRequest) {
       const fullName = [b.firstName, b.lastName].filter(Boolean).join(' ').trim() || null
       const qty = Math.max(1, Math.floor(Number(b.ticketQty) || 1))
       const spent = Number(b.orderTotal) || 0
+      // V5: normalize email at every write. ilike(email) on lookup + eq(email)
+      // on insert in /api/buyers was letting two rows for the same buyer drift
+      // apart on case. Single normalized form + .eq everywhere.
+      const normalizedEmail = normalizeEmail(b.email)
       const { data: existing } = await db
         .from('ticket_buyers')
         .select('id, ticket_count, total_spent')
-        .ilike('email', b.email)
+        .eq('email', normalizedEmail)
         .maybeSingle()
       if (existing) {
         await db.from('ticket_buyers').update({
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
         }).eq('id', existing.id)
       } else {
         await db.from('ticket_buyers').insert({
-          email: b.email,
+          email: normalizedEmail,
           name: fullName,
           phone: e164,
           ticket_count: qty,

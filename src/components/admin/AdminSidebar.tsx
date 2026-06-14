@@ -138,7 +138,20 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
 
   const handleLogout = async () => {
     const supabase = createClient()
-    await supabase.auth.signOut()
+    // B8: { scope: 'global' } revokes ALL refresh tokens for this user
+    // server-side, not just the local cookie. Without this, a stolen
+    // refresh token survives "sign out" and continues to mint new
+    // access tokens. signOut still clears local cookies even when the
+    // network call fails, so we don't await result.error specifically.
+    await supabase.auth.signOut({ scope: 'global' })
+    // B9: clear CommandK recent-search localStorage so the next person
+    // on a shared device cannot read what the previous admin searched
+    // for (phone numbers, vendor names, etc.).
+    try {
+      localStorage.removeItem('admin.commandk.recent')
+    } catch {
+      // private mode / SSR safety
+    }
     router.push('/admin/login')
   }
 

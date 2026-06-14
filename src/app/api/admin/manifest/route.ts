@@ -3,17 +3,15 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePortalState } from '@/lib/portal-state'
 import { parseAllocation } from '@/lib/stalls'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 // GET /api/admin/manifest -> gate manifest CSV (names + IDs + vehicles + stall).
-// Auth: admin session OR ?secret=<CRON_SECRET>.
+// Auth: admin session OR `Authorization: Bearer ${CRON_SECRET}` header.
 export async function GET(request: NextRequest) {
-  const secret = new URL(request.url).searchParams.get('secret')
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-
-  let authorized = false
-  if (secret && cronSecret && secret === cronSecret) {
-    authorized = true
-  } else {
+  // Header-only Bearer (constant-time). `?secret=` query branch removed
+  // because it leaks into access logs / browser history / referrers.
+  let authorized = verifyCronAuth(request.headers.get('authorization'))
+  if (!authorized) {
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()

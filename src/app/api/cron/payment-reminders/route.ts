@@ -25,6 +25,7 @@ import { computeVendorPricing, formatRand } from '@/lib/payments/pricing'
 import { sendEmail } from '@/lib/email/resend'
 import { VendorPaymentReminder } from '@/lib/email/templates/VendorPaymentReminder'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,9 +43,7 @@ function fmtDate(d: Date): string {
 export async function GET(req: NextRequest) {
   // Vercel cron sends `Authorization: Bearer ${CRON_SECRET}`. Middleware
   // enforces this at the edge; we re-check here as defense in depth.
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  const auth = req.headers.get('authorization') || ''
-  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+  if (!verifyCronAuth(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

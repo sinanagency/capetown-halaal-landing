@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { askFestivalBrain } from '@/lib/festival-brain'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import {
+  checkHoneypot,
+  checkIpThrottle,
+  logGuardEvent,
+  clientIp,
+} from '@/lib/security/abuse-guard'
+
+const ENDPOINT = 'chat'
+// 10 messages / IP / 10min for the public branch. Anyone past that is either
+// a scraper or an LLM-burn DoS. Admin branch separately gates on session.
+const MAX_PER_WINDOW = 10
+const WINDOW_MIN = 10
+const MAX_BODY_BYTES = 4 * 1024
+const MAX_MESSAGE_CHARS = 1000
 
 const ADMIN_PROMPT = `You are the Young at Heart Festival admin helper. You help the festival management team understand their data and make decisions.
 
@@ -36,21 +52,92 @@ RULES:
 
 const client = new Anthropic()
 
+async function isAdmin(): Promise<boolean> {
+  try {
+    const supabase = await createServerSupabase()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return false
+    const meta = user.user_metadata || {}
+    return Boolean(meta.is_admin) || meta.role === 'admin'
+  } catch {
+    return false
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { messages, context } = await req.json()
+    const admin = createAdminClient()
+    const ip = clientIp(req.headers)
+
+    // V7: cap raw body to 4KB so an attacker cannot ship a multi-MB prompt
+    // and burn the Anthropic budget on a single call.
+    const raw = await req.text()
+    if (raw.length > MAX_BODY_BYTES) {
+      return NextResponse.json({ error: 'Body too large' }, { status: 413 })
+    }
+    let parsed: { messages?: Array<{ role: string; content: string }>; context?: string; [k: string]: unknown }
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return NextResponse.json({ error: 'Bad JSON' }, { status: 400 })
+    }
+    const { messages, context } = parsed
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'Messages required' }, { status: 400 })
+    }
+
+    // Honeypot — if there's a hidden form field, bots filling it get a soft
+    // 200 so they can't fingerprint the defense.
+    const hp = checkHoneypot(parsed as Record<string, unknown>)
+    if (!hp.ok) {
+      await logGuardEvent(admin, { endpoint: ENDPOINT, ip, reason: hp.reason!, fields: {} })
+      return NextResponse.json({ message: '' })
+    }
+
+    // Cap message length. The public visitor concierge does not need 10K-char
+    // turns and the admin chat only needs a few hundred.
+    for (const m of messages) {
+      if (typeof m?.content === 'string' && m.content.length > MAX_MESSAGE_CHARS) {
+        return NextResponse.json({ error: 'Message too long' }, { status: 413 })
+      }
     }
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ error: 'Chat service not configured' }, { status: 503 })
     }
 
-    // Public visitor concierge => route through the festival brain so we get
-    // FAQ short-circuit, intent classification, escalation, and Zanii sign-off.
-    if (context !== 'admin') {
+    const adminBranch = context === 'admin'
+
+    // Admin branch: gate the LLM call behind a real admin session. Public
+    // callers asking for context=admin (e.g. trying to coax vendor-data
+    // answers out of the prompt) get rejected at the door.
+    if (adminBranch) {
+      if (!(await isAdmin())) {
+        return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+      }
+    } else {
+      // Public branch: per-IP throttle.
+      const throttle = await checkIpThrottle(admin, {
+        ip,
+        endpoint: ENDPOINT,
+        max: MAX_PER_WINDOW,
+        windowMin: WINDOW_MIN,
+      })
+      if (!throttle.ok) {
+        await logGuardEvent(admin, { endpoint: ENDPOINT, ip, reason: throttle.reason!, fields: {} })
+        return NextResponse.json(
+          { message: 'You are sending messages too quickly. Try again in a minute.' },
+          { status: 429 },
+        )
+      }
+      await logGuardEvent(admin, {
+        endpoint: ENDPOINT,
+        ip,
+        reason: 'rate_limited',
+        fields: { kind: 'attempt' },
+      })
+
       const last = messages[messages.length - 1]
       const history = messages
         .slice(0, -1)
@@ -77,7 +164,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Admin chat: stays on direct LLM with admin prompt.
+    // Admin chat: direct LLM with admin prompt.
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,

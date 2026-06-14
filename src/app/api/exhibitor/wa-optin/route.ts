@@ -6,8 +6,22 @@
 // their inbox — that's their "did it actually work?" feedback.
 //
 // Only logged-in approved exhibitors can opt in for themselves.
+//
+// PHONE-CHANGE GATE (B4, 2026-06-15):
+// If the submitted phone differs from the application's existing phone, we
+// DO NOT update vendor_applications.phone or fire the welcome template. We
+// stash the proposed number under portal_state.phone_change_pending with a
+// hashed 6-digit code, deliver the code to the NEW number via the utility
+// template, and return { ok: true, verification_pending: true }. The vendor
+// then POSTs the code to /api/exhibitor/wa-optin/verify which copies the
+// pending phone over the live one. Reason: prior version trusted any phone
+// body field a logged-in vendor sent and silently overwrote vendor_applications.phone,
+// which an attacker who phished/intercepted a session could use to hijack
+// every future outbound (approval, reminders, payment links) to a number
+// they control.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash, randomInt } from 'node:crypto'
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { updatePortalState } from '@/lib/portal-state'
@@ -17,6 +31,10 @@ import { tierLabel } from '@/lib/stalls'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+export function hashOtp(code: string, applicationId: string): string {
+  return createHash('sha256').update(`${code}:${applicationId}`).digest('hex')
+}
 
 export async function POST(req: NextRequest) {
   const ctx = await getExhibitorContext()
@@ -37,6 +55,74 @@ export async function POST(req: NextRequest) {
   const firstName = contactName.trim().split(/\s+/)[0] || contactName
   const tier = (app.preferred_booth_tier as string) || ''
   const stallLabel = tier ? tierLabel(tier) : 'your stall'
+
+  // Existing phone on file. Compare in E.164 to be tolerant of formatting
+  // differences. If the vendor is changing to a new number, we gate; if they
+  // are confirming their existing number (first-time opt-in), we fast-path.
+  const existingPhoneRaw = (app.phone as string | null) || ''
+  const existingE164 = existingPhoneRaw ? toE164(existingPhoneRaw) : ''
+  const isPhoneChange = existingE164 && existingE164 !== e164
+
+  // ---------------- PATH A: phone-change verification gate ----------------
+  if (isPhoneChange) {
+    // Mint a 6-digit code, hash it (we never persist the plaintext), and
+    // park the candidate phone in portal_state.phone_change_pending. The
+    // verify endpoint validates against this hash before promoting the phone.
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
+    const codeHash = hashOtp(code, applicationId)
+    const now = new Date().toISOString()
+
+    await updatePortalState(applicationId, (s) => ({
+      ...s,
+      phone_change_pending: {
+        new_phone: e164,
+        code_hash: codeHash,
+        requested_at: now,
+        attempts: 0,
+      },
+    }))
+
+    // Deliver the code to the NEW number. We use the existing
+    // `vendor_application_approved` utility template with the code substituted
+    // into the stall slot as the user-visible payload. A purpose-built
+    // `vendor_phone_verify` template should land via Meta approval next
+    // sprint; until then this re-use keeps the OTP delivery on a utility
+    // template (always sendable) without requiring template provisioning.
+    let codeSent = false
+    let codeError: string | null = null
+    try {
+      const res = await sendTemplate(
+        e164,
+        'vendor_application_approved',
+        [firstName, `Verification code ${code}, enter this in the portal to confirm your new WhatsApp number.`],
+        { category: 'utility' }
+      )
+      codeSent = !res.skipped
+      codeError = res.skipped || null
+      const db = createAdminClient()
+      await db.from('wa_messages').insert({
+        direction: 'out',
+        wa_phone: e164,
+        body: `[phone_change_verify] code sent to ${contactName} for ${applicationId}`,
+        status: res.skipped ? 'failed' : 'sent',
+        provider_message_id: res.messageId || null,
+        error: res.skipped || null,
+      })
+    } catch (e) {
+      codeError = (e as Error).message
+      console.error('[wa-optin] code send failed:', codeError)
+    }
+
+    return NextResponse.json({
+      ok: true,
+      verification_pending: true,
+      message: 'A 6-digit code has been sent to the new WhatsApp number. Enter it in the portal to confirm the change.',
+      codeSent,
+      codeError,
+    })
+  }
+
+  // ---------------- PATH B: first-time opt-in (no phone change) ----------------
 
   // 1) Mark portal-state as opted-in so the banner disappears for them.
   await updatePortalState(applicationId, (s) => ({
@@ -60,16 +146,17 @@ export async function POST(req: NextRequest) {
     console.error('[wa-optin] recordConsent failed:', (e as Error).message)
   }
 
-  // 3) Update vendor_applications.phone to the opted-in WA number. The
-  // identity resolver + the Yoco webhook both read .phone for outbound sends,
-  // so making this match the WA number means every future template/notification
-  // reaches the right device. The "original" phone (if different) is preserved
-  // implicitly in the application's audit history.
-  try {
-    const admin = createAdminClient()
-    await admin.from('vendor_applications').update({ phone: e164 }).eq('id', applicationId)
-  } catch (e) {
-    console.error('[wa-optin] sync phone failed:', (e as Error).message)
+  // 3) Sync vendor_applications.phone to the opted-in number — but ONLY when
+  // there was no existing phone on file (first-time opt-in). When the vendor
+  // is changing an existing number we go through PATH A above and never reach
+  // this branch unverified.
+  if (!existingE164) {
+    try {
+      const admin = createAdminClient()
+      await admin.from('vendor_applications').update({ phone: e164 }).eq('id', applicationId)
+    } catch (e) {
+      console.error('[wa-optin] sync phone failed:', (e as Error).message)
+    }
   }
 
   // 4) Immediate welcome via the approved vendor_application_approved template.

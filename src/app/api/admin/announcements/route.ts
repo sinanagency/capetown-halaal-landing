@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { listAnnouncements, addAnnouncement } from '@/lib/announcements'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 async function isAuthorized(request: NextRequest): Promise<boolean> {
-  const secret = new URL(request.url).searchParams.get('secret')
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  if (secret && cronSecret && secret === cronSecret) return true
+  // Header-only Bearer (constant-time). `?secret=` query branch removed
+  // because it leaks into access logs / browser history / referrers.
+  if (verifyCronAuth(request.headers.get('authorization'))) return true
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

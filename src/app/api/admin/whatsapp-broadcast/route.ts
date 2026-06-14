@@ -48,21 +48,76 @@ export const maxDuration = 300
 
 // ---------------------------------------------------------------------------
 // Auth helper.
+//
+// POST: requires owner|operator role so a leaked viewer session cannot blast
+// the audience.
+// GET (counts): viewer is OK because it's read-only audience sizing for the
+// confirm modal.
 // ---------------------------------------------------------------------------
 
-async function assertAdmin(): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+async function assertAdmin(
+  requireRole: boolean = false,
+): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, status: 401, error: 'Unauthorized' }
   const admin = createAdminClient()
   const { data: adminUser } = await admin
     .from('admin_users')
-    .select('id')
+    .select('id, role')
     .eq('id', user.id)
-    .single()
+    .maybeSingle()
   if (!adminUser) return { ok: false, status: 403, error: 'Forbidden' }
+  if (requireRole) {
+    const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
+    if (!['owner', 'operator'].includes(role)) {
+      return { ok: false, status: 403, error: 'insufficient_role' }
+    }
+  }
+  return { ok: true, userId: user.id }
+}
+
+// ---------------------------------------------------------------------------
+// H2: per-admin broadcast rate limit + audience cap + WA template allowlist.
+// Mirrors the chase route. Map is process-local (Vercel single-instance fine);
+// resets on cold start.
+// ---------------------------------------------------------------------------
+
+const broadcastRateBuckets = new Map<string, { count: number; resetAt: number }>()
+const BROADCAST_RATE_WINDOW_MS = 60_000 // 1 minute
+const BROADCAST_RATE_MAX = 3            // 3 broadcast POSTs / admin / minute
+const BROADCAST_MAX_RECIPIENTS = 500
+
+function checkBroadcastRate(actorKey: string): { ok: true } | { ok: false; retryAfter: number } {
+  const now = Date.now()
+  const bucket = broadcastRateBuckets.get(actorKey)
+  if (!bucket || bucket.resetAt <= now) {
+    broadcastRateBuckets.set(actorKey, { count: 1, resetAt: now + BROADCAST_RATE_WINDOW_MS })
+    if (broadcastRateBuckets.size > 500) {
+      for (const [k, v] of broadcastRateBuckets) if (v.resetAt <= now) broadcastRateBuckets.delete(k)
+    }
+    return { ok: true }
+  }
+  if (bucket.count >= BROADCAST_RATE_MAX) {
+    return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) }
+  }
+  bucket.count++
   return { ok: true }
 }
+
+// Same allowlist as the chase route. Anything outside this list returns 400
+// so a leaked admin session can't pivot to firing an arbitrary marketing
+// template at the entire vendor list.
+const ALLOWED_WA_TEMPLATES = new Set<string>([
+  'general_announcement',
+  'vendor_application_approved',
+  'vendor_application_declined',
+  'vendor_document_request',
+  'vendor_payment_reminder',
+  'vendor_stall_allocation',
+  'vendor_setup_reminder',
+  'contract_sign_reminder',
+])
 
 // ---------------------------------------------------------------------------
 // Filter shape + parsing.
@@ -162,7 +217,7 @@ async function loadOptOutEmails(): Promise<Set<string>> {
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
-  const auth = await assertAdmin()
+  const auth = await assertAdmin(false)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const url = new URL(req.url)
@@ -240,8 +295,19 @@ function stallFromNotes(notes?: string | null): string | undefined {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await assertAdmin()
+  // H2: POST requires owner|operator. Viewer can size the audience via GET
+  // but cannot dispatch.
+  const auth = await assertAdmin(true)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  // H2: per-admin rate limit. Mirrors chase route.
+  const rate = checkBroadcastRate(`broadcast:${auth.userId}`)
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: 'rate_limited', retry_after_seconds: rate.retryAfter },
+      { status: 429, headers: { 'retry-after': String(rate.retryAfter) } },
+    )
+  }
 
   let body: BroadcastBody
   try {
@@ -257,10 +323,28 @@ export async function POST(req: NextRequest) {
   if (!freeTextMode && (!body.template_key || !TEMPLATE_KEYS.includes(body.template_key))) {
     return NextResponse.json({ error: 'unknown template_key' }, { status: 400 })
   }
+  // H2: WA template allowlist (only matters when this dispatch will touch WA).
+  if ((body.channel === 'wa' || body.channel === 'both') && body.wa_template && !ALLOWED_WA_TEMPLATES.has(body.wa_template)) {
+    return NextResponse.json({ error: 'unknown wa_template' }, { status: 400 })
+  }
 
   const filters = body.filters || {}
   const audience = await buildAudience(filters)
   const optout = await loadOptOutEmails()
+
+  // H2: audience cap. Refuse to dispatch a >500 blast in a single call. Real
+  // ops use either splits into approved-tier slices or fires a /chase loop.
+  if (audience.length > BROADCAST_MAX_RECIPIENTS) {
+    return NextResponse.json(
+      {
+        error: 'audience_too_large',
+        max: BROADCAST_MAX_RECIPIENTS,
+        got: audience.length,
+        hint: 'Tighten the filters or split the send.',
+      },
+      { status: 413 },
+    )
+  }
 
   const dryRun = !!body.dry_run
   const channel = body.channel
@@ -354,6 +438,13 @@ export async function POST(req: NextRequest) {
             // Free-text mode still needs an approved WABA template name; the
             // free text becomes {{custom_message}} inside general_announcement.
             'general_announcement'
+          // H2: defence-in-depth. body-level check is the front door; this
+          // catches the case where template_key was a non-allowlisted name.
+          if (!ALLOWED_WA_TEMPLATES.has(waTemplate)) {
+            results.wa.failed++
+            results.errors.push({ kind: 'wa', to: phoneRaw, error: `template not allowed: ${waTemplate}` })
+            continue
+          }
           const waCustom = freeTextMode
             ? interpolate(body.free_text || '', vars as InterpolateVars)
             : (body.custom_message || '')

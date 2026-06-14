@@ -24,7 +24,12 @@ export async function GET(req: NextRequest) {
   const tokenHash = url.searchParams.get('token_hash')
   const type = url.searchParams.get('type')
   const code = url.searchParams.get('code')
-  const next = url.searchParams.get('next') || '/exhibitor/portal'
+  // Open-redirect guard. `new URL(next, origin)` will happily resolve
+  // `//evil.com` to `https://evil.com/`, so we accept ONLY relative paths
+  // that start with a single `/` and reject the `//` prefix attacker
+  // would use to slip in a host.
+  const nextRaw = url.searchParams.get('next') || '/exhibitor/portal'
+  const next = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/exhibitor/portal'
   const errorDescription = url.searchParams.get('error_description')
 
   if (errorDescription) {

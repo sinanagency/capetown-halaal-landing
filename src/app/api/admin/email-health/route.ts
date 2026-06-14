@@ -2,19 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { verifyEmailTransport } from '@/lib/email/resend'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 // GET /api/admin/email-health
 // Verifies SMTP connectivity + auth from the live runtime without sending mail.
-// Auth: admin session OR ?secret=<CRON_SECRET> (so it can be curl-checked).
+// Auth: admin session OR `Authorization: Bearer ${CRON_SECRET}` header.
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const secret = searchParams.get('secret')
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-
-  let authorized = false
-  if (secret && cronSecret && secret === cronSecret) {
-    authorized = true
-  } else {
+  // Header-only Bearer (constant-time). `?secret=` query branch removed
+  // because it leaks into access logs / browser history / referrers.
+  let authorized = verifyCronAuth(request.headers.get('authorization'))
+  if (!authorized) {
     try {
       const supabase = await createClient()
       const { data: { user } } = await supabase.auth.getUser()

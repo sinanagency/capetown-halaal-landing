@@ -72,19 +72,77 @@ function scrub(s: string | undefined | null): string {
   return String(s).replace(/[–—]/g, ',')
 }
 
-async function assertAdmin(): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string }> {
+async function assertAdmin(): Promise<
+  | { ok: true; userId: string; userEmail: string | null }
+  | { ok: false; status: number; error: string }
+> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, status: 401, error: 'unauthorized' }
   const db = createAdminClient()
-  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
+  const { data: adminUser } = await db.from('admin_users').select('id, role, email').eq('id', user.id).maybeSingle()
   if (!adminUser) return { ok: false, status: 403, error: 'forbidden' }
-  return { ok: true, userId: user.id }
+  const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
+  if (!['owner', 'operator'].includes(role)) {
+    return { ok: false, status: 403, error: 'insufficient_role' }
+  }
+  const userEmail = ((adminUser as { email?: string | null }).email) ?? user.email ?? null
+  return { ok: true, userId: user.id, userEmail }
 }
+
+// Per-admin chase rate limit. In-memory Map: process-local, fine for the
+// single Vercel instance most cron+admin traffic hits. Resets on cold start.
+const chaseRateBuckets = new Map<string, { count: number; resetAt: number }>()
+const CHASE_RATE_WINDOW_MS = 60_000 // 1 minute
+const CHASE_RATE_MAX = 5            // 5 chase calls / admin / minute
+
+function checkChaseRate(actorKey: string): { ok: true } | { ok: false; retryAfter: number } {
+  const now = Date.now()
+  const bucket = chaseRateBuckets.get(actorKey)
+  if (!bucket || bucket.resetAt <= now) {
+    chaseRateBuckets.set(actorKey, { count: 1, resetAt: now + CHASE_RATE_WINDOW_MS })
+    // Opportunistic cleanup so the map can't grow unbounded over container life.
+    if (chaseRateBuckets.size > 500) {
+      for (const [k, v] of chaseRateBuckets) if (v.resetAt <= now) chaseRateBuckets.delete(k)
+    }
+    return { ok: true }
+  }
+  if (bucket.count >= CHASE_RATE_MAX) {
+    return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) }
+  }
+  bucket.count++
+  return { ok: true }
+}
+
+// Allowlist of WA template names the chase route may fire. Anything outside
+// this list returns 400 so a leaked admin session can't pivot to firing a
+// marketing template at scale.
+const ALLOWED_WA_TEMPLATES = new Set<string>([
+  'general_announcement',
+  'vendor_application_approved',
+  'vendor_application_declined',
+  'vendor_document_request',
+  'vendor_payment_reminder',
+  'vendor_stall_allocation',
+  'vendor_setup_reminder',
+  'contract_sign_reminder',
+])
+
+const CHASE_MAX_RECIPIENTS = 200
 
 export async function POST(req: NextRequest) {
   const auth = await assertAdmin()
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  // H2: per-admin rate limit. Keyed by userId so a single leaked admin session
+  // cannot blast unlimited chase calls in a loop.
+  const rate = checkChaseRate(`chase:${auth.userId}`)
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: 'rate_limited', retry_after_seconds: rate.retryAfter },
+      { status: 429, headers: { 'retry-after': String(rate.retryAfter) } },
+    )
+  }
 
   let body: ChaseBody
   try {
@@ -99,8 +157,20 @@ export async function POST(req: NextRequest) {
   if (recipients.length === 0) {
     return NextResponse.json({ error: 'recipients required' }, { status: 400 })
   }
+  // H2: recipients cap. Mass blast of >200 in one call is never legit ops use.
+  if (recipients.length > CHASE_MAX_RECIPIENTS) {
+    return NextResponse.json(
+      { error: 'too_many_recipients', max: CHASE_MAX_RECIPIENTS, got: recipients.length },
+      { status: 400 },
+    )
+  }
   if (body.template_key && !TEMPLATE_KEYS.includes(body.template_key)) {
     return NextResponse.json({ error: 'unknown template_key' }, { status: 400 })
+  }
+  // H2: WA template allowlist. Blocks pivot to arbitrary Meta-approved
+  // template names a leaked session might try to misuse.
+  if (body.wa_template && !ALLOWED_WA_TEMPLATES.has(body.wa_template)) {
+    return NextResponse.json({ error: 'unknown wa_template' }, { status: 400 })
   }
 
   const useTemplate = !!body.template_key
@@ -218,6 +288,11 @@ export async function POST(req: NextRequest) {
         results.wa.attempted++
         if (!dryRun) {
           const waTemplate = body.wa_template || body.template_key || 'general_announcement'
+          if (!ALLOWED_WA_TEMPLATES.has(waTemplate)) {
+            results.wa.failed++
+            results.errors.push({ kind: 'wa', to: phoneRaw, error: `template not allowed: ${waTemplate}` })
+            continue
+          }
           const waCustom = useWaFreeText
             ? scrub(interpolate(body.wa_body || '', vars as InterpolateVars))
             : scrub(body.custom_vars?.custom_message || '')

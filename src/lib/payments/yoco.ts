@@ -84,10 +84,13 @@ export const yoco: PaymentProvider = {
     const sigHeader = req.headers.get('webhook-signature') || ''
     if (!id || !ts || !sigHeader) return { ok: false, error: 'missing webhook headers' }
 
-    // Replay protection: reject anything older than 5 minutes.
-    const ageSec = Math.abs(Math.floor(Date.now() / 1000) - Number(ts))
-    if (!Number.isFinite(ageSec) || ageSec > 300) {
-      return { ok: false, error: 'stale webhook' }
+    // Replay protection: reject anything older than 5 minutes OR more than
+    // ~1 minute in the future. Math.abs() previously accepted up to +5min in
+    // the future, which let a forger replay-shift the timestamp forward to
+    // dodge the staleness window. Explicit bounds, no abs.
+    const ageSec = Math.floor(Date.now() / 1000) - Number(ts)
+    if (!Number.isFinite(ageSec) || ageSec < -60 || ageSec > 300) {
+      return { ok: false, error: 'stale_or_future_timestamp' }
     }
 
     const secretBytes = Buffer.from(WEBHOOK_SECRET.replace(/^whsec_/, ''), 'base64')

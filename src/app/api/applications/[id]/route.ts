@@ -8,6 +8,7 @@ import { ApplicationRejected } from '@/lib/email/templates/ApplicationRejected'
 import { ApplicationInfoRequested } from '@/lib/email/templates/ApplicationInfoRequested'
 import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
+import { assertRole } from '@/lib/admin-rbac'
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -77,17 +78,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Check admin (use admin client to bypass RLS)
-    const admin = createAdminClient()
-    const { data: adminUser } = await admin
-      .from('admin_users')
-      .select()
-      .eq('id', user.id)
-      .single()
-
-    if (!adminUser) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Role gate (B7). PATCH mutates application status (approve/reject) —
+    // a viewer must not be able to approve, reject, or update notes. Only
+    // owner/operator can mutate. assertRole throws with a generic message;
+    // we translate to a clean 403 here.
+    try {
+      await assertRole(user.id, ['owner', 'operator'])
+    } catch {
+      return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
     }
+
+    const admin = createAdminClient()
 
     // Idempotency: if the application is already in the target status, no-op.
     // Re-running approve was previously a destructive action (it reset the

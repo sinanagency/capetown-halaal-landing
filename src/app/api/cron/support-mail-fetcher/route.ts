@@ -17,7 +17,9 @@
 
 import { NextResponse } from 'next/server'
 import { ImapFlow, type FetchMessageObject } from 'imapflow'
+import { simpleParser } from 'mailparser'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -74,10 +76,8 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
   let written = 0
   let skipped = 0
 
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers.get('authorization') || ''
-    if (auth !== `Bearer ${cronSecret}`) {
+  if (process.env.CRON_SECRET) {
+    if (!verifyCronAuth(req.headers.get('authorization'))) {
       return NextResponse.json(
         { ok: false, fetched: 0, written: 0, skipped: 0, errors: ['unauthorized'], host: '', durationMs: 0 },
         { status: 401 }
@@ -160,7 +160,21 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
       const toAddress = (msg.envelope?.to?.[0]?.address || user).toLowerCase()
       const subject = msg.envelope?.subject || ''
       const receivedAt = (msg.envelope?.date || new Date()).toISOString()
-      const body = msg.source instanceof Buffer ? msg.source.toString('utf8').slice(0, 16000) : ''
+      // N5: parse the MIME body, store ONLY text/plain (capped at 4KB).
+      // Previously we kept up to 16KB of raw RFC822 source per email which
+      // bloated the DB once we crossed a few thousand support threads.
+      // Falls back to a sliced raw on parse error so we never lose the row.
+      let body = ''
+      if (msg.source instanceof Buffer) {
+        try {
+          const parsed = await simpleParser(msg.source)
+          const txt = (parsed.text || '').trim()
+          body = txt.slice(0, 4000)
+        } catch (e) {
+          errors.push(`mailparser ${messageId}: ${(e as Error).message}`)
+          body = msg.source.toString('utf8').slice(0, 4000)
+        }
+      }
 
       // Skip mail FROM the support address itself (sent-mail loops).
       if (fromAddress === user.toLowerCase()) {

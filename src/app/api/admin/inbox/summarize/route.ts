@@ -25,6 +25,7 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { wrapUntrusted, UNTRUSTED_CONTENT_RULE } from '@/lib/ai/prompt-safety'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,9 @@ You are NEVER addressed by vendors or customers; you only help operators triage 
 Output strictly valid JSON with two keys:
   - "summary": a 2-4 sentence plain-text rollup of where the thread stands and what the operator should do next.
   - "suggested_replies": an array of three short reply chips (max 140 chars each), in the operator's voice, plain text, no em-dashes.
-Never refer to yourself as an AI, a model, or a vendor. Never mention Claude, Anthropic, OpenAI, or any provider. If the thread is empty, say so in the summary and return an empty suggested_replies array. Always reply with JSON only, no prose around it.`
+Never refer to yourself as an AI, a model, or a vendor. Never mention Claude, Anthropic, OpenAI, or any provider. If the thread is empty, say so in the summary and return an empty suggested_replies array. Always reply with JSON only, no prose around it.
+
+${UNTRUSTED_CONTENT_RULE}`
 
 async function requireAdmin(): Promise<{ userId: string } | null> {
   const supabase = await createClient()
@@ -170,11 +173,13 @@ export async function POST(req: Request) {
     )
     .join('\n')
 
+  // N3: vendor-controlled text is wrapped in delimiters so the model treats
+  // it as data, not as instruction. The system prompt explains the contract.
   const user = `Channel: ${thread.channel}
 Contact: ${thread.thread_key}
 
-Transcript (oldest first):
-${transcript}
+Transcript (oldest first) follows in the untrusted block.
+${wrapUntrusted(transcript)}
 
 Return JSON with "summary" and "suggested_replies" (3 short chips).`
 

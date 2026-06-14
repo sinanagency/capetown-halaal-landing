@@ -2,8 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEmail } from '@/lib/email/resend'
 import { PasswordReset } from '@/lib/email/templates/PasswordReset'
+import { normalizeEmail } from '@/lib/email-normalize'
+import {
+  checkIpThrottle,
+  logGuardEvent,
+  clientIp,
+} from '@/lib/security/abuse-guard'
 
 export const dynamic = 'force-dynamic'
+
+const ENDPOINT_IP = 'password-reset'
+const ENDPOINT_EMAIL = 'password-reset-email'
 
 // Sends a BRANDED exhibitor password-reset email instead of Supabase's generic
 // default. We mint a recovery action_link with the service-role client and mail
@@ -16,14 +25,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
     }
 
+    // V8: throttle per-IP AND per-email so 10 rapid identical posts don't
+    // email-bomb the user and rinse Resend domain reputation. checkIpThrottle
+    // works as a generic "key throttle" — we use the email itself as the key
+    // for the second guard.
+    const admin = createAdminClient()
+    const ip = clientIp(req.headers)
+    const lowEmailEarly = normalizeEmail(email)
+
+    const ipGuard = await checkIpThrottle(admin, {
+      ip,
+      endpoint: ENDPOINT_IP,
+      max: 5,
+      windowMin: 10,
+    })
+    if (!ipGuard.ok) {
+      await logGuardEvent(admin, { endpoint: ENDPOINT_IP, ip, reason: ipGuard.reason!, fields: {} })
+      return NextResponse.json({ ok: true })
+    }
+    const emailGuard = await checkIpThrottle(admin, {
+      ip: lowEmailEarly,
+      endpoint: ENDPOINT_EMAIL,
+      max: 3,
+      windowMin: 10,
+    })
+    if (!emailGuard.ok) {
+      await logGuardEvent(admin, {
+        endpoint: ENDPOINT_EMAIL,
+        ip: lowEmailEarly,
+        reason: emailGuard.reason!,
+        fields: { real_ip: ip ?? null },
+      })
+      return NextResponse.json({ ok: true })
+    }
+    // Increment counters so the next call sees this attempt.
+    await logGuardEvent(admin, {
+      endpoint: ENDPOINT_IP,
+      ip,
+      reason: 'rate_limited',
+      fields: { kind: 'attempt' },
+    })
+    await logGuardEvent(admin, {
+      endpoint: ENDPOINT_EMAIL,
+      ip: lowEmailEarly,
+      reason: 'rate_limited',
+      fields: { kind: 'attempt', real_ip: ip ?? null },
+    })
+
     // Route through /auth/callback so the PKCE code gets exchanged for a session
     // BEFORE the user lands on set-password. Otherwise set-password has no session
     // and updateUser({password}) silently fails.
     const origin = new URL(req.url).origin
     const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent('/exhibitor/set-password')}`
-    const admin = createAdminClient()
 
-    const lowEmail = email.trim().toLowerCase()
+    const lowEmail = lowEmailEarly
     const tag = `[send-password-reset] ${lowEmail}`
 
     try {

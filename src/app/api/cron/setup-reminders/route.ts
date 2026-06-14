@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePortalState, updatePortalState } from '@/lib/portal-state'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,9 +20,7 @@ const FIRE_DATES = ['2026-12-08', '2026-12-09']
 export async function GET(req: NextRequest) {
   // Defense in depth. Middleware enforces Bearer at the edge, but we
   // re-check here so a misconfigured matcher cannot expose the route.
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  const auth = req.headers.get('authorization') || ''
-  if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+  if (!verifyCronAuth(req.headers.get('authorization'))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -35,6 +35,7 @@ import { sendZaniiMail, pacer } from '@/lib/mail/zanii-sender'
 import { sendTemplate } from '@/lib/whatsapp/sender'
 import { buildUnsubUrl } from '@/lib/mail/unsubscribe-token'
 import { getOrders } from '@/lib/woocommerce'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -120,16 +121,15 @@ function htmlize(text: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  if (cronSecret) {
-    const auth = req.headers.get('authorization') || ''
-    if (auth !== `Bearer ${cronSecret}`) {
+  if ((process.env.CRON_SECRET || '').trim()) {
+    if (!verifyCronAuth(req.headers.get('authorization'))) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
   }
 
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
   const forceWindow = req.nextUrl.searchParams.get('window')
+  const forceFlag = req.nextUrl.searchParams.get('force') === '1'
   const now = new Date()
   const festival = new Date(FESTIVAL_DATE)
   const diff = dayDiff(festival, now)
@@ -143,6 +143,33 @@ export async function GET(req: NextRequest) {
 
   if (!active) {
     return NextResponse.json({ ok: true, skipped: 'no window today', diff_days: diff, festival_date: FESTIVAL_DATE })
+  }
+
+  // H7 (Smoke Agent F): even with a valid bearer, refuse if the requested
+  // window does not match today's diff (+/- 1 day). Smoke test fired
+  // ?window=7 179 days early and dispatched REAL T-7 emails to 4 vendors +
+  // 2 buyers. Real cron at T-7 will naturally satisfy this guard; manual
+  // tests must opt in with ?force=1.
+  const windowMatches = Math.abs(diff - active) <= 1
+  if (!windowMatches && !forceFlag) {
+    // Best-effort replay-defense log so we can spot future smoke firings.
+    try {
+      const db = createAdminClient()
+      await db.from('site_events').insert({
+        session_id: 'festival-reminder',
+        event_type: 'festival_reminder_blocked',
+        path: '/api/cron/festival-reminders',
+        metadata: { window: active, diff_days: diff, festival_date: FESTIVAL_DATE, reason: 'window_mismatch' },
+      })
+    } catch { /* swallow */ }
+    return NextResponse.json({
+      ok: false,
+      error: 'window_mismatch',
+      window: active,
+      diff_days: diff,
+      festival_date: FESTIVAL_DATE,
+      hint: 'pass ?force=1 to override',
+    }, { status: 412 })
   }
 
   const db = createAdminClient()
@@ -213,6 +240,15 @@ export async function GET(req: NextRequest) {
     }
 
     results.vendors.sent++
+    // H7 replay-defense log.
+    try {
+      await db.from('site_events').insert({
+        session_id: 'festival-reminder',
+        event_type: 'festival_reminder_attempt',
+        path: '/api/cron/festival-reminders',
+        metadata: { audience: 'vendor', application_id: v.id, window: active, email: v.email, diff_days: diff },
+      })
+    } catch { /* swallow */ }
     try {
       await updatePortalState(v.id, (s) => {
         const fr = (s as unknown as { festival_reminders?: { sent?: Record<string, string> } }).festival_reminders || { sent: {} }

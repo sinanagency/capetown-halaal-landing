@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { capJsonbSize } from '@/lib/audit/cap'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
     const admin = createAdminClient()
     const { data: adminUser } = await admin
@@ -33,11 +34,11 @@ export async function POST(request: NextRequest) {
       .select('id, role, email')
       .eq('id', user.id)
       .single()
-    if (!adminUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
     const role = (adminUser.role || 'operator') as string
     if (!['owner', 'operator'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden: insufficient role' }, { status: 403 })
+      return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
     }
     const actorEmail = (adminUser.email as string | null) || user.email || null
 
@@ -108,16 +109,16 @@ export async function POST(request: NextRequest) {
       events.push({
         application_id: id,
         event_type: 'superseded',
-        before_value: {
+        before_value: capJsonbSize({
           is_duplicate: before.is_duplicate ?? false,
           duplicate_of_id: before.duplicate_of_id ?? null,
           superseded_at: before.superseded_at ?? null,
-        },
-        after_value: {
+        }) as Record<string, unknown>,
+        after_value: capJsonbSize({
           is_duplicate: true,
           duplicate_of_id: keeper_id,
           superseded_at: nowIso,
-        },
+        }) as Record<string, unknown>,
         actor_email: actorEmail,
         actor_role: 'operator',
         note: `keeper=${keeper_id}`,

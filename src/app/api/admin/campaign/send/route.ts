@@ -4,6 +4,7 @@ import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { Campaign, type CampaignProps } from '@/lib/email/templates/Campaign'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const maxDuration = 300
 
@@ -15,9 +16,7 @@ type Audience = 'vendors' | 'vendors_pending' | 'vendors_approved' | 'buyers' | 
 
 /* ----- auth: Bearer CRON_SECRET (terminal) OR admin session (portal) ----- */
 async function authorize(request: NextRequest): Promise<{ ok: true } | { ok: false; res: NextResponse }> {
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  const authHeader = request.headers.get('authorization')
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return { ok: true }
+  if (verifyCronAuth(request.headers.get('authorization'))) return { ok: true }
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

@@ -58,8 +58,46 @@ export async function GET(req: NextRequest) {
 
   const sp = new URL(req.url).searchParams
   const contactId = (sp.get('contactId') || '').trim()
-  const phoneRaw = (sp.get('phone') || '').trim()
-  const emailRaw = (sp.get('email') || '').trim().toLowerCase()
+  const threadId = (sp.get('threadId') || '').trim()
+
+  // H3: NEVER accept arbitrary ?phone= / ?email= from the query. Any admin
+  // session (or attacker holding one) could otherwise scrape any phone's
+  // WhatsApp history. Phone + email must be resolved server-side from a
+  // contactId or threadId that the caller has demonstrably scoped to.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  let phoneRaw = ''
+  let emailRaw = ''
+
+  if (contactId) {
+    if (!UUID_RE.test(contactId)) {
+      return NextResponse.json({ error: 'invalid contactId' }, { status: 400 })
+    }
+    const { data: vapp } = await db
+      .from('vendor_applications')
+      .select('id, phone, email')
+      .eq('id', contactId)
+      .maybeSingle()
+    if (vapp) {
+      phoneRaw = ((vapp as { phone?: string | null }).phone || '').trim()
+      emailRaw = ((vapp as { email?: string | null }).email || '').trim().toLowerCase()
+    }
+  } else if (threadId) {
+    if (!UUID_RE.test(threadId)) {
+      return NextResponse.json({ error: 'invalid threadId' }, { status: 400 })
+    }
+    const { data: thread } = await db
+      .from('wa_threads')
+      .select('id, thread_key, channel')
+      .eq('id', threadId)
+      .maybeSingle()
+    if (thread) {
+      const t = thread as { thread_key?: string | null; channel?: string | null }
+      if (t.channel === 'wa') phoneRaw = (t.thread_key || '').trim()
+      else if (t.channel === 'mail') emailRaw = (t.thread_key || '').trim().toLowerCase()
+    }
+  } else {
+    return NextResponse.json({ error: 'contactId or threadId required' }, { status: 400 })
+  }
 
   // Pagination. Default 50, max 200. Skeptic D F1: page latency was the cost
   // of serial awaits over three tables; we now parallelise and trim. Callers

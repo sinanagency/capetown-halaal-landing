@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { updatePortalState, parsePortalState, type SupportMessage } from '@/lib/portal-state'
+import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  checkIpThrottle,
+  logGuardEvent,
+  clientIp,
+} from '@/lib/security/abuse-guard'
+
+const ENDPOINT = 'exhibitor-support'
+// Hard cap to keep admin_notes JSON from unbounded growth if a vendor script
+// somehow squeezes past the rate limit. Older messages truncate first.
+const MAX_SUPPORT_MESSAGES = 200
+// Per-vendor (NOT per-IP) ceiling: 10 messages / hour. A vendor running 5000
+// posts would flood Samreen's WA + Resend reputation; this stops it dead.
+const MAX_PER_HOUR = 10
+const WINDOW_MIN = 60
 
 // GET: the signed-in vendor's support thread.
 export async function GET() {
@@ -19,8 +34,48 @@ export async function POST(req: NextRequest) {
   const text = String(body.body || '').trim().slice(0, 2000)
   if (!text) return NextResponse.json({ error: 'Message is empty' }, { status: 400 })
 
+  // Per-vendor throttle keyed on user.id so a single vendor cannot weaponise
+  // the support thread. checkIpThrottle is a general "key throttle" against
+  // site_events — passing user.id as the "ip" field keys it on the vendor.
+  const admin = createAdminClient()
+  const ip = clientIp(req.headers)
+  const vendorKey = ctx.userId
+  const throttle = await checkIpThrottle(admin, {
+    ip: vendorKey,
+    endpoint: ENDPOINT,
+    max: MAX_PER_HOUR,
+    windowMin: WINDOW_MIN,
+  })
+  if (!throttle.ok) {
+    await logGuardEvent(admin, {
+      endpoint: ENDPOINT,
+      ip: vendorKey,
+      reason: throttle.reason!,
+      fields: { applicationId, real_ip: ip ?? null },
+    })
+    return NextResponse.json(
+      { error: 'Too many support messages, slow down and try again later' },
+      { status: 429 },
+    )
+  }
+  // Log the hit so the throttle counter increments for THIS message too.
+  await logGuardEvent(admin, {
+    endpoint: ENDPOINT,
+    ip: vendorKey,
+    reason: 'rate_limited',
+    fields: { applicationId, real_ip: ip ?? null, kind: 'send' },
+  })
+
   const msg: SupportMessage = { id: `${Date.now()}`, from: 'vendor', body: text, at: new Date().toISOString() }
-  const next = await updatePortalState(applicationId, (s) => ({ ...s, support: [...(s.support || []), msg] }))
+  const next = await updatePortalState(applicationId, (s) => {
+    const existing = s.support || []
+    const appended = [...existing, msg]
+    // Truncate oldest first if the thread overflows the cap.
+    const trimmed = appended.length > MAX_SUPPORT_MESSAGES
+      ? appended.slice(appended.length - MAX_SUPPORT_MESSAGES)
+      : appended
+    return { ...s, support: trimmed }
+  })
 
   // Best-effort owner notifications. Failure here never blocks the vendor's send.
   const bizName = ctx.application.business_name as string

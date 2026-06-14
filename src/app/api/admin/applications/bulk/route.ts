@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { capJsonbSize } from '@/lib/audit/cap'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -26,6 +27,27 @@ const bulkSchema = z.object({
   sector: z.string().max(64).optional(),
 })
 
+// H2: per-admin bulk rate limit. 10 bulk actions per minute, in-memory map.
+const bulkRateBuckets = new Map<string, { count: number; resetAt: number }>()
+const BULK_RATE_WINDOW_MS = 60_000
+const BULK_RATE_MAX = 10
+function checkBulkRate(actorKey: string): { ok: true } | { ok: false; retryAfter: number } {
+  const now = Date.now()
+  const bucket = bulkRateBuckets.get(actorKey)
+  if (!bucket || bucket.resetAt <= now) {
+    bulkRateBuckets.set(actorKey, { count: 1, resetAt: now + BULK_RATE_WINDOW_MS })
+    if (bulkRateBuckets.size > 500) {
+      for (const [k, v] of bulkRateBuckets) if (v.resetAt <= now) bulkRateBuckets.delete(k)
+    }
+    return { ok: true }
+  }
+  if (bucket.count >= BULK_RATE_MAX) {
+    return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) }
+  }
+  bucket.count++
+  return { ok: true }
+}
+
 interface Result {
   id: string
   ok: boolean
@@ -36,7 +58,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
     const admin = createAdminClient()
     const { data: adminUser } = await admin
@@ -44,13 +66,22 @@ export async function POST(request: NextRequest) {
       .select('id, role, email')
       .eq('id', user.id)
       .single()
-    if (!adminUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
     const role = (adminUser.role || 'operator') as string
     if (!['owner', 'operator'].includes(role)) {
-      return NextResponse.json({ error: 'Forbidden: insufficient role' }, { status: 403 })
+      return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
     }
     const actorEmail = (adminUser.email as string | null) || user.email || null
+
+    // H2: per-admin bulk rate limit (10/min).
+    const rate = checkBulkRate(`bulk:${user.id}`)
+    if (!rate.ok) {
+      return NextResponse.json(
+        { error: 'rate_limited', retry_after_seconds: rate.retryAfter },
+        { status: 429, headers: { 'retry-after': String(rate.retryAfter) } },
+      )
+    }
 
     const body = await request.json()
     const parsed = bulkSchema.parse(body)
@@ -143,8 +174,8 @@ export async function POST(request: NextRequest) {
       events.push({
         application_id: id,
         event_type: eventType,
-        before_value: beforeSubset,
-        after_value: afterSubset,
+        before_value: capJsonbSize(beforeSubset),
+        after_value: capJsonbSize(afterSubset),
         actor_email: actorEmail,
         actor_role: 'operator',
         note,

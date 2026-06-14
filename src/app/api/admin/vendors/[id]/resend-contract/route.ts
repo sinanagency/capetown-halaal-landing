@@ -26,8 +26,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const db = createAdminClient()
-  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
+  const { data: adminUser } = await db.from('admin_users').select('id, role').eq('id', user.id).maybeSingle()
   if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
+  if (!['owner', 'operator'].includes(role)) {
+    return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
+  }
 
   const { data: app } = await db
     .from('vendor_applications')

@@ -30,23 +30,58 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const db = createAdminClient()
-  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
+  const { data: adminUser } = await db.from('admin_users').select('id, role, email').eq('id', user.id).maybeSingle()
   if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  // H5: PII export requires owner/operator. Cap row count + audit log.
+  const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
+  if (!['owner', 'operator'].includes(role)) {
+    return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
+  }
 
   const sp = req.nextUrl.searchParams
   const idsParam = sp.get('ids')
   const ids = idsParam ? idsParam.split(',').map((x) => x.trim()).filter(Boolean) : null
   const status = sp.get('status') || 'approved'
 
+  const CSV_MAX_ROWS = 1000
   let q = db
     .from('vendor_applications')
     .select('id, business_name, contact_name, email, phone, product_categories, item_category, status, admin_notes, contract_signed_at')
     .order('business_name', { ascending: true })
+    .limit(CSV_MAX_ROWS)
   if (ids && ids.length) q = q.in('id', ids)
   else if (status && status !== 'all') q = q.eq('status', status)
 
   const { data, error } = await q
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // H5: audit log every export so we can trace PII flows. We anchor the
+  // event on the first exported vendor's application_id (the audit table FK
+  // requires a non-null application_id), and stash the full id list +
+  // filter in before_value. site_events would be cleaner but the existing
+  // operator-facing audit UI reads vendor_application_events only.
+  try {
+    const actorEmail = ((adminUser as { email?: string | null }).email) ?? user.email ?? null
+    const rowIds = ((data as Array<{ id: string }> | null) || []).map((r) => r.id).slice(0, CSV_MAX_ROWS)
+    if (rowIds.length > 0) {
+      await db.from('vendor_application_events').insert({
+        application_id: rowIds[0],
+        event_type: 'csv_export',
+        before_value: {
+          row_count: rowIds.length,
+          filter: status,
+          ids_filter: ids ? ids.slice(0, 50) : null,
+          exported_ids_sample: rowIds.slice(0, 50),
+        },
+        after_value: null,
+        actor_email: actorEmail,
+        actor_role: role,
+        note: `CSV export of ${rowIds.length} vendors by ${actorEmail || 'unknown'}`,
+      })
+    }
+  } catch (e) {
+    console.warn('[vendors/csv] audit insert failed:', (e as Error).message)
+  }
 
   const headers = [
     'business_name', 'contact_name', 'phone', 'email', 'sector', 'status',

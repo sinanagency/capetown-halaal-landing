@@ -10,15 +10,14 @@ import { ApplicationIncomplete } from '@/lib/email/templates/ApplicationIncomple
 import { ApplicationDelayNotice } from '@/lib/email/templates/ApplicationDelayNotice'
 import { PasswordReset } from '@/lib/email/templates/PasswordReset'
 import { Campaign } from '@/lib/email/templates/Campaign'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const maxDuration = 60
 
 async function authorize(request: NextRequest): Promise<boolean> {
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  const url = new URL(request.url)
-  const secret = url.searchParams.get('secret')
-  const authHeader = request.headers.get('authorization')
-  if (cronSecret && (authHeader === `Bearer ${cronSecret}` || secret === cronSecret)) return true
+  // Header-only Bearer (constant-time). `?secret=` query branch removed
+  // because it leaks into access logs / browser history / referrers.
+  if (verifyCronAuth(request.headers.get('authorization'))) return true
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

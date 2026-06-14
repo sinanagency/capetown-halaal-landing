@@ -1,5 +1,10 @@
+// TODO(next-16): rename this file to `proxy.ts` per Next 16's deprecation of
+// the `middleware` filename. Next 16.1.x still supports the old name, so we
+// keep it for now to avoid a one-shot matcher / build regression mid-sprint.
+// Tracked for next sprint cleanup (H10 / bundle audit).
 import { NextResponse, type NextRequest } from 'next/server'
 import { isMaintenanceEnabled, isPathAlwaysOpen, bypassTokenFromEnv, MAINTENANCE_COOKIE } from '@/lib/maintenance'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export async function middleware(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl
@@ -15,9 +20,7 @@ export async function middleware(request: NextRequest) {
   // configured to send this header. Manual triggers (curl, ops scripts)
   // must include it too. We fail closed if CRON_SECRET is unset.
   if (pathname.startsWith('/api/cron/')) {
-    const cronSecret = (process.env.CRON_SECRET || '').trim()
-    const auth = request.headers.get('authorization') || ''
-    if (!cronSecret || auth !== `Bearer ${cronSecret}`) {
+    if (!verifyCronAuth(request.headers.get('authorization'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
   }

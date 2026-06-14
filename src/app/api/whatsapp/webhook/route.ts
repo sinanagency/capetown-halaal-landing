@@ -27,6 +27,53 @@ import { guardReply, logGuardRedaction } from '@/lib/bot/reply-guard'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// ---------------------------------------------------------------------------
+// N2: per-sender LLM rate limit.
+//
+// Each inbound text drops a token in a per-waId bucket. When the bucket
+// exceeds LLM_MAX_PER_5MIN, we skip the festival-brain LLM call and reply
+// with a cheap static line. Without this, a single spammer with one open
+// session can pin Anthropic Haiku at $1-5/min unbounded.
+//
+// Process-local Map; resets on cold start. Fine for the single Vercel
+// instance most webhook traffic hits.
+// ---------------------------------------------------------------------------
+const LLM_BUCKET: Map<string, { count: number; windowStart: number }> = new Map()
+const LLM_MAX_PER_5MIN = 10
+const LLM_WINDOW_MS = 5 * 60_000
+
+function checkLLMBucket(waId: string): boolean {
+  const now = Date.now()
+  const entry = LLM_BUCKET.get(waId) ?? { count: 0, windowStart: now }
+  if (now - entry.windowStart > LLM_WINDOW_MS) {
+    entry.count = 0
+    entry.windowStart = now
+  }
+  entry.count++
+  LLM_BUCKET.set(waId, entry)
+  // Opportunistic cleanup so the map can't grow unbounded.
+  if (LLM_BUCKET.size > 1000) {
+    for (const [k, v] of LLM_BUCKET) {
+      if (now - v.windowStart > LLM_WINDOW_MS) LLM_BUCKET.delete(k)
+    }
+  }
+  return entry.count <= LLM_MAX_PER_5MIN
+}
+
+async function logLLMThrottle(waId: string, count: number) {
+  try {
+    const db = createAdminClient()
+    await db.from('site_events').insert({
+      session_id: 'wa-llm-throttle',
+      event_type: 'wa_llm_throttled',
+      path: '/api/whatsapp/webhook',
+      metadata: { wa_id: waId, count, window_minutes: LLM_WINDOW_MS / 60_000, max: LLM_MAX_PER_5MIN },
+    })
+  } catch (e) {
+    console.warn('[wa-webhook] LLM throttle log failed:', (e as Error).message)
+  }
+}
+
 // ---- GET: Meta verification handshake ----
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams
@@ -228,18 +275,29 @@ async function handleInbound(msg: {
   // history, and per-caller identity briefing as extraSystem. The brain owns
   // the system prompt, intent routing, FAQ short-circuit, and sign-off rule.
   let reply = ''
-  try {
-    const result = await askFestivalBrain(msg.text, {
-      waId: e164,
-      history,
-      extraSystem: identityBriefing(identity),
-    })
-    reply = result.message
-  } catch (e) {
-    console.error('brain error', e)
+  // N2: per-sender LLM rate limit. If this caller has already burned 10 LLM
+  // turns in the last 5 minutes, skip the Haiku call and respond with a
+  // pre-written line so a spammer can't pin our Anthropic spend.
+  const llmAllowed = checkLLMBucket(e164)
+  if (!llmAllowed) {
+    await logLLMThrottle(e164, LLM_MAX_PER_5MIN + 1)
     reply = identity.firstName
-      ? `Thanks for your message, ${identity.firstName}! Our team will get back to you. For tickets visit tickets.youngatheart.co.za`
-      : 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
+      ? `Thanks ${identity.firstName}, we've received your message. A human will respond shortly. For tickets visit tickets.youngatheart.co.za`
+      : "We've received your message. A human will respond shortly. For tickets visit tickets.youngatheart.co.za"
+  } else {
+    try {
+      const result = await askFestivalBrain(msg.text, {
+        waId: e164,
+        history,
+        extraSystem: identityBriefing(identity),
+      })
+      reply = result.message
+    } catch (e) {
+      console.error('brain error', e)
+      reply = identity.firstName
+        ? `Thanks for your message, ${identity.firstName}! Our team will get back to you. For tickets visit tickets.youngatheart.co.za`
+        : 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
+    }
   }
   // OUTPUT-side PII guard (KT #114 pattern). Redact phones/emails/IDs in
   // the bot's reply that don't belong to the caller. Log redactions.

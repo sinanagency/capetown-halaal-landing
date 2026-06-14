@@ -3,6 +3,7 @@ import { getExhibitorContext } from '@/lib/exhibitor'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { updatePortalState, parsePortalState, type VendorProfile } from '@/lib/portal-state'
 import { vendorSlug } from '@/lib/slugify'
+import { stripAllHtml } from '@/lib/sanitize'
 
 const BUCKET = 'vendor-assets'
 const MAX_LOGO_BYTES = 5 * 1024 * 1024       // 5MB
@@ -136,17 +137,20 @@ export async function POST(req: NextRequest) {
 
   // JSON path — text fields + menu
   const body = await req.json().catch(() => ({}))
+  // V2: strip ALL HTML tags from anything that renders on the public sector
+  // page. CSP is Report-Only here so script tags would actually execute. We
+  // discard tags entirely (no allowed tags, no allowed attrs).
   const clean: Partial<VendorProfile> = {
-    tagline: String(body.tagline || '').slice(0, 120),
-    description: String(body.description || '').slice(0, 2200),   // ~350 words hard cap
+    tagline: stripAllHtml(String(body.tagline || '')).slice(0, 120),
+    description: stripAllHtml(String(body.description || '')).slice(0, 2200),   // ~350 words hard cap
     website: String(body.website || '').slice(0, 200),
     instagram: String(body.instagram || '').slice(0, 120),
     facebook: String(body.facebook || '').slice(0, 200),
     menu: Array.isArray(body.menu)
       ? body.menu.slice(0, 40).map((m: { name?: string; price?: string; desc?: string }) => ({
-          name: String(m.name || '').slice(0, 80),
-          price: String(m.price || '').slice(0, 30),
-          desc: String(m.desc || '').slice(0, 200),
+          name: stripAllHtml(String(m.name || '')).slice(0, 80),
+          price: stripAllHtml(String(m.price || '')).slice(0, 30),
+          desc: stripAllHtml(String(m.desc || '')).slice(0, 200),
         })).filter((m: { name: string }) => m.name)
       : [],
   }

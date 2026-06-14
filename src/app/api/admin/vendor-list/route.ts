@@ -5,13 +5,14 @@
 // produced via puppeteer-core + @sparticuz/chromium-min (the same pattern as
 // lib/payments/invoice-pdf.ts).
 //
-// Auth: admin session OR ?secret=<CRON_SECRET>.
+// Auth: admin session OR `Authorization: Bearer ${CRON_SECRET}` header.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseAllocation, STALL_LIST } from '@/lib/stalls'
 import { parsePortalState } from '@/lib/portal-state'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,9 +46,9 @@ function escHtml(v: string | null | undefined): string {
 }
 
 async function isAuthorized(req: NextRequest): Promise<boolean> {
-  const secret = new URL(req.url).searchParams.get('secret')
-  const cronSecret = (process.env.CRON_SECRET || '').trim()
-  if (secret && cronSecret && secret === cronSecret) return true
+  // Header-only Bearer (constant-time). `?secret=` query branch removed
+  // because it leaks into access logs / browser history / referrers.
+  if (verifyCronAuth(req.headers.get('authorization'))) return true
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

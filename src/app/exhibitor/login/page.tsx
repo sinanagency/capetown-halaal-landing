@@ -3,7 +3,6 @@
 import { useState, type FormEvent } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Logo } from '@/components/logo'
 import { Mail, Lock, Loader2, AlertCircle } from 'lucide-react'
 
@@ -17,14 +16,24 @@ export default function ExhibitorLogin() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError(''); setLoading(true)
-    const supabase = createClient()
-    const { data, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-    if (authError) { setError(authError.message); setLoading(false); return }
-    // Forced password change on first login
-    if (data.user?.user_metadata?.must_change_password) {
-      router.push('/exhibitor/set-password'); router.refresh(); return
+    try {
+      const res = await fetch('/api/exhibitor/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || !json.ok) {
+        setError(json.error || 'invalid email or password')
+        setLoading(false)
+        return
+      }
+      router.push(json.next || '/exhibitor/portal')
+      router.refresh()
+    } catch {
+      setError('something went wrong, try again')
+      setLoading(false)
     }
-    router.push('/exhibitor/portal'); router.refresh()
   }
 
   return (

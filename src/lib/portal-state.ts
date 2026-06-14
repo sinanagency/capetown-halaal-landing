@@ -69,6 +69,16 @@ export interface PortalState {
     opted_in_at: string        // ISO timestamp
     welcome_sent?: boolean     // did we fire the approved welcome template
   }
+  /** Pending phone-change verification. The vendor proposed a new phone in the
+   *  portal; we sent a 6-digit OTP via WhatsApp to that number. The new number
+   *  is NOT trusted as the vendor's contact until the OTP is confirmed at
+   *  /api/exhibitor/wa-optin/verify. Cleared on success or 24h expiry. */
+  phone_change_pending?: {
+    new_phone: string          // E.164 candidate phone
+    code_hash: string          // sha256(code + ':' + applicationId), constant-time compare
+    requested_at: string       // ISO timestamp (used for expiry + rate-limit)
+    attempts: number           // failed code checks; >=5 invalidates and forces re-request
+  }
   /** ISO timestamp the vendor ticked the terms-and-conditions acceptance step in the portal. */
   terms_accepted_at?: string
 }

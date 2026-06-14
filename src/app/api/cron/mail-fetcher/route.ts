@@ -19,6 +19,7 @@
 import { NextResponse } from 'next/server'
 import { ImapFlow, type FetchMessageObject } from 'imapflow'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyCronAuth } from '@/lib/security/cron-auth'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -73,10 +74,8 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
   let skipped = 0
 
   // Vercel cron sends a Bearer token if CRON_SECRET is set
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers.get('authorization') || ''
-    if (auth !== `Bearer ${cronSecret}`) {
+  if (process.env.CRON_SECRET) {
+    if (!verifyCronAuth(req.headers.get('authorization'))) {
       console.warn(JSON.stringify({ at: 'mail-fetcher', event: 'unauthorized' }))
       return NextResponse.json(
         { ok: false, fetched: 0, written: 0, skipped: 0, errors: ['unauthorized'], host: '', durationMs: 0 },

@@ -149,6 +149,15 @@ export function CommandK() {
   const pushRecent = useCallback((q: string) => {
     const trimmed = q.trim()
     if (trimmed.length < 2) return
+    // B9: never persist phone-shaped queries to localStorage. A "recent"
+    // dropdown that resurfaces phone numbers to anyone who borrows a logged-in
+    // admin laptop is a PII leak. We strip the very common patterns:
+    //   - bare digit strings of length 6-15 (e.g. 27651234567)
+    //   - + or 00 prefixed digit strings (e.g. +27651234567)
+    //   - digits with separators (e.g. 27-65-123-4567 or 27 65 123 4567)
+    // If after removing separators the query is all digits and >=6 chars, drop.
+    const digitsOnly = trimmed.replace(/[\s\-+().]/g, '')
+    if (/^\d{6,15}$/.test(digitsOnly)) return
     setRecents((prev) => {
       const next = [trimmed, ...prev.filter((x) => x !== trimmed)].slice(0, RECENT_MAX)
       try {

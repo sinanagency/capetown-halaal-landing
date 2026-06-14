@@ -95,6 +95,28 @@ export async function POST(req: NextRequest) {
         'svix-signature': req.headers.get('svix-signature') || '',
       })
     } catch (err) {
+      // N4: emit a site_event so /admin/settings/comms-health can render a
+      // yellow pill ("N signature failures in last 1h"). Without this the
+      // failure stays buried in Vercel logs. We intentionally log BEFORE the
+      // reject branch so dev-mode bypasses still surface attempts.
+      try {
+        const db = createAdminClient()
+        await db.from('site_events').insert({
+          session_id: 'resend-webhook',
+          event_type: 'resend_webhook_signature_fail',
+          path: '/api/admin/support-inbox/webhook/resend',
+          metadata: {
+            error: (err as Error).message.slice(0, 240),
+            has_svix_id: !!req.headers.get('svix-id'),
+            has_svix_timestamp: !!req.headers.get('svix-timestamp'),
+            has_svix_signature: !!req.headers.get('svix-signature'),
+            is_prod: isProd,
+            dev_allow: devAllow,
+          },
+        })
+      } catch (logErr) {
+        console.warn('[resend webhook] failure-log insert failed:', (logErr as Error).message)
+      }
       // In prod, signature failure is hard-reject. In dev, allow with explicit opt-in.
       if (isProd || !devAllow) {
         console.warn('[resend webhook] signature verification failed:', (err as Error).message)

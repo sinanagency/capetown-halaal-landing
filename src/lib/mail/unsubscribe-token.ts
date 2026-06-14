@@ -11,10 +11,18 @@
 
 import { createHmac, randomBytes } from 'crypto'
 
+// In production we REFUSE to run without UNSUB_SECRET set. The previous
+// behaviour (silent per-process random fallback) meant that every redeploy
+// rotated every previously-issued unsubscribe link, AND the NEXTAUTH_SECRET
+// fallback was dead weight from a never-deployed NextAuth integration.
+// Fail loudly at module load so a missing env never silently breaks unsubs.
+if (process.env.NODE_ENV === 'production' && !process.env.UNSUB_SECRET) {
+  throw new Error('UNSUB_SECRET is required in production. Set it on the Vercel project.')
+}
+
 const UNSUB_SECRET = (
   process.env.UNSUB_SECRET ||
-  process.env.NEXTAUTH_SECRET ||
-  // Stable per-process fallback so dev does not crash; production MUST set env.
+  // Stable per-process fallback so dev does not crash; production hard-fails above.
   randomBytes(32).toString('hex')
 ).trim()
 
