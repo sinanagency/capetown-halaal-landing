@@ -11,20 +11,26 @@
 
 import { createHmac, randomBytes } from 'crypto'
 
-// In production we REFUSE to run without UNSUB_SECRET set. The previous
-// behaviour (silent per-process random fallback) meant that every redeploy
-// rotated every previously-issued unsubscribe link, AND the NEXTAUTH_SECRET
-// fallback was dead weight from a never-deployed NextAuth integration.
-// Fail loudly at module load so a missing env never silently breaks unsubs.
-if (process.env.NODE_ENV === 'production' && !process.env.UNSUB_SECRET) {
-  throw new Error('UNSUB_SECRET is required in production. Set it on the Vercel project.')
-}
+// In production we REFUSE to mint or verify a token without UNSUB_SECRET set.
+// The previous silent per-process random fallback rotated every previously-issued
+// link on every redeploy. The NEXTAUTH_SECRET fallback was dead weight from a
+// never-deployed NextAuth integration.
+// We defer the assertion to runtime (when sig() is called) so the build does not
+// crash at module load. Vercel injects env at request time, not build time.
 
-const UNSUB_SECRET = (
-  process.env.UNSUB_SECRET ||
-  // Stable per-process fallback so dev does not crash; production hard-fails above.
-  randomBytes(32).toString('hex')
-).trim()
+const DEV_FALLBACK_SECRET = randomBytes(32).toString('hex')
+
+function getSecret(): string {
+  const fromEnv = process.env.UNSUB_SECRET?.trim()
+  if (fromEnv) return fromEnv
+  // VERCEL_ENV is set on Vercel (preview/production); NODE_ENV is also production
+  // on Vercel but we use VERCEL_ENV when available to differentiate from local builds.
+  const isProd = process.env.VERCEL_ENV === 'production' || (!process.env.VERCEL_ENV && process.env.NODE_ENV === 'production')
+  if (isProd) {
+    throw new Error('UNSUB_SECRET is required in production. Set it on the Vercel project.')
+  }
+  return DEV_FALLBACK_SECRET
+}
 
 function b64url(input: Buffer): string {
   return input.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -36,7 +42,7 @@ function fromB64url(input: string): Buffer {
 }
 
 function sig(email: string): string {
-  return b64url(createHmac('sha256', UNSUB_SECRET).update(`${email.toLowerCase()}:unsub`).digest())
+  return b64url(createHmac('sha256', getSecret()).update(`${email.toLowerCase()}:unsub`).digest())
 }
 
 /**
