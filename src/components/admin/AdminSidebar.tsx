@@ -163,19 +163,19 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
 
   const sidebarBody = (
     <>
-      {/* Logo: image above text, centred. Bigger height + scale overflow so the
-          mark reads tightly despite the baked-in whitespace in logo.png, matching
-          the main site's translate-y'd treatment. */}
-      <div className="px-6 pt-8 pb-4 border-b border-neutral-200 relative">
-        <div className="flex flex-col items-center text-center gap-2">
+      {/* Logo: image above text, centred. Use actual h-32 instead of
+          transform scale — scale() is a visual bleed that overlaps siblings
+          and shifts the mark off the layout midline. Same lesson as
+          /exhibitor PortalNav. */}
+      <div className="px-6 pt-6 pb-4 border-b border-neutral-200 relative">
+        <div className="flex flex-col items-center text-center gap-1.5">
           <Image
             src="/logo.png"
             alt="Young at Heart"
-            width={112}
-            height={150}
+            width={140}
+            height={186}
             priority
-            className="h-28 w-auto"
-            style={{ transform: 'scale(1.15)', transformOrigin: 'center' }}
+            className="h-32 w-auto"
           />
           <div>
             <h1 className="text-lg font-bold text-neutral-900 leading-tight">

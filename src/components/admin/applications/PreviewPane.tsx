@@ -241,11 +241,14 @@ export function PreviewPane({
           </p>
         </section>
 
-        {/* Special requirements */}
+        {/* Special requirements: the application form POSTs this as a JSON
+            blob (stall_type, stall_price, electrical_appliances, etc).
+            Parse + render as labeled rows. Fallback to plain text if the
+            shape ever drifts. Strip em-dashes on display (Law 7). */}
         {row.special_requirements && (
-          <section className="space-y-1">
+          <section className="space-y-1.5">
             <div className="text-[10px] uppercase tracking-wider text-neutral-400">Special requirements</div>
-            <p className="text-sm text-neutral-700 whitespace-pre-wrap">{row.special_requirements}</p>
+            <SpecialRequirementsView raw={row.special_requirements} />
           </section>
         )}
 
@@ -303,5 +306,79 @@ export function PreviewPane({
         </section>
       </div>
     </div>
+  )
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  traded_before: 'Traded before',
+  social_media: 'Social media',
+  stall_type: 'Stall type',
+  stall_price: 'Stall price',
+  electrical_appliances: 'Electrical appliances',
+  appliance_details: 'Appliance details',
+  uses_gas: 'Uses gas',
+  total_estimate: 'Total estimate',
+  power_supply: 'Power supply',
+  water_required: 'Water required',
+  notes: 'Notes',
+}
+
+function humaniseKey(k: string): string {
+  if (FIELD_LABELS[k]) return FIELD_LABELS[k]
+  return k.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function formatValue(k: string, v: unknown): string {
+  if (v === null || v === undefined) return ''
+  if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'number') {
+    if (/price|estimate|cost|fee/i.test(k)) return `R${v.toLocaleString('en-ZA')}`
+    return String(v)
+  }
+  const s = String(v).trim()
+  return s.replace(/—/g, ' to ').replace(/–/g, ' to ')
+}
+
+function SpecialRequirementsView({ raw }: { raw: string }) {
+  let parsed: Record<string, unknown> | null = null
+  try {
+    const trimmed = raw.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      const candidate = JSON.parse(trimmed)
+      if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+        parsed = candidate as Record<string, unknown>
+      }
+    }
+  } catch {
+    parsed = null
+  }
+
+  if (!parsed) {
+    return (
+      <p className="text-sm text-neutral-700 whitespace-pre-wrap">
+        {raw.replace(/—/g, ' to ').replace(/–/g, ' to ')}
+      </p>
+    )
+  }
+
+  const rows = Object.entries(parsed).filter(([, v]) => {
+    if (v === null || v === undefined) return false
+    const s = String(v).trim()
+    return s.length > 0
+  })
+
+  if (rows.length === 0) {
+    return <p className="text-sm text-neutral-400">No special requirements provided.</p>
+  }
+
+  return (
+    <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 text-sm">
+      {rows.map(([k, v]) => (
+        <div key={k} className="contents">
+          <dt className="text-neutral-500 sm:text-right">{humaniseKey(k)}</dt>
+          <dd className="text-neutral-800 whitespace-pre-wrap break-words">{formatValue(k, v)}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }
