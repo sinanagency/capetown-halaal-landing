@@ -372,7 +372,7 @@ export default function ApplicationsWorkbenchPage() {
   const selectedCount = selectedIds.size
 
   return (
-    <div className="flex flex-col h-[calc(100vh-0px)] bg-neutral-50">
+    <div className="flex flex-col h-screen overflow-hidden bg-neutral-50">
       {/* Top bar */}
       <header className="flex items-center gap-3 px-5 py-2.5 border-b border-neutral-200 bg-white">
         <div className="flex items-baseline gap-2">
@@ -434,24 +434,26 @@ export default function ApplicationsWorkbenchPage() {
               <Loader2 className="w-5 h-5 animate-spin text-neutral-400" />
             </div>
           ) : (
-            <QueueList
-              rows={visibleRows}
-              focusedId={focusedId}
-              selectedIds={selectedIds}
-              onFocus={setFocusedId}
-              onOpen={(id) => window.open(`/admin/applications/${id}`, '_self')}
-              // Mobile-only row actions. Same intents as the desktop keyboard
-              // shortcuts; reuses the single-row action endpoint via runAction.
-              onAction={(id, action) => {
-                if (action.kind === 'approve') runAction(id, 'approve')
-                else if (action.kind === 'reject') runAction(id, 'reject', { reason: action.reason })
-                else if (action.kind === 'request_info') runAction(id, 'request_info', { reason: action.reason })
-                else if (action.kind === 'tag') runAction(id, 'tag', { sector: action.sector })
-              }}
-            />
+            <div className="overflow-y-auto flex-1 min-h-0">
+              <QueueList
+                rows={visibleRows}
+                focusedId={focusedId}
+                selectedIds={selectedIds}
+                onFocus={setFocusedId}
+                onOpen={(id) => window.open(`/admin/applications/${id}`, '_self')}
+                // Mobile-only row actions. Same intents as the desktop keyboard
+                // shortcuts; reuses the single-row action endpoint via runAction.
+                onAction={(id, action) => {
+                  if (action.kind === 'approve') runAction(id, 'approve')
+                  else if (action.kind === 'reject') runAction(id, 'reject', { reason: action.reason })
+                  else if (action.kind === 'request_info') runAction(id, 'request_info', { reason: action.reason })
+                  else if (action.kind === 'tag') runAction(id, 'tag', { sector: action.sector })
+                }}
+              />
+            </div>
           )}
         </div>
-        <div className="bg-neutral-50 min-h-0">
+        <div className="bg-neutral-50 overflow-y-auto flex-1 min-h-0">
           <PreviewPane row={focused} duplicateSiblings={duplicateSiblings} />
         </div>
       </div>

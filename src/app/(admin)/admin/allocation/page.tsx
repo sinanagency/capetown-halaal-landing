@@ -4,10 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2, Search, X, MapPin } from 'lucide-react'
-import StallMap, { type MapStall } from '@/components/admin/StallMap'
+import { Loader2 } from 'lucide-react'
+import FloorCommand, { type FloorBooth, type FloorApp, type FloorStatus } from '@/components/floor/FloorCommand'
+import type { MapStall } from '@/components/admin/StallMap'
 import AllocationFilters, { type StatusFilter, type AppRowLite } from '@/components/admin/allocation/AllocationFilters'
-import { TYPE_META, TIER_META, type StallType } from '@/lib/stalls'
+import { TIER_META, type StallType } from '@/lib/stalls'
 
 interface AppRow extends AppRowLite {
   contact_name: string | null
@@ -25,22 +26,19 @@ interface StallsResponse {
   zones: { label: string; col: number; row: number; w: number; h: number }[]
 }
 
-// Booth allocation page with 2D floorplan map. Samreen picks a stall on the map,
-// then assigns it to an approved vendor (filtered by Sector / Booth Tier).
-// Reuses the existing /api/admin/stalls endpoint so persistence stays on the
-// ⟦STALL:..⟧ marker (stall-allocation law).
+// Booth allocation page. Renders the EXACT SAME map component the vendor portal
+// (/exhibitor/portal/stand) uses — FloorCommand — so admin sees the clean
+// fit-to-view rendering, dashed-available chips, and brand-red palette.
+// Persistence still routes through /api/admin/stalls (⟦STALL:..⟧ marker,
+// stall-allocation law). FloorCommand's onAllocate yields a business_name;
+// we resolve it back to application_id via data.applications.
 export default function AllocationPage() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
   const [data, setData] = useState<StallsResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [sel, setSel] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [mapSearch, setMapSearch] = useState('')
-  const [chosenApp, setChosenApp] = useState<AppRow | null>(null)
-  const [saving, setSaving] = useState(false)
 
-  // Filter state — controls both the map highlight and the live countdown.
+  // Filter state — controls the live countdown above the map.
   const [sector, setSector] = useState<string | null>(null)
   const [tier, setTier] = useState<string | null>(null)
   const [status, setStatus] = useState<StatusFilter>('all')
@@ -69,9 +67,8 @@ export default function AllocationPage() {
     return () => { active = false }
   }, [router, load])
 
-  // Apply the filter to the map: stalls not matching are dimmed via status='available'
-  // proxy (we don't mutate originals — we keep allocated/held visible, just lower
-  // their visual weight when out of slice). For countdown we count only in-slice.
+  // Tier filter narrows which stalls render on the map (countdown applies the
+  // sector + status filters too).
   const filteredStalls = useMemo<MapStall[]>(() => {
     if (!data) return []
     const zone: StallType | null = tier ? TIER_META[tier]?.suggestZone ?? null : null
@@ -89,8 +86,6 @@ export default function AllocationPage() {
         if (st !== status) return false
       }
       if (sector) {
-        // sector filter applies to OCCUPIED stalls only — narrowing what shows
-        // up as "X allocated in this sector"
         const occ = s.occupant as { id?: string } | null
         if (!occ?.id) return false
         const app = data.applications.find((a) => a.id === occ.id)
@@ -100,45 +95,99 @@ export default function AllocationPage() {
     })
   }, [data, tier, sector, status])
 
-  // Approved-only vendor pool, sector + tier filtered, for the "assign" dropdown.
-  const eligibleApps = useMemo<AppRow[]>(() => {
+  // ---- Adapter: MapStall[] + zones -> FloorBooth[] (same shape StandView builds) ----
+  const booths = useMemo<FloorBooth[]>(() => {
     if (!data) return []
-    const q = search.trim().toLowerCase()
-    return data.applications.filter((a) => {
-      if (a.app_status !== 'approved' && !a.stall) return false
-      if (a.stall && a.stall !== sel) return false
-      if (sector && !(a.categories || []).includes(sector)) return false
-      if (tier && a.tier !== tier) return false
-      if (q && !a.business_name.toLowerCase().includes(q)) return false
-      return true
-    }).slice(0, 40)
-  }, [data, sector, tier, search, sel])
+    const stallBooths: FloorBooth[] = filteredStalls.map((s) => {
+      const occ = s.occupant as { id?: string; business_name?: string } | null
+      return {
+        code: s.code,
+        type: s.type as FloorBooth['type'],
+        col: s.col,
+        row: s.row,
+        w: s.w,
+        h: s.h,
+        zone: data.zones.find(
+          (z) => s.col >= z.col && s.col < z.col + z.w && s.row >= z.row && s.row < z.row + z.h,
+        )?.label || '',
+        status: (s.status === 'held' ? 'reserved' : (s.status || 'available')) as FloorStatus,
+        vendor: occ?.business_name || null,
+        applicationId: occ?.id || null,
+      }
+    })
+    const zoneBooths: FloorBooth[] = data.zones.map((z) => ({
+      code: `Z-${z.label.replace(/\s+/g, '-')}`,
+      type: 'facility' as const,
+      col: z.col,
+      row: z.row,
+      w: z.w,
+      h: z.h,
+      zone: z.label,
+      status: 'facility' as FloorStatus,
+      vendor: null,
+      applicationId: null,
+    }))
+    return [...stallBooths, ...zoneBooths]
+  }, [data, filteredStalls])
 
-  const selStall = useMemo(() => data?.stalls.find((s) => s.code === sel) || null, [data, sel])
-  const occupant = useMemo(() => {
-    if (!sel || !data) return null
-    return data.applications.find((a) => a.stall === sel) || null
-  }, [sel, data])
-
-  function pick(code: string) { setSel(code); setChosenApp(null); setSearch('') }
-
-  async function post(body: Record<string, unknown>) {
-    setSaving(true)
-    try {
-      const res = await fetch('/api/admin/stalls', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+  // Approved-vendor pool for FloorCommand's vendor-name input + datalist.
+  // Filtered by sector + tier so Samreen's narrowing still drives the picker.
+  const floorApps = useMemo<FloorApp[]>(() => {
+    if (!data) return []
+    return data.applications
+      .filter((a) => {
+        if (a.app_status !== 'approved' && !a.stall) return false
+        if (sector && !(a.categories || []).includes(sector)) return false
+        if (tier && a.tier !== tier) return false
+        return true
       })
-      const j = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
-      toast.success(j.message || 'Saved')
-      await load()
-      setChosenApp(null)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Save failed')
-    } finally { setSaving(false) }
-  }
+      .map((a) => ({
+        id: a.id,
+        business_name: a.business_name,
+        tier_label: a.tier_label,
+        stall: a.stall,
+      }))
+  }, [data, sector, tier])
+
+  // ---- Persistence callbacks wired to /api/admin/stalls ----
+  const postStall = useCallback(async (body: Record<string, unknown>) => {
+    const res = await fetch('/api/admin/stalls', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const j = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+    return j
+  }, [])
+
+  const handleAllocate = useCallback(async (
+    boothCode: string,
+    vendorName: string,
+    nextStatus: 'allocated' | 'reserved',
+  ) => {
+    if (!data) return
+    const matched = data.applications.find(
+      (a) => a.business_name.toLowerCase() === vendorName.toLowerCase(),
+    ) || data.applications.find(
+      (a) => a.business_name.toLowerCase().includes(vendorName.toLowerCase()),
+    )
+    if (!matched) {
+      throw new Error(`No approved vendor named "${vendorName}". Approve them under Applications first.`)
+    }
+    await postStall({ stall_code: boothCode, application_id: matched.id, status: nextStatus })
+    await load()
+  }, [data, postStall, load])
+
+  const handleRelease = useCallback(async (boothCode: string) => {
+    await postStall({ stall_code: boothCode, status: 'clear' })
+    await load()
+  }, [postStall, load])
+
+  const handleToggleBlock = useCallback(async (boothCode: string, nextBlocked: boolean) => {
+    await postStall({ stall_code: boothCode, status: nextBlocked ? 'blocked' : 'clear' })
+    await load()
+  }, [postStall, load])
 
   if (!ready) {
     return (
@@ -154,7 +203,7 @@ export default function AllocationPage() {
         <p className="text-xs font-semibold text-[#cd2653] uppercase tracking-[0.2em]">BOOTH ALLOCATION</p>
         <h1 className="text-2xl font-bold text-neutral-900">Floor plan</h1>
         <p className="text-sm text-neutral-500 mt-1">
-          Pick a stall, then assign it to an approved vendor. Filter by sector or tier to narrow the pool.
+          Pick a stall on the map, then assign it to an approved vendor. Filter by sector or tier to narrow the pool.
         </p>
       </div>
 
@@ -165,151 +214,35 @@ export default function AllocationPage() {
       )}
 
       {!loading && data && (
-        <div className="mt-5 grid lg:grid-cols-[1fr_360px] gap-4">
-          <div>
-            <AllocationFilters
-              stalls={countdownStalls}
-              applications={data.applications}
-              capacity={Object.fromEntries(
-                (Object.keys(data.availability) as StallType[]).map((t) => [t, data.availability[t].total])
-              ) as Record<StallType, number>}
-              sector={sector}
-              setSector={setSector}
-              tier={tier}
-              setTier={setTier}
-              status={status}
-              setStatus={setStatus}
-            />
+        <div className="mt-5 space-y-4">
+          <AllocationFilters
+            stalls={countdownStalls}
+            applications={data.applications}
+            capacity={Object.fromEntries(
+              (Object.keys(data.availability) as StallType[]).map((t) => [t, data.availability[t].total])
+            ) as Record<StallType, number>}
+            sector={sector}
+            setSector={setSector}
+            tier={tier}
+            setTier={setTier}
+            status={status}
+            setStatus={setStatus}
+          />
 
-            <div className="bg-white border border-neutral-200 rounded-xl p-4">
-              <div className="mb-3 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
-                <input
-                  value={mapSearch}
-                  onChange={(e) => setMapSearch(e.target.value)}
-                  placeholder="Search stall code (e.g. A12, B07)…"
-                  className="w-full pl-10 pr-9 py-2.5 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
-                />
-                {mapSearch && (
-                  <button
-                    type="button"
-                    onClick={() => setMapSearch('')}
-                    aria-label="Clear stall search"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-              <div className="h-[calc(100vh-300px)] min-h-[600px] w-full overflow-hidden rounded-lg">
-                <StallMap
-                  stalls={filteredStalls}
-                  grid={data.grid}
-                  zones={data.zones}
-                  mode="admin"
-                  selected={sel}
-                  onSelect={pick}
-                  searchQuery={mapSearch}
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap gap-3 text-xs text-neutral-600">
-                {(Object.keys(TYPE_META) as StallType[]).map((t) => (
-                  <span key={t} className="inline-flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: TYPE_META[t].color }} />
-                    {TYPE_META[t].label}
-                    <span className="text-neutral-400">
-                      ({data.availability[t].allocated + data.availability[t].held}/{data.availability[t].total})
-                    </span>
-                  </span>
-                ))}
-              </div>
+          <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+            <div className="h-[calc(100vh-260px)] min-h-[640px] w-full">
+              <FloorCommand
+                mode="admin"
+                hideModeSwitch
+                booths={booths}
+                grid={data.grid}
+                applications={floorApps}
+                onAllocate={handleAllocate}
+                onRelease={handleRelease}
+                onToggleBlock={handleToggleBlock}
+              />
             </div>
           </div>
-
-          <aside className="bg-white border border-neutral-200 rounded-xl p-4">
-            <p className="font-semibold text-neutral-900 flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-[#cd2653]" />
-              {sel ? `Stall ${sel}` : 'Pick a stall'}
-            </p>
-            {!sel && (
-              <p className="text-sm text-neutral-500 mt-2">
-                Click a stall on the map to assign it.
-              </p>
-            )}
-
-            {sel && selStall && (
-              <div className="mt-3 space-y-3 text-sm">
-                <div className="text-xs text-neutral-500">
-                  Zone: <span className="font-medium text-neutral-700">{TYPE_META[selStall.type].label}</span>
-                </div>
-                {occupant ? (
-                  <div className="rounded-lg border border-[#cd2653]/30 bg-[#F8DCE3] p-3">
-                    <p className="font-semibold text-[#cd2653]">{occupant.business_name}</p>
-                    <p className="text-xs text-[#cd2653]/80 mt-1">{occupant.tier_label}</p>
-                    <button
-                      type="button"
-                      onClick={() => post({ stall_code: sel, status: 'clear' })}
-                      disabled={saving}
-                      className="mt-3 w-full text-xs font-semibold text-[#cd2653] underline hover:no-underline disabled:opacity-50"
-                    >
-                      {saving ? 'Working…' : 'Release this stall'}
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
-                      <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search vendor…"
-                        className="w-full pl-8 pr-3 py-2 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
-                      />
-                    </div>
-                    <div className="max-h-72 overflow-y-auto rounded-lg border border-neutral-200 divide-y divide-neutral-100">
-                      {eligibleApps.length === 0 ? (
-                        <p className="text-xs text-neutral-400 p-3">
-                          No approved vendors match the current sector/tier filter.
-                        </p>
-                      ) : (
-                        eligibleApps.map((a) => (
-                          <button
-                            key={a.id}
-                            type="button"
-                            onClick={() => setChosenApp(a)}
-                            className={`w-full text-left p-2.5 text-sm hover:bg-neutral-50 ${
-                              chosenApp?.id === a.id ? 'bg-[#F8DCE3]/40' : ''
-                            }`}
-                          >
-                            <p className="font-medium text-neutral-900 truncate">{a.business_name}</p>
-                            <p className="text-[11px] text-neutral-500 truncate">{a.tier_label}</p>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                    {chosenApp && (
-                      <button
-                        type="button"
-                        onClick={() => post({ stall_code: sel, application_id: chosenApp.id, status: 'allocated' })}
-                        disabled={saving}
-                        className="w-full bg-[#cd2653] hover:bg-[#bf3026] text-white font-semibold rounded-lg py-2.5 text-sm disabled:opacity-60 inline-flex items-center justify-center gap-2"
-                      >
-                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                        Assign {chosenApp.business_name} to {sel}
-                      </button>
-                    )}
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setSel(null)}
-                  className="w-full text-xs text-neutral-500 hover:text-neutral-900 inline-flex items-center justify-center gap-1"
-                >
-                  <X className="w-3 h-3" /> Close
-                </button>
-              </div>
-            )}
-          </aside>
         </div>
       )}
     </div>

@@ -6,7 +6,7 @@ import {
   XCircle, RefreshCw, Send,
 } from 'lucide-react'
 import {
-  PageShell, PageHeader, Card, StatCard, Pill, ButtonSecondary,
+  PageHeader, Card, StatCard, Pill, ButtonSecondary,
 } from '@/components/chrome/PageChrome'
 import { ChaseComposer, type ChaseRecipient } from '@/components/admin/follow-up/ChaseComposer'
 import type { TemplateKey } from '@/lib/mail/templates'
@@ -162,11 +162,11 @@ export default function FollowUpPage() {
 
   if (loading) {
     return (
-      <PageShell>
-        <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="h-screen overflow-hidden bg-[#FFFFFF] text-[#1B1A17]">
+        <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10 py-8 h-full flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-[#E5E5E5]/60" />
         </div>
-      </PageShell>
+      </div>
     )
   }
 
@@ -200,7 +200,8 @@ export default function FollowUpPage() {
   }
 
   return (
-    <PageShell>
+    <div className="h-screen overflow-hidden bg-[#FFFFFF] text-[#1B1A17] flex flex-col">
+      <div className="max-w-7xl mx-auto w-full px-6 sm:px-8 lg:px-10 pt-8 flex-shrink-0">
       <PageHeader
         kicker="Follow Up"
         title="Follow Up"
@@ -225,8 +226,10 @@ export default function FollowUpPage() {
           </div>
         }
       />
+      </div>
 
-      <div className="space-y-6">
+      <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="max-w-7xl mx-auto w-full px-6 sm:px-8 lg:px-10 pb-8 space-y-6">
         {/* Summary stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Failed Payments" value={failed.length}
@@ -237,7 +240,7 @@ export default function FollowUpPage() {
           <StatCard label="Submit Failures" value={submitDropoffs} hint="Started submit but didn't complete" />
         </div>
 
-        <div className="h-[calc(100vh-3rem)] overflow-y-auto space-y-6 pr-2">
+        <div className="space-y-6">
         {/* Failed orders */}
         <Card padded={false} className="overflow-hidden">
           <div className="px-6 py-4 border-b border-[#E5E5E5]/30 bg-[#cd2653]/5">
@@ -452,6 +455,7 @@ export default function FollowUpPage() {
           </div>
         </Card>
         </div>
+        </div>
       </div>
 
       {composerFor && (
@@ -461,6 +465,6 @@ export default function FollowUpPage() {
           onClose={() => setComposerFor(null)}
         />
       )}
-    </PageShell>
+    </div>
   )
 }
