@@ -454,7 +454,33 @@ export default function ApplicationsWorkbenchPage() {
           )}
         </div>
         <div className="bg-neutral-50 overflow-y-auto flex-1 min-h-0">
-          <PreviewPane row={focused} duplicateSiblings={duplicateSiblings} />
+          <PreviewPane
+            row={focused}
+            duplicateSiblings={duplicateSiblings}
+            // Mouse-driven approve: same path as `a`. No confirm modal;
+            // optimistic update + revert on fail is handled inside runAction.
+            onApprove={(id) => runAction(id, 'approve')}
+            // Reject prompts for a reason (mirrors `r`). Cancel or blank
+            // = flash hint and skip the network call.
+            onReject={(id) => {
+              const reason = window.prompt('Reason for reject?') ?? ''
+              if (!reason.trim()) {
+                flashHint('reject cancelled')
+                return Promise.resolve(false)
+              }
+              return runAction(id, 'reject', { reason })
+            }}
+            // Request info prompts with the default template body so the
+            // operator can edit before sending (mirrors `i`).
+            onRequestInfo={(id) => {
+              const reason = window.prompt(
+                'Info-request reason (free text, or leave blank for the default "Outstanding documents" template):',
+                'We still need your halaal certificate and trading licence to finalise review.'
+              )
+              if (reason === null) return Promise.resolve(false)
+              return runAction(id, 'request_info', { reason })
+            }}
+          />
         </div>
       </div>
 

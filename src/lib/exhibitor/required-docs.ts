@@ -20,6 +20,7 @@ export type DocType =
   | 'electrical_coc'
   | 'fire_safety'
   | 'indemnity'
+  | 'vendor_contract'
   | 'other'
 
 // Tier slug fragments that mean "food truck". The portal stores the full slug
@@ -89,5 +90,6 @@ export const DOC_LABEL: Record<DocType, string> = {
   electrical_coc: 'Electrical certificate of compliance',
   fire_safety: 'Fire-safety certificate',
   indemnity: 'Indemnity',
+  vendor_contract: 'Vendor contract',
   other: 'Other supporting documents',
 }

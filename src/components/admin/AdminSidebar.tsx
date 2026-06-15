@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -86,6 +86,24 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [supportUnread, setSupportUnread] = useState(0)
   const [pendingApps, setPendingApps] = useState<number | null>(null)
+  // Collapsed state for desktop (lg+) sidebar. Persisted to localStorage so the
+  // operator's preference survives reloads. Mobile drawer is unaffected.
+  const [collapsed, setCollapsed] = useState(false)
+
+  // Hydrate collapsed state from localStorage on mount. Guarded for SSR.
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('admin.sidebarCollapsed')
+      if (v === '1') setCollapsed(true)
+    } catch { /* private mode / SSR */ }
+  }, [])
+
+  // Persist collapsed changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin.sidebarCollapsed', collapsed ? '1' : '0')
+    } catch { /* private mode / SSR */ }
+  }, [collapsed])
 
   // Close drawer on route change
   useEffect(() => {
@@ -163,26 +181,24 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
 
   const sidebarBody = (
     <>
-      {/* Logo: image above text, centred. Use actual h-32 instead of
-          transform scale — scale() is a visual bleed that overlaps siblings
-          and shifts the mark off the layout midline. Same lesson as
-          /exhibitor PortalNav. */}
-      <div className="px-6 pt-6 pb-4 border-b border-neutral-200 relative">
-        <div className="flex flex-col items-center text-center gap-1.5">
+      {/* Logo block: horizontal, tight against text (matches main site treatment).
+          Drops the h-32 stacked layout for h-12 inline. */}
+      <div className="px-4 py-4 border-b border-neutral-200 relative">
+        <div className={cn('flex items-center gap-2.5', collapsed && 'justify-center')}>
           <Image
             src="/logo.png"
             alt="Young at Heart"
-            width={140}
-            height={186}
+            width={56}
+            height={56}
             priority
-            className="h-32 w-auto"
+            className="h-12 w-auto flex-shrink-0 translate-y-[11%]"
           />
-          <div>
-            <h1 className="text-lg font-bold text-neutral-900 leading-tight">
-              Young at Heart
-            </h1>
-            <p className="text-xs text-neutral-500 mt-0.5">Admin Portal</p>
-          </div>
+          {!collapsed && (
+            <div className="leading-tight min-w-0">
+              <p className="font-bold text-sm text-neutral-900 truncate">Young at Heart</p>
+              <p className="text-[10px] text-neutral-500">Admin Portal</p>
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -192,43 +208,55 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         >
           <X className="w-5 h-5" />
         </button>
+        {/* Desktop collapse toggle: floats on the right edge */}
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="hidden lg:flex absolute -right-3 top-6 w-6 h-6 items-center justify-center rounded-full bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-neutral-400 shadow-sm z-10"
+        >
+          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        </button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-3 overflow-y-auto">
         {navGroups.map((group, gi) => (
           <div key={group.label ?? `group-${gi}`} className="space-y-1">
-            {group.label && (
+            {group.label && !collapsed && (
               <p className="px-4 mt-6 mb-1 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider">
                 {group.label}
               </p>
             )}
             {group.items.map((item) => {
               const isActive = isItemActive(item.href)
+              const badgeNum = item.href === '/admin/support-inbox' ? supportUnread
+                : item.href === '/admin/applications' ? pendingApps
+                : null
               return (
                 <Link
                   key={item.name}
                   href={item.href}
+                  title={collapsed ? item.name : undefined}
                   className={cn(
-                    'flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-[#cd2653] text-white'
-                      : 'text-neutral-600 hover:bg-neutral-100'
+                    'relative flex items-center rounded-lg text-sm font-medium transition-colors min-h-[44px]',
+                    collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3',
+                    isActive ? 'bg-[#cd2653] text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   )}
                 >
-                  <item.icon className="w-4.5 h-4.5" />
-                  <span className="flex-1">{item.name}</span>
-                  {item.href === '/admin/support-inbox' && supportUnread > 0 && (
+                  <item.icon className="w-4.5 h-4.5 flex-shrink-0" />
+                  {!collapsed && <span className="flex-1">{item.name}</span>}
+                  {!collapsed && badgeNum !== null && badgeNum > 0 && (
                     <span className={cn(
                       'text-[10px] font-bold rounded-full px-1.5 py-0.5',
                       isActive ? 'bg-white text-[#cd2653]' : 'bg-[#cd2653] text-white'
-                    )}>{supportUnread}</span>
+                    )}>{badgeNum}</span>
                   )}
-                  {item.href === '/admin/applications' && pendingApps !== null && pendingApps > 0 && (
+                  {collapsed && badgeNum !== null && badgeNum > 0 && (
                     <span className={cn(
-                      'text-[10px] font-bold rounded-full px-1.5 py-0.5',
-                      isActive ? 'bg-white text-[#cd2653]' : 'bg-[#cd2653] text-white'
-                    )}>{pendingApps}</span>
+                      'absolute top-1 right-1 w-2 h-2 rounded-full ring-2 ring-white',
+                      isActive ? 'bg-white' : 'bg-[#cd2653]'
+                    )} />
                   )}
                 </Link>
               )
@@ -237,7 +265,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         ))}
 
         {/* External group lives at the bottom, separated by a divider. */}
-        <div className="pt-4 mt-6 border-t border-neutral-100">
+        {!collapsed && <div className="pt-4 mt-6 border-t border-neutral-100">
           <p className="px-4 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">External</p>
           <a
             href="https://tickets.youngatheart.co.za"
@@ -257,11 +285,11 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
             <ExternalLink className="w-4.5 h-4.5" />
             Main Website
           </a>
-        </div>
+        </div>}
       </nav>
 
       {/* Back to Site */}
-      <div className="px-3 pb-2">
+      {!collapsed && <div className="px-3 pb-2">
         <a
           href="https://cthalaal.co.za"
           target="_blank"
@@ -271,11 +299,11 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
           <Globe className="w-4.5 h-4.5" />
           View Live Site
         </a>
-      </div>
+      </div>}
 
       {/* Role chip + Logout */}
       <div className="p-3 border-t border-neutral-200 space-y-2">
-        <div className="flex items-center justify-between gap-2 px-1">
+        {!collapsed && <div className="flex items-center justify-between gap-2 px-1">
           <div className="min-w-0 flex-1">
             <p className="text-[11px] text-neutral-400 uppercase tracking-wider">Signed in</p>
             <p className="text-xs text-neutral-700 truncate" title={email ?? ''}>
@@ -292,13 +320,17 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
             <BadgeIcon className="w-3 h-3" />
             {badge.label}
           </span>
-        </div>
+        </div>}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium text-neutral-600 hover:bg-neutral-100 w-full transition-colors"
+          title={collapsed ? 'Sign Out' : undefined}
+          className={cn(
+            'flex items-center rounded-lg text-sm font-medium text-neutral-600 hover:bg-neutral-100 w-full transition-colors min-h-[44px]',
+            collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3'
+          )}
         >
-          <LogOut className="w-4.5 h-4.5" />
-          Sign Out
+          <LogOut className="w-4.5 h-4.5 flex-shrink-0" />
+          {!collapsed && <>Sign Out</>}
         </button>
       </div>
     </>
@@ -358,9 +390,10 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          'bg-white border-r border-neutral-200 flex flex-col',
+          'bg-white border-r border-neutral-200 flex flex-col transition-[width] duration-200 ease-out',
           // mobile: drawer (sits above the overlay backdrop on the modal layer)
-          'fixed inset-y-0 left-0 w-72 transform transition-transform md:relative md:translate-x-0 md:w-64 md:h-screen md:overflow-hidden',
+          'fixed inset-y-0 left-0 w-72 transform transition-transform md:relative md:translate-x-0 md:h-screen md:overflow-hidden',
+          collapsed ? 'md:w-16' : 'md:w-64',
           Z_CLASS.modal,
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         )}

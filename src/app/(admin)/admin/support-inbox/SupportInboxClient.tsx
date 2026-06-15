@@ -133,6 +133,37 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
     } finally { setLoading(false) }
   }, [tab, statusFilter, tagFilter])
 
+  // Open a Sent row as a full thread. Switches to All tab so the thread is in
+  // the list regardless of open/snoozed/resolved status, refetches threads
+  // with status=all, then selects the target thread. The Inbox thread renderer
+  // (which already right-aligns outbound mail in brand red and left-aligns
+  // inbound) takes over the visual so the operator sees full continuity.
+  const openSentAsThread = useCallback(async (threadId: string | null) => {
+    if (!threadId) {
+      toast.error('This send has no thread link.')
+      return
+    }
+    setTab('all')
+    setStatusFilter('all')
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ status: 'all' })
+      const res = await fetch(`/api/admin/support-inbox/threads?${params.toString()}`)
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      const fetched: SupportThread[] = j.threads || []
+      setThreads(fetched)
+      const hit = fetched.find((t) => t.id === threadId)
+      if (hit) {
+        setActiveId(threadId)
+      } else {
+        toast.error('Thread not found in the 200-row window.')
+      }
+    } catch (e) {
+      toast.error(`Open thread failed, ${e instanceof Error ? e.message : 'error'}`)
+    } finally { setLoading(false) }
+  }, [])
+
   const loadSent = useCallback(async () => {
     setSentLoading(true)
     try {
@@ -339,7 +370,16 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                 <p className="p-6 text-sm text-neutral-400 text-center">No sent mail yet.</p>
               ) : (
                 sent.map((s) => (
-                  <div key={s.id} className="p-4 hover:bg-neutral-50">
+                  // Click row to open full thread for this recipient.
+                  // openSentAsThread switches to All tab, refetches threads
+                  // status=all, then selects this row's thread_id. The Inbox
+                  // thread renderer (which already right-aligns outbound mail
+                  // in brand red and left-aligns inbound) handles the visual.
+                  <button
+                    key={s.id}
+                    onClick={() => openSentAsThread(s.thread_id)}
+                    className="w-full text-left p-4 hover:bg-neutral-50 focus:bg-neutral-50 outline-none transition-colors"
+                  >
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <p className="text-sm font-semibold text-neutral-900 truncate">
                         To: {s.peer_name || s.to_address}
@@ -365,8 +405,11 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                           via {s.provider}
                         </span>
                       )}
+                      <span className="ml-auto text-[10px] text-[#cd2653] font-semibold">
+                        Open thread
+                      </span>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>

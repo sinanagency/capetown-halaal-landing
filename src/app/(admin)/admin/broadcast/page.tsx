@@ -21,6 +21,7 @@
 // =============================================================================
 
 import { useEffect, useMemo, useState } from 'react'
+import { Sparkles } from 'lucide-react'
 
 type Channel = 'mail' | 'wa' | 'both'
 type Mode = 'template' | 'free_text'
@@ -47,12 +48,6 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'info_requested', label: 'Info requested' },
 ]
 
-const TRISTATE: { value: '' | 'true' | 'false'; label: string }[] = [
-  { value: '', label: 'Any' },
-  { value: 'true', label: 'Yes' },
-  { value: 'false', label: 'No' },
-]
-
 interface Filters {
   status: string
   sector: string
@@ -77,6 +72,38 @@ interface CountsResponse {
   wa_count: number
   optout_count: number
 }
+
+interface RevenueResponse {
+  tickets_total: number
+  tickets_30d: number
+  vendors_total: number
+  vendors_30d: number
+  total_in: number
+  total_30d: number
+  ticket_error?: string
+}
+
+const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
+
+const SECTOR_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Any sector' },
+  { value: 'food', label: 'Food' },
+  { value: 'fashion', label: 'Fashion' },
+  { value: 'beauty', label: 'Beauty' },
+  { value: 'crafts', label: 'Crafts' },
+  { value: 'services', label: 'Services' },
+  { value: 'other', label: 'Other' },
+]
+
+const TIER_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'Any tier' },
+  { value: 'food-truck-6m', label: 'Food truck 6m' },
+  { value: 'food-truck-3m', label: 'Food truck 3m' },
+  { value: 'gazebo-3x3', label: 'Gazebo 3x3' },
+  { value: 'gazebo-6x3', label: 'Gazebo 6x3' },
+  { value: 'gazebo-9x3', label: 'Gazebo 9x3' },
+  { value: 'shell-scheme', label: 'Shell scheme' },
+]
 
 interface DispatchResponse {
   audience_total: number
@@ -150,6 +177,19 @@ export default function BroadcastPage() {
   const [spinning, setSpinning] = useState(false)
   const [spinError, setSpinError] = useState<string | null>(null)
   const [spinVariants, setSpinVariants] = useState<string[] | null>(null)
+
+  // Revenue ("Money In") state.
+  const [revenue, setRevenue] = useState<RevenueResponse | null>(null)
+
+  // Fetch revenue once on mount.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/admin/broadcast/revenue', { credentials: 'include' })
+      .then(async (r) => r.ok ? r.json() as Promise<RevenueResponse> : null)
+      .then((j) => { if (!cancelled && j) setRevenue(j) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   // Refresh counts when filters change.
   useEffect(() => {
@@ -230,10 +270,6 @@ export default function BroadcastPage() {
     return Math.max(counts.mail_count, counts.wa_count)
   }, [channel, counts])
 
-  const update = <K extends keyof Filters>(key: K, value: Filters[K]) => {
-    setFilters((f) => ({ ...f, [key]: value }))
-  }
-
   const spin = async () => {
     setSpinning(true)
     setSpinError(null)
@@ -307,44 +343,29 @@ export default function BroadcastPage() {
 
   return (
     <div className="px-8 py-10 max-w-5xl">
-      <header className="mb-8">
+      <header className="mb-6">
         <h1 className="text-2xl font-semibold text-neutral-900">Broadcast</h1>
         <p className="text-sm text-neutral-500 mt-1">
           Reach a filtered slice of your vendor base on email, WhatsApp, or both.
         </p>
       </header>
 
-      {/* Filter rail */}
-      <section className="mb-7 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <FilterSelect label="Application status" value={filters.status}
-          onChange={(v) => update('status', v)} options={STATUS_OPTIONS} />
-        <FilterInput label="Sector" placeholder="e.g. food, fashion" value={filters.sector}
-          onChange={(v) => update('sector', v)} />
-        <FilterInput label="Booth tier" placeholder="e.g. food-truck-6m" value={filters.booth_tier}
-          onChange={(v) => update('booth_tier', v)} />
-        <FilterTri label="Documents complete" value={filters.has_docs}
-          onChange={(v) => update('has_docs', v)} />
-        <FilterTri label="Contract signed" value={filters.contract_signed}
-          onChange={(v) => update('contract_signed', v)} />
-        <FilterTri label="Stall fee paid" value={filters.paid}
-          onChange={(v) => update('paid', v)} />
+      {/* Money In KPI cards */}
+      <section className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <MoneyCard label="Tickets revenue" total={revenue?.tickets_total} last30={revenue?.tickets_30d} loading={!revenue} />
+        <MoneyCard label="Vendor revenue" total={revenue?.vendors_total} last30={revenue?.vendors_30d} loading={!revenue} />
+        <MoneyCard label="Total in" total={revenue?.total_in} last30={revenue?.total_30d} loading={!revenue} emphasis />
       </section>
 
-      {/* Channel toggle */}
-      <section className="mb-7">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Channel</h2>
-        <div className="inline-flex rounded-lg border border-neutral-200 bg-white p-1">
-          {(['mail', 'wa', 'both'] as Channel[]).map((c) => (
-            <button key={c} type="button"
-              onClick={() => setChannel(c)}
-              className={
-                'px-4 py-2 text-sm font-medium rounded-md transition-colors ' +
-                (channel === c ? 'bg-[#cd2653] text-white' : 'text-neutral-600 hover:bg-neutral-100')
-              }>
-              {c === 'mail' ? 'Email' : c === 'wa' ? 'WhatsApp' : 'Both'}
-            </button>
-          ))}
-        </div>
+      {/* Compact filter rail (mirrors ApplicationsFilters) */}
+      <section className="mb-6">
+        <BroadcastFilters
+          filters={filters}
+          channel={channel}
+          setChannel={setChannel}
+          onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+          onClearAll={() => { setFilters(EMPTY_FILTERS); setChannel('mail') }}
+        />
       </section>
 
       {/* Mode radio */}
@@ -392,11 +413,20 @@ export default function BroadcastPage() {
           </label>
           <label className="block">
             <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">Your message</span>
-            <textarea value={freeText}
-              onChange={(e) => setFreeText(e.target.value)}
-              rows={8}
-              placeholder="Write your message here. Use {{first_name}}, {{business_name}}, {{stall_code}} for merge tags."
-              className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+            <div className="relative">
+              <textarea value={freeText}
+                onChange={(e) => setFreeText(e.target.value)}
+                rows={8}
+                placeholder="Write your message here. Use {{first_name}}, {{business_name}}, {{stall_code}} for merge tags."
+                className="w-full pr-32 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+              <button type="button"
+                onClick={spin}
+                disabled={spinning}
+                className="absolute top-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#cd2653] text-white text-xs font-medium hover:bg-[#b01f45] disabled:opacity-50 disabled:cursor-not-allowed">
+                <Sparkles className="w-3.5 h-3.5" />
+                {spinning ? 'Spinning...' : 'Spin with AI'}
+              </button>
+            </div>
           </label>
         </section>
       )}
@@ -407,11 +437,20 @@ export default function BroadcastPage() {
           <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
             Optional custom message
           </label>
-          <textarea value={customMessage}
-            onChange={(e) => setCustomMessage(e.target.value)}
-            rows={4}
-            placeholder="Anything extra to add. Injected as {{custom_message}} in the template."
-            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+          <div className="relative">
+            <textarea value={customMessage}
+              onChange={(e) => setCustomMessage(e.target.value)}
+              rows={4}
+              placeholder="Anything extra to add. Injected as {{custom_message}} in the template."
+              className="w-full pr-32 rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
+            <button type="button"
+              onClick={spin}
+              disabled={spinning}
+              className="absolute top-2 right-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#cd2653] text-white text-xs font-medium hover:bg-[#b01f45] disabled:opacity-50 disabled:cursor-not-allowed">
+              <Sparkles className="w-3.5 h-3.5" />
+              {spinning ? 'Spinning...' : 'Spin with AI'}
+            </button>
+          </div>
         </section>
       )}
 
@@ -581,59 +620,144 @@ export default function BroadcastPage() {
 
 // ---------------- subcomponents ----------------
 
-function FilterSelect({ label, value, onChange, options }: {
+function MoneyCard({ label, total, last30, loading, emphasis }: {
   label: string
+  total?: number
+  last30?: number
+  loading?: boolean
+  emphasis?: boolean
+}) {
+  return (
+    <div className={
+      'rounded-xl border bg-white p-4 ' +
+      (emphasis ? 'border-[#cd2653]/30 ring-1 ring-[#cd2653]/10' : 'border-neutral-200')
+    }>
+      <p className="text-[11px] uppercase tracking-wide font-semibold text-neutral-500">{label}</p>
+      <p className={'mt-1 text-2xl font-semibold ' + (emphasis ? 'text-[#cd2653]' : 'text-neutral-900')}>
+        {loading ? '...' : (typeof total === 'number' ? ZAR.format(total) : ZAR.format(0))}
+      </p>
+      <p className="mt-0.5 text-xs text-neutral-500">
+        {loading ? ' ' : `${typeof last30 === 'number' ? ZAR.format(last30) : ZAR.format(0)} last 30 days`}
+      </p>
+    </div>
+  )
+}
+
+function BroadcastFilters({ filters, channel, setChannel, onChange, onClearAll }: {
+  filters: Filters
+  channel: Channel
+  setChannel: (c: Channel) => void
+  onChange: (patch: Partial<Filters>) => void
+  onClearAll: () => void
+}) {
+  const activeChips: { key: string; label: string; clear: () => void }[] = []
+  if (filters.status) {
+    const lbl = STATUS_OPTIONS.find((o) => o.value === filters.status)?.label || filters.status
+    activeChips.push({ key: 'st', label: `Status: ${lbl}`, clear: () => onChange({ status: '' }) })
+  }
+  if (filters.sector) {
+    const lbl = SECTOR_OPTIONS.find((o) => o.value === filters.sector)?.label || filters.sector
+    activeChips.push({ key: 'sec', label: `Sector: ${lbl}`, clear: () => onChange({ sector: '' }) })
+  }
+  if (filters.booth_tier) {
+    const lbl = TIER_OPTIONS.find((o) => o.value === filters.booth_tier)?.label || filters.booth_tier
+    activeChips.push({ key: 'tier', label: `Tier: ${lbl}`, clear: () => onChange({ booth_tier: '' }) })
+  }
+  if (filters.has_docs) {
+    activeChips.push({ key: 'docs', label: `Docs: ${filters.has_docs === 'true' ? 'Yes' : 'No'}`, clear: () => onChange({ has_docs: '' }) })
+  }
+  if (filters.contract_signed) {
+    activeChips.push({ key: 'ct', label: `Contract: ${filters.contract_signed === 'true' ? 'Yes' : 'No'}`, clear: () => onChange({ contract_signed: '' }) })
+  }
+  if (filters.paid) {
+    activeChips.push({ key: 'paid', label: `Paid: ${filters.paid === 'true' ? 'Yes' : 'No'}`, clear: () => onChange({ paid: '' }) })
+  }
+  if (channel !== 'mail') {
+    activeChips.push({
+      key: 'ch',
+      label: `Channel: ${channel === 'wa' ? 'WhatsApp' : 'Both'}`,
+      clear: () => setChannel('mail'),
+    })
+  }
+  const anyActive = activeChips.length > 0
+
+  return (
+    <div className="bg-white border border-neutral-200 rounded-xl p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-neutral-400 pr-1">Filter</span>
+
+        <CompactSelect value={filters.status} onChange={(v) => onChange({ status: v })} options={STATUS_OPTIONS} />
+        <CompactSelect value={filters.sector} onChange={(v) => onChange({ sector: v })} options={SECTOR_OPTIONS} />
+        <CompactSelect value={filters.booth_tier} onChange={(v) => onChange({ booth_tier: v })} options={TIER_OPTIONS} />
+        <CompactSelect
+          value={filters.has_docs}
+          onChange={(v) => onChange({ has_docs: v as '' | 'true' | 'false' })}
+          options={[
+            { value: '', label: 'Any docs' },
+            { value: 'true', label: 'Docs complete' },
+            { value: 'false', label: 'Docs missing' },
+          ]}
+        />
+        <CompactSelect
+          value={filters.contract_signed}
+          onChange={(v) => onChange({ contract_signed: v as '' | 'true' | 'false' })}
+          options={[
+            { value: '', label: 'Any contract' },
+            { value: 'true', label: 'Contract signed' },
+            { value: 'false', label: 'Contract unsigned' },
+          ]}
+        />
+        <CompactSelect
+          value={filters.paid}
+          onChange={(v) => onChange({ paid: v as '' | 'true' | 'false' })}
+          options={[
+            { value: '', label: 'Any paid' },
+            { value: 'true', label: 'Stall fee paid' },
+            { value: 'false', label: 'Stall fee unpaid' },
+          ]}
+        />
+        <CompactSelect
+          value={channel}
+          onChange={(v) => setChannel(v as Channel)}
+          options={[
+            { value: 'mail', label: 'Email' },
+            { value: 'wa', label: 'WhatsApp' },
+            { value: 'both', label: 'Both' },
+          ]}
+        />
+
+        {anyActive && (
+          <button type="button" onClick={onClearAll}
+            className="ml-auto text-xs text-neutral-500 hover:text-[#cd2653] underline">
+            Clear all
+          </button>
+        )}
+      </div>
+
+      {anyActive && (
+        <div className="mt-2 pt-2 border-t border-neutral-100 flex flex-wrap items-center gap-1.5">
+          {activeChips.map((c) => (
+            <button key={c.key} type="button" onClick={c.clear}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#cd2653] text-white text-[11px] font-medium hover:bg-[#b51f48] transition-colors">
+              {c.label}
+              <span aria-hidden className="text-white/70">×</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompactSelect({ value, onChange, options }: {
   value: string
   onChange: (v: string) => void
   options: { value: string; label: string }[]
 }) {
   return (
-    <label className="block">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40">
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </label>
-  )
-}
-
-function FilterInput({ label, placeholder, value, onChange }: {
-  label: string
-  placeholder?: string
-  value: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <label className="block">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">{label}</span>
-      <input type="text" value={value} placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/40" />
-    </label>
-  )
-}
-
-function FilterTri({ label, value, onChange }: {
-  label: string
-  value: '' | 'true' | 'false'
-  onChange: (v: '' | 'true' | 'false') => void
-}) {
-  return (
-    <label className="block">
-      <span className="block text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-1.5">{label}</span>
-      <div className="inline-flex rounded-md border border-neutral-200 bg-white p-0.5">
-        {TRISTATE.map((opt) => (
-          <button key={opt.value} type="button"
-            onClick={() => onChange(opt.value)}
-            className={
-              'px-3 py-1.5 text-xs font-medium rounded transition-colors ' +
-              (value === opt.value ? 'bg-[#cd2653] text-white' : 'text-neutral-600 hover:bg-neutral-100')
-            }>
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    </label>
+    <select value={value} onChange={(e) => onChange(e.target.value)}
+      className="h-8 rounded-md border border-neutral-200 bg-white px-2 pr-7 text-xs font-medium text-neutral-700 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/30 focus:border-[#cd2653] hover:border-neutral-400 transition-colors appearance-none bg-no-repeat bg-[right_0.4rem_center] bg-[length:0.7em_0.7em] [background-image:url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2020%2020%27%20fill=%27%23737373%27%3E%3Cpath%20d=%27M5.23%207.21a.75.75%200%20011.06.02L10%2011.06l3.71-3.83a.75.75%200%20111.08%201.04l-4.25%204.39a.75.75%200%2001-1.08%200L5.21%208.27a.75.75%200%2001.02-1.06z%27/%3E%3C/svg%3E')]">
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
   )
 }
