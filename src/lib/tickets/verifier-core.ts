@@ -14,11 +14,23 @@ import { getOrders, type WCOrder } from '@/lib/woocommerce'
 import {
   parseTicketsFromOrder,
   validateTicket,
+  fetchTicketsFromWpResolver,
   TICKET_PRODUCT_IDS,
   type ParsedTicket,
   type WCOrderWithMeta,
 } from '@/lib/tickets/verify'
 import type { SupabaseClient } from '@supabase/supabase-js'
+
+/**
+ * Try the WP resolver first; fall back to local meta-parse if the resolver
+ * is unavailable, errors, or returns zero tickets. Resolver path picks up
+ * real FooEvents ticket IDs that aren't reachable through the WC REST meta blob.
+ */
+async function resolveOrderTickets(order: WCOrderWithMeta): Promise<ParsedTicket[]> {
+  const wp = await fetchTicketsFromWpResolver(order.id)
+  if (wp && wp.length > 0) return wp
+  return parseTicketsFromOrder(order)
+}
 
 export interface VerifyRunSummary {
   scannedOrders: number
@@ -69,7 +81,7 @@ export async function runFullVerification(
 
   for (const order of eligible) {
     try {
-      const tickets = parseTicketsFromOrder(order)
+      const tickets = await resolveOrderTickets(order)
       for (const ticket of tickets) {
         await upsertTicketRow(db, order, ticket, method, actorEmail, summary)
       }
@@ -112,7 +124,7 @@ export async function runSingleOrderVerification(
   }
   summary.scannedOrders = 1
 
-  const tickets = parseTicketsFromOrder(order)
+  const tickets = await resolveOrderTickets(order)
   const target = fooeventsTicketId
     ? tickets.filter((t) => t.fooevents_ticket_id === fooeventsTicketId)
     : tickets

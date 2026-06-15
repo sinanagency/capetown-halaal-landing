@@ -87,6 +87,77 @@ export interface ValidationResult {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Resolver: pull tickets directly from the WP-side mu-plugin endpoint
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WP_RESOLVER_ORIGIN = 'https://tickets.youngatheart.co.za'
+
+interface WpResolverTicket {
+  order_id: number
+  product_id: number
+  ticket_index: number
+  ticket_id: string
+  ticket_hash: string
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  attendance_date: string
+  checked_in: boolean
+  pdf_url: string
+  fallback?: boolean
+}
+
+interface WpResolverResponse {
+  tickets: WpResolverTicket[]
+  count: number
+}
+
+/**
+ * Hit the WP mu-plugin endpoint to get FooEvents attendee data per order.
+ * Returns null on any failure so callers fall back to the local meta-parse path.
+ */
+export async function fetchTicketsFromWpResolver(orderId: number): Promise<ParsedTicket[] | null> {
+  const bearer = process.env.CTH_WP_RESOLVER_BEARER?.trim()
+  if (!bearer) return null
+  try {
+    const res = await fetch(`${WP_RESOLVER_ORIGIN}/wp-json/cth/v1/tickets-by-order/${orderId}`, {
+      headers: { Authorization: `Bearer ${bearer}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return null
+    const data = (await res.json()) as WpResolverResponse
+    if (!data || !Array.isArray(data.tickets)) return null
+    return data.tickets.map((t) => {
+      const realId = (t.ticket_id || '').trim()
+      const ticketId = realId.length > 0
+        ? realId
+        : `synthetic:${t.order_id}:${t.product_id}:${t.ticket_index}`
+      return {
+        fooevents_ticket_id: ticketId,
+        product_id: t.product_id || null,
+        ticket_type: t.product_id ? PRODUCT_TYPE_MAP[t.product_id] || null : null,
+        holder_first_name: t.first_name?.trim() || null,
+        holder_last_name: t.last_name?.trim() || null,
+        holder_email: t.email?.trim() || null,
+        holder_phone: t.phone?.trim() || null,
+        attendance_date: toIso(t.attendance_date),
+        raw: {
+          source: 'wp_resolver',
+          fallback: t.fallback === true,
+          ticket_hash: t.ticket_hash,
+          pdf_url: t.pdf_url,
+          checked_in: t.checked_in,
+        },
+      }
+    })
+  } catch {
+    return null
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Parse: extract per-ticket records from a WC order's meta_data
 // ─────────────────────────────────────────────────────────────────────────────
 
