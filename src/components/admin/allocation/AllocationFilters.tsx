@@ -53,20 +53,35 @@ export default function AllocationFilters({
   // - If a tier filter is set, the denominator is the inventory of that tier's
   //   suggested zone (FT/FS/TS/BS). If no tier filter, denominator is the whole
   //   floor.
+  // - If a sector filter is set, both numerator and denominator are scoped to
+  //   stalls occupied by an application whose categories include that sector.
   // - Numerator is stalls whose status matches the chosen status filter, scoped
-  //   to the same zone if a tier is selected.
+  //   to the same zone (and sector) if those filters are set.
   const count = useMemo(() => {
     const zone: StallType | null = tier ? TIER_META[tier]?.suggestZone ?? null : null
+    const sectorStallCodes: Set<string> | null = sector
+      ? new Set(
+          applications
+            .filter((a) => (a.categories || []).includes(sector) && a.stall)
+            .map((a) => a.stall as string)
+        )
+      : null
     const inZone = (s: MapStall) => (zone ? s.type === zone : true)
+    const inSector = (s: MapStall) => (sectorStallCodes ? sectorStallCodes.has(s.code) : true)
     const matchesStatus = (s: MapStall) => {
       const st = s.status || 'available'
       if (status === 'all') return true
       return st === status
     }
-    const total = zone ? (capacity[zone] || 0) : stalls.length
-    const numerator = stalls.filter((s) => inZone(s) && matchesStatus(s)).length
+    const inUniverse = (s: MapStall) => inZone(s) && inSector(s)
+    const total = sectorStallCodes
+      ? stalls.filter(inUniverse).length
+      : zone
+      ? capacity[zone] || 0
+      : stalls.length
+    const numerator = stalls.filter((s) => inUniverse(s) && matchesStatus(s)).length
     return { numerator, total, zone }
-  }, [stalls, capacity, tier, status])
+  }, [stalls, capacity, tier, status, sector, applications])
 
   const countdownLabel = useMemo(() => {
     if (status === 'available') return 'available'

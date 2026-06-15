@@ -50,8 +50,6 @@ export default function SitePlanSVG({ plan, mineCode }: { plan: PlanVec; mineCod
   const qx = q.trim().toLowerCase()
   const qhit = qx ? new Set(stalls.filter((s) => s.code.toLowerCase().includes(qx)).map((s) => s.code)) : null
 
-  const findMine = () => { if (ref.current) ref.current.zoomToElement('mine-cell', 6, 500) }
-
   const labels = plan.labels.filter((l) => !SKIP_LABEL.test(l.t) && l.y < plan.h * 0.9)
   const zones = plan.zones.filter((z) => z.y < plan.h * 0.88)
 
@@ -60,7 +58,6 @@ export default function SitePlanSVG({ plan, mineCode }: { plan: PlanVec; mineCod
       <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a stall…"
           className="w-40 rounded-lg border border-neutral-200 bg-white/95 shadow px-3 py-2 text-sm outline-none focus:border-[#cd2653]" />
-        {mine && <button onClick={findMine} className="rounded-lg bg-[#cd2653] text-white shadow px-3 py-2 text-sm font-semibold hover:bg-[#b01f45] whitespace-nowrap">Find my stall</button>}
       </div>
       <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5">
         <button onClick={() => ref.current?.zoomIn()} className="w-9 h-9 rounded-lg bg-white/95 shadow text-neutral-800 font-bold text-lg flex items-center justify-center hover:bg-white">+</button>

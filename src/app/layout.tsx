@@ -34,7 +34,7 @@ export const metadata: Metadata = {
   },
   description: "Cape Town's premier halal lifestyle exhibition. 11 to 13 December 2026 at Youngsfield Military Base. Food, fashion, beauty, travel and more.",
   keywords: ["young at heart festival", "cape town halaal", "halal festival", "cape town festival", "lifestyle exhibition", "youngsfield military base", "south africa", "december 2026"],
-  authors: [{ name: "Samreen Kumandan" }],
+  authors: [{ name: "Young at Heart Festival Support" }],
   alternates: {
     canonical: "/",
   },
