@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { Logo } from '@/components/logo'
 import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function AdminLoginPage() {
@@ -39,63 +41,70 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-neutral-900">
-            Young at Heart <span className="text-[#cd2653]">Admin</span>
-          </h1>
-          <p className="text-neutral-500 mt-2">Sign in to manage applications</p>
+    <div className="min-h-screen grid lg:grid-cols-2 bg-white">
+      {/* editorial left rail, mirrors exhibitor login: festival photo behind crimson-tinted scrim */}
+      <div className="hidden lg:flex flex-col justify-between p-12 text-white relative overflow-hidden">
+        <Image src="/about/festival-crowd.jpg" alt="" fill priority sizes="50vw" className="object-cover object-center" />
+        <div className="absolute inset-0 bg-[#140a0c]/78" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#140a0c]/95 via-[#140a0c]/45 to-[#140a0c]/85" />
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(55% 45% at 12% 4%, rgba(205,38,83,0.38) 0%, transparent 60%)' }} />
+
+        <Logo size="md" showText light className="relative z-10" />
+        <div className="relative z-10">
+          <p className="text-xs uppercase tracking-[0.25em] text-[#ff7a9c] font-semibold mb-4">Admin Portal</p>
+          <h1 className="font-serif text-4xl leading-tight drop-shadow-sm">Festival operations command.</h1>
+          <p className="text-white/75 mt-4 max-w-sm text-sm leading-relaxed">Vendor approvals, allocations, support, broadcast, all in one place. 11 to 13 December 2026.</p>
         </div>
+        <p className="relative z-10 text-white/60 text-xs">Young at Heart Festival · Cape Town Halaal</p>
+      </div>
 
-        {/* Error Messages */}
-        {(error || notAdmin) && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-red-700">
-              {notAdmin
-                ? 'Your account does not have admin access. Please contact the administrator.'
-                : error}
+      {/* form */}
+      <div className="flex items-center justify-center p-6">
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden mb-8"><Logo size="md" showText /></div>
+          <h2 className="text-2xl font-bold text-neutral-900">Admin sign in</h2>
+          <p className="text-neutral-500 text-sm mt-1 mb-6">Sign in to manage applications, vendors, and festival operations.</p>
+
+          {(error || notAdmin) && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <div>
+                {notAdmin
+                  ? 'Your account does not have admin access. Please contact the administrator.'
+                  : error}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Login Form */}
-        <form onSubmit={handleLogin} className="bg-white rounded-xl border border-neutral-200 p-8">
-          <div className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-neutral-700 mb-1.5">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+              <label htmlFor="email" className="text-xs font-semibold text-neutral-600">Email</label>
+              <div className="relative mt-1">
+                <Mail className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5" />
                 <input
                   id="email"
                   type="email"
+                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
+                  className="w-full rounded-lg border border-neutral-200 pl-9 pr-3 py-3 text-sm outline-none focus:border-[#cd2653] focus:ring-2 focus:ring-[#cd2653]/20"
                   placeholder="admin@example.com"
-                  required
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" />
+              <label htmlFor="password" className="text-xs font-semibold text-neutral-600">Password</label>
+              <div className="relative mt-1">
+                <Lock className="w-4 h-4 text-neutral-400 absolute left-3 top-3.5" />
                 <input
                   id="password"
                   type="password"
+                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
+                  className="w-full rounded-lg border border-neutral-200 pl-9 pr-3 py-3 text-sm outline-none focus:border-[#cd2653] focus:ring-2 focus:ring-[#cd2653]/20"
                   placeholder="Your password"
-                  required
                 />
               </div>
             </div>
@@ -103,23 +112,17 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-[#cd2653] text-white font-medium rounded-lg hover:bg-[#b82049] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-[#cd2653] hover:bg-[#b01f45] text-white font-semibold rounded-lg py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                'Sign In'
-              )}
+              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {loading ? 'Signing in...' : 'Sign in'}
             </button>
-          </div>
-        </form>
+          </form>
 
-        <p className="text-center text-sm text-neutral-500 mt-6">
-          Need access? Contact the event organizer.
-        </p>
+          <p className="text-neutral-500 text-sm mt-6">
+            Need access? Contact the event organizer.
+          </p>
+        </div>
       </div>
     </div>
   )

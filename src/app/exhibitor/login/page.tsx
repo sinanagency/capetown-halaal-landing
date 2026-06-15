@@ -93,9 +93,8 @@ export default function ExhibitorLogin() {
             </button>
           </form>
 
-          <div className="flex items-center justify-between mt-4 text-sm">
+          <div className="mt-4 text-sm">
             <a href="/exhibitor/forgot" className="text-neutral-500 hover:text-[#cd2653]">Forgot password?</a>
-            <a href="/exhibitor" className="text-neutral-500 hover:text-[#cd2653]">Find my stall →</a>
           </div>
         </div>
       </div>

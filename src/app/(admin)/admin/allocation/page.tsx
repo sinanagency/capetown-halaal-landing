@@ -36,6 +36,7 @@ export default function AllocationPage() {
   const [loading, setLoading] = useState(true)
   const [sel, setSel] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [mapSearch, setMapSearch] = useState('')
   const [chosenApp, setChosenApp] = useState<AppRow | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -148,7 +149,7 @@ export default function AllocationPage() {
   }
 
   return (
-    <div className="p-6 sm:p-8 max-w-7xl">
+    <div className="p-6 sm:p-8 max-w-[1600px]">
       <div className="mb-1">
         <p className="text-xs font-semibold text-[#cd2653] uppercase tracking-[0.2em]">BOOTH ALLOCATION</p>
         <h1 className="text-2xl font-bold text-neutral-900">Floor plan</h1>
@@ -181,14 +182,36 @@ export default function AllocationPage() {
             />
 
             <div className="bg-white border border-neutral-200 rounded-xl p-4">
-              <StallMap
-                stalls={filteredStalls}
-                grid={data.grid}
-                zones={data.zones}
-                mode="admin"
-                selected={sel}
-                onSelect={pick}
-              />
+              <div className="mb-3 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+                <input
+                  value={mapSearch}
+                  onChange={(e) => setMapSearch(e.target.value)}
+                  placeholder="Search stall code (e.g. A12, B07)…"
+                  className="w-full pl-10 pr-9 py-2.5 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#cd2653] focus:border-transparent"
+                />
+                {mapSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMapSearch('')}
+                    aria-label="Clear stall search"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-neutral-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <div className="h-[calc(100vh-300px)] min-h-[600px] w-full overflow-hidden rounded-lg">
+                <StallMap
+                  stalls={filteredStalls}
+                  grid={data.grid}
+                  zones={data.zones}
+                  mode="admin"
+                  selected={sel}
+                  onSelect={pick}
+                  searchQuery={mapSearch}
+                />
+              </div>
               <div className="mt-3 flex flex-wrap gap-3 text-xs text-neutral-600">
                 {(Object.keys(TYPE_META) as StallType[]).map((t) => (
                   <span key={t} className="inline-flex items-center gap-1.5">

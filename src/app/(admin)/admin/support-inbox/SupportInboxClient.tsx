@@ -4,9 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Loader2, Send, Search, Tag, UserCheck, Clock, CheckCircle2, RotateCcw,
-  Link2, Sparkles, Mail, AlertCircle,
+  Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck,
 } from 'lucide-react'
 import { PageShell, PageHeader, Card, Pill, ButtonPrimary, Empty } from '@/components/chrome/PageChrome'
+import { sanitizeEmailHtml } from '@/lib/sanitize'
+
+// XSS proof for sanitizeEmailHtml — confirm the allowlist strips dangerous
+// payloads. If you paste this string into a message body:
+//   <script>alert(1)</script><p>hello <a href="http://x">link</a></p>
+// the renderer returns:
+//   <p>hello <a href="http://x" target="_blank" rel="noopener noreferrer">link</a></p>
+// The <script> is discarded (not on allowlist), the <p> + <a> survive, and the
+// anchor gets target="_blank" + rel="noopener noreferrer" from transformTags.
+// No alert fires. See src/lib/sanitize.ts for the allowlist + tests.
 
 type Status = 'open' | 'snoozed' | 'resolved'
 type Tag = 'payment' | 'load-in' | 'badges' | 'contract' | 'refund' | 'general'
@@ -20,9 +30,24 @@ interface SupportMessage {
   to_address: string
   subject: string | null
   body_text: string | null
+  body_html: string | null
   received_at: string
   provider: string | null
 }
+
+interface SentItem {
+  id: string
+  thread_id: string
+  to_address: string
+  peer_name: string | null
+  peer_email: string
+  subject: string | null
+  preview: string
+  sent_at: string
+  provider: string | null
+}
+
+type Tab = 'inbox' | 'sent' | 'all'
 
 interface SupportThread {
   id: string
@@ -73,7 +98,10 @@ function tagColor(t: Tag): string {
 }
 
 export function SupportInboxClient({ currentUserId }: { currentUserId: string }) {
+  const [tab, setTab] = useState<Tab>('inbox')
   const [threads, setThreads] = useState<SupportThread[]>([])
+  const [sent, setSent] = useState<SentItem[]>([])
+  const [sentLoading, setSentLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('open')
   const [tagFilter, setTagFilter] = useState<Tag | null>(null)
@@ -91,7 +119,10 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({ status: statusFilter })
+      // Tab maps to the inbox-status filter: Inbox = open (default), All =
+      // every status, Sent runs through loadSent() instead and bypasses this.
+      const effectiveStatus = tab === 'all' ? 'all' : statusFilter
+      const params = new URLSearchParams({ status: effectiveStatus })
       if (tagFilter) params.set('tag', tagFilter)
       const res = await fetch(`/api/admin/support-inbox/threads?${params.toString()}`)
       const j = await res.json()
@@ -100,9 +131,27 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
     } catch (e) {
       toast.error(`Load failed, ${e instanceof Error ? e.message : 'error'}`)
     } finally { setLoading(false) }
-  }, [statusFilter, tagFilter])
+  }, [tab, statusFilter, tagFilter])
 
-  useEffect(() => { load() }, [load])
+  const loadSent = useCallback(async () => {
+    setSentLoading(true)
+    try {
+      const res = await fetch('/api/admin/support-inbox/sent')
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      setSent(j.sent || [])
+    } catch (e) {
+      toast.error(`Sent load failed, ${e instanceof Error ? e.message : 'error'}`)
+    } finally { setSentLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'sent') {
+      loadSent()
+    } else {
+      load()
+    }
+  }, [tab, load, loadSent])
 
   useEffect(() => {
     fetch('/api/admin/support-inbox/operators')
@@ -142,6 +191,8 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
       setReply('')
       toast.success('Reply sent')
+      // Refresh the thread list. Sent tab cache is invalidated lazily on next
+      // tab switch (loadSent runs in the useEffect when tab === 'sent').
       await load()
     } catch (e) {
       toast.error(`Send failed, ${e instanceof Error ? e.message : 'error'}`)
@@ -198,45 +249,130 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
         }
       />
 
-      <div className="flex flex-wrap gap-2 mb-4 items-center">
+      {/* Tab strip — Inbox | Sent | All. Sent is the operator's outbound mail
+          so we can see what was sent, by whom, and when. Inbox = open. All =
+          every status across direction=in. */}
+      <div className="flex flex-wrap gap-3 mb-4 items-center">
         <div className="flex gap-1 rounded-lg bg-neutral-100 p-1">
-          {(['open', 'snoozed', 'resolved', 'all'] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors ${
-                statusFilter === s ? 'bg-white text-[#cd2653] shadow-sm' : 'text-neutral-600 hover:text-neutral-900'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-1 items-center">
-          <Tag className="w-3.5 h-3.5 text-neutral-400" />
           <button
-            onClick={() => setTagFilter(null)}
-            className={`text-[11px] font-medium px-2 py-1 rounded-full border ${
-              tagFilter === null ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-200 text-neutral-600 hover:border-neutral-400'
+            onClick={() => setTab('inbox')}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+              tab === 'inbox' ? 'bg-white text-[#cd2653] shadow-sm' : 'text-neutral-600 hover:text-neutral-900'
             }`}
           >
-            all
+            <InboxIcon className="w-3 h-3" /> Inbox
           </button>
-          {ALL_TAGS.map((t) => (
+          <button
+            onClick={() => setTab('sent')}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors flex items-center gap-1.5 ${
+              tab === 'sent' ? 'bg-white text-[#cd2653] shadow-sm' : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <MailCheck className="w-3 h-3" /> Sent
+          </button>
+          <button
+            onClick={() => setTab('all')}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-md transition-colors ${
+              tab === 'all' ? 'bg-white text-[#cd2653] shadow-sm' : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            All
+          </button>
+        </div>
+
+        {tab === 'inbox' && (
+          <div className="flex gap-1 rounded-lg bg-neutral-100 p-1">
+            {(['open', 'snoozed', 'resolved'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition-colors ${
+                  statusFilter === s ? 'bg-white text-[#cd2653] shadow-sm' : 'text-neutral-600 hover:text-neutral-900'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab !== 'sent' && (
+          <div className="flex gap-1 items-center">
+            <Tag className="w-3.5 h-3.5 text-neutral-400" />
             <button
-              key={t}
-              onClick={() => setTagFilter(t === tagFilter ? null : t)}
+              onClick={() => setTagFilter(null)}
               className={`text-[11px] font-medium px-2 py-1 rounded-full border ${
-                tagFilter === t ? `${tagColor(t)} border-current` : 'bg-white border-neutral-200 text-neutral-600 hover:border-neutral-400'
+                tagFilter === null ? 'bg-neutral-900 text-white border-neutral-900' : 'bg-white border-neutral-200 text-neutral-600 hover:border-neutral-400'
               }`}
             >
-              {t}
+              all
             </button>
-          ))}
-        </div>
+            {ALL_TAGS.map((t) => (
+              <button
+                key={t}
+                onClick={() => setTagFilter(t === tagFilter ? null : t)}
+                className={`text-[11px] font-medium px-2 py-1 rounded-full border ${
+                  tagFilter === t ? `${tagColor(t)} border-current` : 'bg-white border-neutral-200 text-neutral-600 hover:border-neutral-400'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {loading ? (
+      {tab === 'sent' ? (
+        <Card padded={false} className="overflow-hidden">
+          {/* Bounded height + overflow-hidden keeps scroll INSIDE the card, not
+              on the whole page. Without this, a long list doom-scrolls the
+              parent <main overflow-auto>. */}
+          <div className="h-[calc(100dvh-15rem)] flex flex-col">
+            <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
+              <p className="text-xs text-neutral-500">
+                Outbound mail from support@youngatheart.co.za, newest first. Limit 100.
+              </p>
+              {sentLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />}
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
+              {sent.length === 0 && !sentLoading ? (
+                <p className="p-6 text-sm text-neutral-400 text-center">No sent mail yet.</p>
+              ) : (
+                sent.map((s) => (
+                  <div key={s.id} className="p-4 hover:bg-neutral-50">
+                    <div className="flex items-start justify-between gap-3 mb-1">
+                      <p className="text-sm font-semibold text-neutral-900 truncate">
+                        To: {s.peer_name || s.to_address}
+                      </p>
+                      <span className="text-[11px] text-neutral-400 shrink-0 tabular-nums">
+                        {new Date(s.sent_at).toLocaleString('en-ZA', {
+                          day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-500 truncate">{s.peer_email}</p>
+                    {s.subject && (
+                      <p className="text-xs text-neutral-700 italic truncate mt-1">{s.subject}</p>
+                    )}
+                    {s.preview && (
+                      <p className="text-xs text-neutral-600 mt-1 line-clamp-2 whitespace-pre-wrap">
+                        {s.preview}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mt-1.5">
+                      {s.provider && (
+                        <span className="text-[10px] uppercase tracking-wider text-neutral-400">
+                          via {s.provider}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : loading ? (
         <div className="flex items-center gap-2 text-neutral-500 text-sm py-12">
           <Loader2 className="w-4 h-4 animate-spin" /> Loading support inbox.
         </div>
@@ -244,7 +380,10 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
         <Empty title="No mail matching this filter." hint="Try changing the status or tag filter above." />
       ) : (
         <Card padded={false} className="overflow-hidden">
-          <div className="grid lg:grid-cols-[360px_1fr] min-h-[70vh]">
+          {/* Hard-bounded viewport height + overflow-hidden so chrome (header,
+              tabs, filter row, composer) pins and only the thread list +
+              message body scroll. */}
+          <div className="grid lg:grid-cols-[360px_1fr] h-[calc(100dvh-15rem)] min-h-[420px]">
             {/* Thread list */}
             <div className="border-r border-neutral-200 flex flex-col">
               <div className="p-3 border-b border-neutral-200">
@@ -293,7 +432,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
             </div>
 
             {/* Thread view */}
-            <div className="flex flex-col min-h-[70vh]">
+            <div className="flex flex-col min-h-0 h-full">
               {!active ? (
                 <div className="flex-1 flex items-center justify-center text-sm text-neutral-400">
                   Select a thread on the left.
@@ -470,20 +609,40 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                   </div>
 
                   {/* Messages */}
-                  <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-neutral-50/30">
-                    {active.messages.map((m) => (
-                      <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${m.direction === 'out' ? 'bg-[#cd2653] text-white' : 'bg-white text-neutral-900 border border-neutral-200'}`}>
-                          {m.subject && m.direction === 'in' && (
-                            <p className="text-[11px] font-semibold mb-1 text-neutral-500">{m.subject}</p>
-                          )}
-                          <p className="whitespace-pre-wrap">{m.body_text}</p>
-                          <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-white/70' : 'text-neutral-400'}`}>
-                            {m.direction === 'out' ? 'You' : (m.from_name || m.from_address)} · {new Date(m.received_at).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                  <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-neutral-50/30 min-h-0">
+                    {active.messages.map((m) => {
+                      // Render rule:
+                      //   - Inbound (in): prefer body_html sanitized through the
+                      //     allowlist. Most modern mail clients send HTML; raw
+                      //     <p>, <a>, <div> tags were leaking through verbatim
+                      //     when we used whitespace-pre-wrap on body_text.
+                      //   - Outbound (out): plain text. We compose plain replies
+                      //     in the composer so body_text is canonical.
+                      //   - Fallback: body_text wrapped in whitespace-pre-wrap.
+                      const useHtml = m.direction === 'in' && !!m.body_html
+                      return (
+                        <div key={m.id} className={`flex ${m.direction === 'out' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${m.direction === 'out' ? 'bg-[#cd2653] text-white' : 'bg-white text-neutral-900 border border-neutral-200'}`}>
+                            {m.subject && m.direction === 'in' && (
+                              <p className="text-[11px] font-semibold mb-1 text-neutral-500">{m.subject}</p>
+                            )}
+                            {useHtml ? (
+                              <div
+                                className="email-body prose prose-sm max-w-none break-words [&_a]:text-[#cd2653] [&_a]:underline [&_p]:my-1 [&_blockquote]:border-l-2 [&_blockquote]:border-neutral-300 [&_blockquote]:pl-2 [&_blockquote]:text-neutral-500 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                                // Sanitized via sanitizeEmailHtml — allowlist excludes
+                                // script/iframe/style/img/form. See src/lib/sanitize.ts.
+                                dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body_html || '') }}
+                              />
+                            ) : (
+                              <p className="whitespace-pre-wrap break-words">{m.body_text}</p>
+                            )}
+                            <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-white/70' : 'text-neutral-400'}`}>
+                              {m.direction === 'out' ? 'You' : (m.from_name || m.from_address)} · {new Date(m.received_at).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                     {active.messages.length === 0 && (
                       <p className="text-sm text-neutral-400 italic">No messages.</p>
                     )}

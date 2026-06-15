@@ -19,6 +19,10 @@ import { PreviewPane } from '@/components/admin/applications/PreviewPane'
 import { ShortcutsOverlay } from '@/components/admin/applications/ShortcutsOverlay'
 import { DedupeDrawer } from '@/components/admin/applications/DedupeDrawer'
 import { BulkToolbar } from '@/components/admin/applications/BulkToolbar'
+import ApplicationsFilters, {
+  type StatusGroup,
+  type ScoreBucket,
+} from '@/components/admin/applications/ApplicationsFilters'
 import {
   SECTOR_CYCLE,
   type WorkbenchApplication,
@@ -37,6 +41,16 @@ export default function ApplicationsWorkbenchPage() {
   const [pendingTotal, setPendingTotal] = useState<number>(0)
   const [search, setSearch] = useState('')
 
+  // ---- filter state ----
+  // 'open' is the default landing slice (pending + info_requested), matching
+  // the prior behavior. Status + tier hit the server; sector + score get
+  // applied client-side over the returned slice so chips work even on rows
+  // that have not yet been sector-tagged via the `t` shortcut.
+  const [status, setStatus] = useState<StatusGroup>('open')
+  const [sector, setSector] = useState<string | null>(null)
+  const [score, setScore] = useState<ScoreBucket>('all')
+  const [tier, setTier] = useState<string | null>(null)
+
   // ---- triage UI state ----
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -46,14 +60,29 @@ export default function ApplicationsWorkbenchPage() {
   const [hint, setHint] = useState<string | null>(null)
 
   // ---- load the queue ----
+  // Status group → server `status=` list. `open` = pending+info_requested
+  // (the prior default landing slice). `all` omits the param entirely so the
+  // server returns every status.
+  const statusParam = useMemo<string | null>(() => {
+    switch (status) {
+      case 'open': return 'pending,info_requested'
+      case 'pending': return 'pending'
+      case 'info_requested': return 'info_requested'
+      case 'approved': return 'approved'
+      case 'rejected': return 'rejected'
+      case 'all': return null
+    }
+  }, [status])
+
   const reload = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
-        status: 'pending,info_requested',
         order: 'oldest',
         limit: String(QUEUE_LIMIT),
       })
+      if (statusParam) params.set('status', statusParam)
+      if (tier) params.set('tier', tier)
       if (search.trim()) params.set('search', search.trim())
       const res = await fetch(`/api/admin/applications?${params.toString()}`)
       if (!res.ok) {
@@ -70,18 +99,54 @@ export default function ApplicationsWorkbenchPage() {
     } finally {
       setLoading(false)
     }
-  }, [search])
+  }, [search, statusParam, tier])
 
   useEffect(() => {
     reload()
   }, [reload])
 
+  // ---- client-side filter slice (sector + score) ----
+  // Sector matches against product_categories[] AND the legacy single `sector`
+  // column so untagged rows still surface under their category chip.
+  // Score buckets: low <40, mid 40-79, high 80+. Rows with a null score are
+  // treated as bucket 'low' so Samreen can find them.
+  const visibleRows = useMemo<WorkbenchApplication[]>(() => {
+    return rows.filter((r) => {
+      if (sector) {
+        const cats = r.product_categories || []
+        const hit = cats.includes(sector) || r.sector === sector
+        if (!hit) return false
+      }
+      if (score !== 'all') {
+        const s = r.completeness_score ?? 0
+        if (score === 'low' && !(s < 40)) return false
+        if (score === 'mid' && !(s >= 40 && s < 80)) return false
+        if (score === 'high' && !(s >= 80)) return false
+      }
+      return true
+    })
+  }, [rows, sector, score])
+
+  // When the filter slice changes, snap focus to the first row of the new
+  // slice so j/k traversal and a/r/i act on something visible.
+  useEffect(() => {
+    setFocusedId((prev) => {
+      if (prev && visibleRows.some((r) => r.id === prev)) return prev
+      return visibleRows[0]?.id ?? null
+    })
+  }, [visibleRows])
+
   // ---- derived: focused row + phone-cluster siblings ----
+  // Focused row lookup uses the full rows array so a row that drops out of
+  // the visible slice mid-action (e.g. status flip from pending to approved)
+  // still resolves until the next slice tick.
   const focused = useMemo<WorkbenchApplication | null>(
     () => rows.find((r) => r.id === focusedId) ?? null,
     [rows, focusedId]
   )
 
+  // Duplicate siblings span the WHOLE loaded set, not the visible slice, so
+  // filtering by sector or score never hides a phone-cluster match.
   const duplicateSiblings = useMemo<WorkbenchApplication[]>(() => {
     if (!focused) return []
     const key = phoneLast9(focused.phone)
@@ -220,18 +285,18 @@ export default function ApplicationsWorkbenchPage() {
         return
       }
 
-      if (rows.length === 0) return
-      const idx = focusedId ? rows.findIndex((r) => r.id === focusedId) : -1
+      if (visibleRows.length === 0) return
+      const idx = focusedId ? visibleRows.findIndex((r) => r.id === focusedId) : -1
 
       if (e.key === 'j') {
         e.preventDefault()
-        const next = rows[Math.min(rows.length - 1, Math.max(0, idx + 1))]
+        const next = visibleRows[Math.min(visibleRows.length - 1, Math.max(0, idx + 1))]
         if (next) setFocusedId(next.id)
         return
       }
       if (e.key === 'k') {
         e.preventDefault()
-        const prev = rows[Math.max(0, idx - 1)]
+        const prev = visibleRows[Math.max(0, idx - 1)]
         if (prev) setFocusedId(prev.id)
         return
       }
@@ -301,7 +366,7 @@ export default function ApplicationsWorkbenchPage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [rows, focusedId, focused, runAction, shortcutsOpen, dedupeOpen, flashHint])
+  }, [visibleRows, focusedId, focused, runAction, shortcutsOpen, dedupeOpen, flashHint])
 
   // ---- render ---------------------------------------------------------------
   const selectedCount = selectedIds.size
@@ -312,9 +377,14 @@ export default function ApplicationsWorkbenchPage() {
       <header className="flex items-center gap-3 px-5 py-2.5 border-b border-neutral-200 bg-white">
         <div className="flex items-baseline gap-2">
           <span className="text-lg font-semibold tabular-nums text-neutral-900">
-            {pendingTotal}
+            {visibleRows.length}
           </span>
-          <span className="text-sm text-neutral-500">to go</span>
+          <span className="text-sm text-neutral-500">
+            {visibleRows.length === rows.length ? 'to go' : `of ${rows.length}`}
+          </span>
+          <span className="text-xs text-neutral-400 ml-1 tabular-nums">
+            ({pendingTotal} pending total)
+          </span>
         </div>
         <span className="w-px h-5 bg-neutral-200" />
         <div className="relative max-w-xs flex-1">
@@ -341,6 +411,21 @@ export default function ApplicationsWorkbenchPage() {
         </Link>
       </header>
 
+      {/* Filter chips (status / sector / score / tier) */}
+      <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200">
+        <ApplicationsFilters
+          rows={rows}
+          status={status}
+          setStatus={setStatus}
+          sector={sector}
+          setSector={setSector}
+          score={score}
+          setScore={setScore}
+          tier={tier}
+          setTier={setTier}
+        />
+      </div>
+
       {/* Bulk toolbar (shows above split when selection exists) */}
       {selectedCount > 0 && (
         <div className="px-5 py-2 bg-neutral-50 border-b border-neutral-200">
@@ -362,7 +447,7 @@ export default function ApplicationsWorkbenchPage() {
             </div>
           ) : (
             <QueueList
-              rows={rows}
+              rows={visibleRows}
               focusedId={focusedId}
               selectedIds={selectedIds}
               onFocus={setFocusedId}

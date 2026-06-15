@@ -12,6 +12,10 @@ import { TemplatePicker, type StagedTemplate } from '@/components/admin/Template
 
 type Bucket = 'needs' | 'open' | 'snoozed' | 'done'
 type ChannelFilter = 'all' | 'wa' | 'mail'
+// Identity = "who is this peer to the festival?" Drives the default filter the
+// user asked for: queue should land on threads from vendors or ticket buyers,
+// not on random first-message strangers. "unknown" = neither linked.
+type IdentityKind = 'vendor' | 'ticket_buyer' | 'unknown'
 
 interface ThreadCard {
   id: string
@@ -70,6 +74,17 @@ const CHANNELS: Array<{ id: ChannelFilter; label: string }> = [
   { id: 'mail', label: 'Mail' },
 ]
 
+const IDENTITY_KINDS: Array<{ id: IdentityKind; label: string }> = [
+  { id: 'vendor', label: 'Vendors' },
+  { id: 'ticket_buyer', label: 'Ticket buyers' },
+  { id: 'unknown', label: 'Unknown' },
+]
+
+// Default: festival questions from vendors or ticket buyers. Strangers and
+// first-message randoms drop off the default queue until the operator widens
+// the filter to "all".
+const DEFAULT_IDENTITY: IdentityKind[] = ['vendor', 'ticket_buyer']
+
 // Bulk replies are paced: small delay between threads to keep Resend / Meta
 // rate limits happy and to avoid a thundering-herd on the WA window check.
 const BULK_PACE_MS = 350
@@ -77,6 +92,7 @@ const BULK_PACE_MS = 350
 export function InboxClient() {
   const [bucket, setBucket] = useState<Bucket>('needs')
   const [channel, setChannel] = useState<ChannelFilter>('all')
+  const [identity, setIdentity] = useState<Set<IdentityKind>>(() => new Set(DEFAULT_IDENTITY))
   const [counts, setCounts] = useState<Counts>({ needs: 0, open: 0, snoozed: 0, done: 0 })
   const [threads, setThreads] = useState<ThreadCard[]>([])
   const [loading, setLoading] = useState(true)
@@ -90,7 +106,13 @@ export function InboxClient() {
   const loadThreads = useCallback(async () => {
     setLoading(true)
     try {
-      const url = `/api/admin/inbox/threads?bucket=${bucket}&channel=${channel}`
+      // Identity = "all" when the operator cleared the filter or selected the
+      // full set; otherwise the active subset, comma joined. Server reads the
+      // param and falls through to no-filter on "all" or empty.
+      const allIds: IdentityKind[] = ['vendor', 'ticket_buyer', 'unknown']
+      const isAll = identity.size === 0 || identity.size === allIds.length
+      const identityParam = isAll ? 'all' : Array.from(identity).join(',')
+      const url = `/api/admin/inbox/threads?bucket=${bucket}&channel=${channel}&identity=${encodeURIComponent(identityParam)}`
       const res = await fetch(url, { cache: 'no-store' })
       const data = await res.json()
       setCounts(data.counts ?? { needs: 0, open: 0, snoozed: 0, done: 0 })
@@ -100,16 +122,25 @@ export function InboxClient() {
     } finally {
       setLoading(false)
     }
-  }, [bucket, channel])
+  }, [bucket, channel, identity])
 
   useEffect(() => {
     loadThreads()
   }, [loadThreads])
 
-  // Wipe multi-select when the active bucket/channel changes; threads change.
+  // Wipe multi-select when the active bucket/channel/identity changes; threads change.
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [bucket, channel])
+  }, [bucket, channel, identity])
+
+  function toggleIdentity(kind: IdentityKind) {
+    setIdentity((prev) => {
+      const next = new Set(prev)
+      if (next.has(kind)) next.delete(kind)
+      else next.add(kind)
+      return next
+    })
+  }
 
   // Debounced search
   useEffect(() => {
@@ -250,9 +281,13 @@ export function InboxClient() {
   }
 
   return (
-    <div className="flex h-screen bg-[#f8f8f8]">
+    // h-[100dvh] + overflow-hidden caps the page at one viewport so chrome
+    // (sidebar, filter rail, thread list header, reply composer) pins and the
+    // inner panes own the scroll. Without this the parent <main overflow-auto>
+    // grows with content and the whole page doom-scrolls.
+    <div className="flex h-[100dvh] overflow-hidden bg-[#f8f8f8]">
       {/* Sidebar */}
-      <aside className="w-60 border-r border-neutral-200 bg-white p-4 flex flex-col">
+      <aside className="w-60 border-r border-neutral-200 bg-white p-4 flex flex-col overflow-y-auto">
         <h2 className="text-sm font-semibold text-neutral-900 mb-4 flex items-center gap-2">
           <Inbox className="w-4 h-4" /> Unified Inbox
         </h2>
@@ -315,6 +350,59 @@ export function InboxClient() {
               )
             })}
           </div>
+        </div>
+
+        {/* Identity filter — defaults to vendor + ticket_buyer so the queue
+            lands on real festival intent, not on first-message strangers.
+            Operator can widen via the All button or narrow via individual
+            toggles. */}
+        <div className="border-t border-neutral-100 pt-4 mt-4">
+          <div className="flex items-center justify-between px-3 mb-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+              Identity
+            </p>
+            <button
+              type="button"
+              onClick={() => setIdentity(new Set(['vendor', 'ticket_buyer', 'unknown']))}
+              className="text-[10px] font-semibold text-neutral-500 hover:text-[#cd2653]"
+            >
+              All
+            </button>
+          </div>
+          <div className="space-y-1">
+            {IDENTITY_KINDS.map((k) => {
+              const active = identity.has(k.id)
+              return (
+                <button
+                  key={k.id}
+                  type="button"
+                  onClick={() => toggleIdentity(k.id)}
+                  className={cn(
+                    'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+                    active
+                      ? 'bg-[#cd2653]/10 text-[#cd2653] font-medium'
+                      : 'text-neutral-700 hover:bg-neutral-100'
+                  )}
+                  aria-pressed={active}
+                >
+                  <span
+                    className={cn(
+                      'w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[10px]',
+                      active ? 'bg-[#cd2653] border-[#cd2653] text-white' : 'border-neutral-300'
+                    )}
+                  >
+                    {active ? 'x' : ''}
+                  </span>
+                  {k.label}
+                </button>
+              )
+            })}
+          </div>
+          {identity.size === 0 && (
+            <p className="px-3 mt-2 text-[10px] text-neutral-500">
+              No identity selected. Showing all threads.
+            </p>
+          )}
         </div>
       </aside>
 

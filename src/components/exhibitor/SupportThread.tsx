@@ -8,6 +8,7 @@ export default function SupportThread({ initial }: { initial: SupportMessage[] }
   const [messages, setMessages] = useState<SupportMessage[]>(initial)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
+  const [alsoEmail, setAlsoEmail] = useState(true)
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
@@ -15,7 +16,9 @@ export default function SupportThread({ initial }: { initial: SupportMessage[] }
     setBusy(true)
     try {
       const res = await fetch('/api/exhibitor/support', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: text, also_email: alsoEmail }),
       })
       const j = await res.json()
       if (res.ok) { setMessages(j.messages); setText('') }
@@ -38,12 +41,23 @@ export default function SupportThread({ initial }: { initial: SupportMessage[] }
           </div>
         ))}
       </div>
-      <form onSubmit={send} className="border-t border-neutral-200 p-3 flex items-center gap-2">
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message…"
-          className="flex-1 rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-[#cd2653]" />
-        <button disabled={busy} className="bg-[#cd2653] hover:bg-[#b01f45] text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60">
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </button>
+      <form onSubmit={send} className="border-t border-neutral-200">
+        <label className="flex items-center gap-2 px-3 pt-3 pb-1 text-[12px] text-neutral-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={alsoEmail}
+            onChange={(e) => setAlsoEmail(e.target.checked)}
+            className="w-4 h-4 rounded border-neutral-300 text-[#cd2653] focus:ring-[#cd2653]"
+          />
+          <span>Also send a copy by email to support@youngatheart.co.za (recommended).</span>
+        </label>
+        <div className="p-3 flex items-center gap-2">
+          <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message…"
+            className="flex-1 rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none focus:border-[#cd2653]" />
+          <button disabled={busy} className="bg-[#cd2653] hover:bg-[#b01f45] text-white rounded-lg px-4 py-2.5 text-sm font-semibold flex items-center gap-1.5 disabled:opacity-60">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </div>
       </form>
     </div>
   )

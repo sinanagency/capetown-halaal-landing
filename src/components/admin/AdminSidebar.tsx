@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -30,6 +30,7 @@ const navGroups: NavGroup[] = [
       { name: 'Applications', href: '/admin/applications', icon: FileText },
       { name: 'Verifier', href: '/admin/verifier', icon: ShieldCheck },
       { name: 'People', href: '/admin/people', icon: IdCard },
+      { name: 'Documents', href: '/admin/documents', icon: Files },
       { name: 'Vendors', href: '/admin/vendors', icon: Users },
       { name: 'Allocation', href: '/admin/allocation', icon: Map },
     ],
@@ -162,17 +163,19 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
 
   const sidebarBody = (
     <>
-      {/* Logo: image above text, centred. Doubled from 40x53 to 72x96 so the
-          brand reads more clearly at the top of the panel. */}
-      <div className="p-6 border-b border-neutral-200 relative">
+      {/* Logo: image above text, centred. Bigger height + scale overflow so the
+          mark reads tightly despite the baked-in whitespace in logo.png, matching
+          the main site's translate-y'd treatment. */}
+      <div className="px-6 pt-8 pb-4 border-b border-neutral-200 relative">
         <div className="flex flex-col items-center text-center gap-2">
           <Image
             src="/logo.png"
             alt="Young at Heart"
-            width={72}
-            height={96}
+            width={112}
+            height={150}
             priority
-            className="h-20 w-auto"
+            className="h-28 w-auto"
+            style={{ transform: 'scale(1.15)', transformOrigin: 'center' }}
           />
           <div>
             <h1 className="text-lg font-bold text-neutral-900 leading-tight">

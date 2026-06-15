@@ -60,6 +60,7 @@ export async function sendEmail({
   react,
   text,
   attachments,
+  replyTo,
 }: {
   to: string
   subject: string
@@ -67,6 +68,8 @@ export async function sendEmail({
   text?: string
   /** Optional file attachments. content can be a base64 string or a Buffer. */
   attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>
+  /** Optional per-send Reply-To override. Defaults to support@youngatheart.co.za. */
+  replyTo?: string
 }): Promise<SendResult> {
   let html: string | undefined
   if (react) {
@@ -85,7 +88,7 @@ export async function sendEmail({
       from: FROM_EMAIL,
       to,
       bcc: BCC_EMAIL,
-      replyTo: 'support@youngatheart.co.za',
+      replyTo: replyTo || 'support@youngatheart.co.za',
       subject,
       headers: mailHeaders,
       ...(attachments && attachments.length

@@ -32,6 +32,9 @@ export async function POST(req: NextRequest) {
   const applicationId = ctx.application.id as string
   const body = await req.json().catch(() => ({}))
   const text = String(body.body || '').trim().slice(0, 2000)
+  // also_email defaults ON. The vendor can opt out via the toggle in
+  // SupportThread; WA + inbox thread still fire either way.
+  const alsoEmail = body.also_email !== false
   if (!text) return NextResponse.json({ error: 'Message is empty' }, { status: 400 })
 
   // Per-vendor throttle keyed on user.id so a single vendor cannot weaponise
@@ -80,29 +83,74 @@ export async function POST(req: NextRequest) {
   // Best-effort owner notifications. Failure here never blocks the vendor's send.
   const bizName = ctx.application.business_name as string
   const contact = (ctx.application.contact_name as string) || ''
-  const email = (ctx.application.email as string) || ''
+  // Vendor email MUST come from the authenticated Supabase session, never from
+  // request body or the application row (which can drift). This is the address
+  // admins reply to.
+  const vendorEmail = ctx.email || ''
   const phone = (ctx.application.phone as string) || ''
 
   try {
     const { notifyOwners } = await import('@/lib/bot/notify')
     await notifyOwners({
       event: 'vendor_support_message',
-      body: `${bizName} (${contact || email}): ${text.slice(0, 240)}`,
+      body: `${bizName} (${contact || vendorEmail}): ${text.slice(0, 240)}`,
       audience: 'all',
     })
   } catch (e) {
     console.error('[exhibitor/support] notifyOwners failed:', (e as Error).message)
   }
 
-  try {
-    const { sendEmail } = await import('@/lib/email/resend')
-    await sendEmail({
-      to: 'support@youngatheart.co.za',
-      subject: `Support message from ${bizName}, YAH 2026`,
-      text: `${bizName}\n${contact}\n${email}${phone ? `, ${phone}` : ''}\n\nsent via the exhibitor portal:\n\n${text}\n\nReply in /admin/support.`,
-    })
-  } catch (e) {
-    console.error('[exhibitor/support] email failed:', (e as Error).message)
+  // Email is a bonus channel. WA + the inbox thread are durable; if Resend
+  // throttles or fails we log it and still return success to the vendor.
+  // CTH-DOCTRINE Law 5: append throttle hits to docs/throttle-log.md.
+  // CTH-DOCTRINE Law 7: no em-dashes in subject/body.
+  if (alsoEmail) {
+    try {
+      const { sendEmail } = await import('@/lib/email/resend')
+      const snippet = text.slice(0, 30).replace(/[—–]/g, ':').trim()
+      const subject = `Vendor support: ${bizName}, ${snippet}`
+      const bodyText = [
+        `Vendor: ${contact || '(name not on file)'}`,
+        `Business: ${bizName}`,
+        `Application ID: ${applicationId}`,
+        `Phone: ${phone || '(not on file)'}`,
+        `Vendor email: ${vendorEmail || '(not on file)'}`,
+        '',
+        'Message:',
+        text,
+        '',
+        `Reply to the vendor directly at ${vendorEmail || 'support@youngatheart.co.za'} to respond. The inbox thread at /admin/support also captures this message.`,
+      ].join('\n')
+      const result = await sendEmail({
+        to: 'support@youngatheart.co.za',
+        subject,
+        text: bodyText,
+        replyTo: vendorEmail || undefined,
+      })
+      if (!result.ok) {
+        const err = result.error || 'unknown'
+        // CTH-DOCTRINE Law 5: throttle hits get tagged with a grep-able prefix
+        // so they surface in Vercel logs and can be rolled into
+        // docs/throttle-log.md on review. Filesystem appends do not persist on
+        // serverless, so we lean on structured log lines + the site_events
+        // table the abuse guard already writes to.
+        if (/throttl|rate.?limit|429|too many/i.test(err)) {
+          console.error(
+            `[throttle-log] endpoint=exhibitor-support applicationId=${applicationId} channel=resend err=${err}`,
+          )
+          await logGuardEvent(admin, {
+            endpoint: ENDPOINT,
+            ip: vendorKey,
+            reason: 'rate_limited',
+            fields: { applicationId, channel: 'resend', err, kind: 'email_throttle' },
+          }).catch(() => {})
+        } else {
+          console.error('[exhibitor/support] email send not ok:', err)
+        }
+      }
+    } catch (e) {
+      console.error('[exhibitor/support] email failed:', (e as Error).message)
+    }
   }
 
   return NextResponse.json({ success: true, messages: next.support })

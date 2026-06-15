@@ -2,7 +2,6 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { LogoMark } from '@/components/logo'
 import {
   LayoutGrid, MapPin, FileCheck, Users, Megaphone, Inbox,
   CreditCard, Store, BookOpen, LogOut, ChevronDown,
@@ -58,23 +57,28 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3">
         <div className="flex items-center gap-3 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-3 min-h-[72px] py-2.5">
           {/* logo */}
-          <a href="/exhibitor/portal" className="flex items-center gap-2.5 shrink-0 pr-2 self-center">
-            <LogoMark size="sm" />
+          <a href="/exhibitor/portal" className="flex items-center gap-2.5 shrink-0 pr-2">
+            <img
+              src="/logo.png"
+              alt="Young at Heart"
+              className="h-12 w-auto flex-shrink-0"
+              style={{ transform: 'scale(1.15)', transformOrigin: 'center' }}
+            />
             <span className="hidden lg:flex flex-col justify-center leading-tight">
               <span className="block font-bold text-neutral-900 text-sm">Young at Heart</span>
               <span className="block text-[10px] text-neutral-400">Exhibitor portal</span>
             </span>
           </a>
 
-          {/* main nav — spaced to breathe */}
-          <nav className="flex items-center gap-1.5 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* main nav — spaced to breathe, scrolls horizontally before clipping */}
+          <nav className="flex items-center gap-2 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {MAIN.map((i) => {
               const active = pathname === i.href
               const Icon = i.icon
               const showDot = inboxUnread && (i.href === '/exhibitor/portal/support' || i.href === '/exhibitor/portal')
               return (
                 <a key={i.href} href={i.href}
-                  className={`relative flex items-center gap-2 rounded-full px-4 lg:px-7 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
+                  className={`relative flex items-center gap-2 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
                   <Icon className="w-4 h-4" />{i.label}
                   {showDot && (
                     <span aria-label="unread reply" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />

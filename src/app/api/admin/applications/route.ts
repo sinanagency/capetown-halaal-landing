@@ -7,6 +7,7 @@
 //   ?status=pending,info_requested   comma-separated list, default 'pending'
 //   ?include_superseded=1            include rows where is_duplicate=true
 //   ?sector=food                     filter by sector column
+//   ?tier=marquee-table-2x2          filter by preferred_booth_tier column
 //   ?search=<q>                      ilike on business_name / contact_name / email / phone
 //   ?limit=<int>                     default 100, max 500
 //   ?offset=<int>                    default 0
@@ -49,6 +50,7 @@ export async function GET(request: NextRequest) {
       .filter((s) => ['pending', 'approved', 'rejected', 'info_requested'].includes(s))
     const includeSuperseded = searchParams.get('include_superseded') === '1'
     const sector = (searchParams.get('sector') ?? '').trim()
+    const tier = (searchParams.get('tier') ?? '').trim()
     const search = (searchParams.get('search') ?? '').trim()
     const limitRaw = Number(searchParams.get('limit') ?? '100')
     const limit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 100, 1), 500)
@@ -67,6 +69,9 @@ export async function GET(request: NextRequest) {
     }
     if (sector) {
       q = q.eq('sector', sector)
+    }
+    if (tier) {
+      q = q.eq('preferred_booth_tier', tier)
     }
     if (search) {
       // Strip PostgREST filter delimiters (comma, parens) before escaping the

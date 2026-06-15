@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   if (ids.length) {
     const { data: messages } = await db
       .from('support_inbox_messages')
-      .select('id, thread_id, direction, from_address, from_name, to_address, subject, body_text, received_at, sent_by, provider')
+      .select('id, thread_id, direction, from_address, from_name, to_address, subject, body_text, body_html, received_at, sent_by, provider')
       .in('thread_id', ids)
       .order('received_at', { ascending: true })
       .limit(2000)

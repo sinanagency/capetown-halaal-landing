@@ -23,6 +23,7 @@ export const runtime = 'nodejs'
 
 type Channel = 'wa' | 'mail' | 'all'
 type Bucket = 'needs' | 'open' | 'snoozed' | 'done'
+type Identity = 'vendor' | 'ticket_buyer' | 'unknown'
 
 interface ThreadCard {
   id: string
@@ -86,8 +87,36 @@ export async function GET(req: Request) {
   const bucket = (url.searchParams.get('bucket') || 'open') as Bucket
   const channel = (url.searchParams.get('channel') || 'all') as Channel
   const cursor = url.searchParams.get('cursor')
+  // identity = comma-separated subset of: vendor, ticket_buyer, unknown.
+  // Missing / empty / "all" disables the filter. Default behaviour in the
+  // client (InboxClient) is "vendor,ticket_buyer" so the queue lands on real
+  // festival intent and not on random first-message threads.
+  const identityRaw = (url.searchParams.get('identity') || '').trim()
+  const identitySet: Set<Identity> = new Set()
+  if (identityRaw && identityRaw !== 'all') {
+    for (const part of identityRaw.split(',')) {
+      const p = part.trim().toLowerCase()
+      if (p === 'vendor' || p === 'ticket_buyer' || p === 'unknown') {
+        identitySet.add(p)
+      }
+    }
+  }
 
   const supabase = createAdminClient()
+
+  // Build a PostgREST or() expression for the active identity filter.
+  // Empty set = no filter applied (caller wanted "all" or omitted the param).
+  function identityOrExpr(): string | null {
+    if (identitySet.size === 0) return null
+    const parts: string[] = []
+    if (identitySet.has('vendor')) parts.push('vendor_application_id.not.is.null')
+    if (identitySet.has('ticket_buyer')) parts.push('ticket_buyer_email.not.is.null')
+    if (identitySet.has('unknown')) {
+      parts.push('and(vendor_application_id.is.null,ticket_buyer_email.is.null)')
+    }
+    if (parts.length === 0) return null
+    return parts.join(',')
+  }
 
   // Counts (parallel, four queries)
   type CountRes = { count: number | null }
@@ -97,6 +126,8 @@ export async function GET(req: Request) {
       .select('id', { count: 'exact', head: true })
       .eq('status', status)
     if (channel !== 'all') q = q.eq('channel', channel)
+    const orExpr = identityOrExpr()
+    if (orExpr) q = q.or(orExpr)
     return q
   }
 
@@ -113,6 +144,8 @@ export async function GET(req: Request) {
     .eq('status', 'open')
     .not('last_inbound_at', 'is', null)
   if (channel !== 'all') needsQ = needsQ.eq('channel', channel)
+  const needsOrExpr = identityOrExpr()
+  if (needsOrExpr) needsQ = needsQ.or(needsOrExpr)
   const needsC = (await needsQ) as unknown as CountRes
   // Note: the gt-coalesce comparison is not expressible in PostgREST head-count
   // without a view. We approximate by counting open threads with any inbound,
@@ -136,6 +169,8 @@ export async function GET(req: Request) {
     .limit(PAGE_SIZE)
 
   if (channel !== 'all') q = q.eq('channel', channel)
+  const rowOrExpr = identityOrExpr()
+  if (rowOrExpr) q = q.or(rowOrExpr)
 
   if (bucket === 'needs') {
     q = q.eq('status', 'open').not('last_inbound_at', 'is', null)
