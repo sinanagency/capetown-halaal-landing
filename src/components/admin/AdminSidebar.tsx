@@ -360,7 +360,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         className={cn(
           'bg-white border-r border-neutral-200 flex flex-col',
           // mobile: drawer (sits above the overlay backdrop on the modal layer)
-          'fixed inset-y-0 left-0 w-72 transform transition-transform md:relative md:translate-x-0 md:w-64 md:min-h-screen',
+          'fixed inset-y-0 left-0 w-72 transform transition-transform md:relative md:translate-x-0 md:w-64 md:h-screen md:overflow-hidden',
           Z_CLASS.modal,
           mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         )}

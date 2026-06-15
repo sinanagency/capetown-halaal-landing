@@ -49,9 +49,9 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-[#f8f8f8] md:flex">
+    <div className="md:h-screen md:overflow-hidden bg-[#f8f8f8] md:flex">
       <AdminSidebar role={role} email={email} />
-      <main className="flex-1 overflow-auto min-w-0">
+      <main className="flex-1 min-w-0 md:overflow-hidden md:h-screen">
         {children}
       </main>
       <CommandK />
