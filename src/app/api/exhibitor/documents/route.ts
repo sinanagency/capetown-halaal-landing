@@ -15,10 +15,18 @@ export async function GET() {
   const state = parsePortalState(ctx.application.admin_notes as string)
   const docs = state.docs || []
   const admin = createAdminClient()
+  // Legacy/seed rows without `path` would throw inside the Supabase SDK.
+  // Null-guard so the list still renders for the rest of the docs.
   const withUrls = await Promise.all(
     docs.map(async (d) => {
-      const { data } = await admin.storage.from(BUCKET).createSignedUrl(d.path, 3600)
-      return { ...d, url: data?.signedUrl || null }
+      let url: string | null = null
+      if (d.path && typeof d.path === 'string' && d.path.trim().length > 0) {
+        try {
+          const { data } = await admin.storage.from(BUCKET).createSignedUrl(d.path, 3600)
+          url = data?.signedUrl || null
+        } catch { url = null }
+      }
+      return { ...d, url }
     })
   )
   return NextResponse.json({ docs: withUrls })

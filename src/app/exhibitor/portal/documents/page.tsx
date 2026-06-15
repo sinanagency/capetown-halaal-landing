@@ -14,11 +14,24 @@ export default async function DocumentsPage() {
   const state = parsePortalState(ctx?.application?.admin_notes as string)
   const docs = state.docs || []
 
+  // Legacy + seed rows may carry doc records without a `path` field (e.g. the
+  // Demo Halal Kitchen fixture stamped status=approved with no storage object).
+  // The Supabase storage SDK throws when path is null/undefined, which used to
+  // surface as a hard 500 for the vendor (digest 3115685589). We null-guard
+  // here so the page renders, with the URL simply nulled out for those rows.
   const admin = createAdminClient()
   const views: DocView[] = await Promise.all(
     docs.map(async (d) => {
-      const { data } = await admin.storage.from('vendor-docs').createSignedUrl(d.path, 3600)
-      return { type: d.type, name: d.name, status: d.status, uploaded_at: d.uploaded_at, url: data?.signedUrl || null, note: d.note }
+      let url: string | null = null
+      if (d.path && typeof d.path === 'string' && d.path.trim().length > 0) {
+        try {
+          const { data } = await admin.storage.from('vendor-docs').createSignedUrl(d.path, 3600)
+          url = data?.signedUrl || null
+        } catch {
+          url = null
+        }
+      }
+      return { type: d.type, name: d.name, status: d.status, uploaded_at: d.uploaded_at, url, note: d.note }
     })
   )
 
