@@ -273,10 +273,16 @@ export function validateTicket(t: ParsedTicket): ValidationResult {
     if (!t.attendance_date) errors.push('missing_attendance_date')
     else if (!FESTIVAL_DATES.has(t.attendance_date)) errors.push('attendance_date_off_cycle')
   }
+  // fooevents_ticket_pending is a SOFT signal, not a hard fail: holder data is
+  // verifiable; FooEvents will mint the ticket post-creation. The verifier UI
+  // surfaces the row as "verified, FooEvents pending" via the warnings field.
+  const warnings: string[] = []
   if (t.fooevents_ticket_id.startsWith('synthetic:')) {
-    errors.push('fooevents_ticket_pending')
+    warnings.push('fooevents_ticket_pending')
   }
 
-  if (errors.length === 0) return { ok: true, error: null }
-  return { ok: false, error: errors.join(',') }
+  if (errors.length === 0) {
+    return { ok: true, error: warnings.length ? warnings.join(',') : null }
+  }
+  return { ok: false, error: [...errors, ...warnings].join(',') }
 }
