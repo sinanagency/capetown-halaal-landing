@@ -4,7 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutGrid, MapPin, FileCheck, Users, Megaphone, Inbox,
-  CreditCard, Store, BookOpen, LogOut, ChevronDown,
+  CreditCard, Store, BookOpen, LogOut, Sparkles,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
@@ -16,6 +16,7 @@ const MAIN: Item[] = [
   { href: '/exhibitor/portal', label: 'Overview', icon: LayoutGrid },
   { href: '/exhibitor/portal/stand', label: 'My Stand', icon: MapPin },
   { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck },
+  { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
   { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
   { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/exhibitor/portal/support', label: 'Inbox', icon: Inbox },
@@ -64,7 +65,7 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             <img
               src="/logo.png"
               alt="Young at Heart"
-              className="h-14 w-auto flex-shrink-0 self-center"
+              className="h-14 w-auto flex-shrink-0 self-center translate-y-[11%]"
             />
             <span className="hidden lg:flex flex-col justify-center leading-tight">
               <span className="block font-bold text-neutral-900 text-sm">Young at Heart</span>
@@ -93,10 +94,10 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
           {/* avatar menu (account + secondary sections) */}
           <div className="relative shrink-0" ref={menuRef}>
             <button onClick={() => setMenuOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-neutral-100 transition-colors">
-              <div className="w-8 h-8 rounded-full bg-[#cd2653] text-white text-sm font-bold flex items-center justify-center">{initials(businessName)}</div>
-              <span className="hidden md:block text-sm font-medium text-neutral-700 max-w-[150px] truncate">{cleanName}</span>
-              <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+              aria-label="Account menu"
+              aria-expanded={menuOpen}
+              className="w-9 h-9 rounded-full bg-[#cd2653] text-white text-sm font-bold flex items-center justify-center hover:opacity-90 ring-1 ring-transparent hover:ring-[#cd2653]/30 transition-all">
+              {initials(businessName)}
             </button>
             {menuOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-white border border-neutral-200 rounded-2xl shadow-xl p-1.5 z-50">

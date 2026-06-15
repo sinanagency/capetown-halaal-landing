@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>IG Feed Post</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1080px; }
+  body {
+    background: #F8F5EE;
+    color: #1A1A1A;
+    font-family: 'Inter', -apple-system, Arial, sans-serif;
+    overflow: hidden;
+  }
+  .canvas {
+    width: 1080px;
+    height: 1080px;
+    padding: 80px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 60px;
+    align-items: center;
+  }
+  .left {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    padding: 20px 0;
+  }
+  .kicker {
+    color: #cd2653;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .kicker .dot { width: 12px; height: 12px; border-radius: 50%; background: #cd2653; }
+  .business {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 76px;
+    line-height: 1.0;
+    font-weight: 600;
+    color: #1A1A1A;
+    letter-spacing: -0.02em;
+    margin: 24px 0 20px;
+  }
+  .tagline {
+    font-size: 26px;
+    color: #5a5754;
+    line-height: 1.4;
+    font-weight: 400;
+    margin-bottom: 28px;
+  }
+  .find-block {
+    border-top: 2px solid rgba(26, 26, 26, 0.12);
+    padding-top: 28px;
+  }
+  .find-block .lbl {
+    font-size: 16px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: #8a8a8a;
+    font-weight: 600;
+  }
+  .find-block .stall {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 64px;
+    line-height: 1.0;
+    font-weight: 700;
+    color: #cd2653;
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+  }
+  .find-block .meta {
+    font-size: 20px;
+    color: #4a4a4a;
+    line-height: 1.45;
+    margin-top: 16px;
+  }
+  .url {
+    font-size: 18px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #cd2653;
+    margin-top: 28px;
+  }
+  .right {
+    width: 100%;
+    height: 100%;
+    background: #ffffff;
+    border-radius: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(26, 26, 26, 0.10);
+    border: 2px solid rgba(205, 38, 83, 0.10);
+  }
+  .right img { max-width: 78%; max-height: 78%; object-fit: contain; }
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="left">
+      <div>
+        <div class="kicker"><span class="dot"></span><span>Cape Town Halaal 2026</span></div>
+        <div class="business">{{business_name}}</div>
+        <div class="tagline">{{tagline}}</div>
+      </div>
+      <div>
+        <div class="find-block">
+          <div class="lbl">Find us at stall</div>
+          <div class="stall">{{stall_code}}</div>
+          <div class="meta">11 to 13 December 2026<br/>Youngsfield Military Base, Cape Town</div>
+        </div>
+        <div class="url">cthalaal.co.za</div>
+      </div>
+    </div>
+    <div class="right"><img src="{{logo_url}}" alt=""/></div>
+  </div>
+</body>
+</html>

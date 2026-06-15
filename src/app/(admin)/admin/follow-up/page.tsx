@@ -237,6 +237,7 @@ export default function FollowUpPage() {
           <StatCard label="Submit Failures" value={submitDropoffs} hint="Started submit but didn't complete" />
         </div>
 
+        <div className="h-[calc(100vh-3rem)] overflow-y-auto space-y-6 pr-2">
         {/* Failed orders */}
         <Card padded={false} className="overflow-hidden">
           <div className="px-6 py-4 border-b border-[#E5E5E5]/30 bg-[#cd2653]/5">
@@ -450,6 +451,7 @@ export default function FollowUpPage() {
             </a>
           </div>
         </Card>
+        </div>
       </div>
 
       {composerFor && (

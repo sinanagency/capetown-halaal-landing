@@ -41,7 +41,7 @@ export function BulkToolbar({
         aria-label={`Approve ${count} selected applications`}
         className="px-2.5 py-1 text-xs rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 inline-flex items-center gap-1.5"
       >
-        <CheckCircle2 className="w-3.5 h-3.5" /> Approve {count}
+        <CheckCircle2 className="w-3.5 h-3.5" /> Approve {count} selected
       </button>
 
       <div className="relative">
@@ -85,7 +85,7 @@ export function BulkToolbar({
         aria-label={`Reject ${count} selected applications as spam`}
         className="px-2.5 py-1 text-xs rounded-md bg-rose-600 hover:bg-rose-500 disabled:opacity-50 inline-flex items-center gap-1.5"
       >
-        <XCircle className="w-3.5 h-3.5" /> Reject as spam
+        <XCircle className="w-3.5 h-3.5" /> Reject {count}
       </button>
 
       <div className="relative">
@@ -97,7 +97,7 @@ export function BulkToolbar({
           aria-expanded={tagOpen}
           className="px-2.5 py-1 text-xs rounded-md bg-neutral-700 hover:bg-neutral-600 disabled:opacity-50 inline-flex items-center gap-1.5"
         >
-          <Tag className="w-3.5 h-3.5" /> Tag sector
+          <Tag className="w-3.5 h-3.5" /> Tag {count}
         </button>
         {tagOpen && (
           <div className="absolute top-full mt-1 left-0 bg-white text-neutral-900 rounded-md shadow-lg border border-neutral-200 min-w-[160px] overflow-hidden z-10">
@@ -120,10 +120,10 @@ export function BulkToolbar({
       <span className="w-px h-5 bg-neutral-700" />
       <button
         onClick={onClear}
-        aria-label="Clear selection"
+        aria-label="Cancel selection"
         className="px-2 py-1 text-xs rounded-md hover:bg-neutral-800 inline-flex items-center gap-1"
       >
-        <X className="w-3.5 h-3.5" /> Clear
+        <X className="w-3.5 h-3.5" /> Cancel selection
       </button>
       {busy && <Loader2 className="w-3.5 h-3.5 animate-spin ml-1" />}
     </div>

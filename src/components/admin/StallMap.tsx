@@ -59,7 +59,10 @@ export default function StallMap({
 
   // SVG viewBox = pan/zoom state. We keep the user-space coords unchanged
   // and shift+scale the viewBox so strokes stay crisp at any zoom level.
-  const [zoom, setZoom] = useState(1)
+  // Default zoom 1.4 so stall codes (FS1, FS2, ...) render legibly on first
+  // paint. At 1.0 the cell width is ~3 user-units but the font is sized for
+  // >=1.4x, which is what was causing the FS1FS2FS3 label mash on /admin/allocation.
+  const [zoom, setZoom] = useState(1.4)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const dragging = useRef<{ active: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({
     active: false,
@@ -69,9 +72,10 @@ export default function StallMap({
     startPanY: 0,
   })
 
-  // Reset pan/zoom when grid changes (e.g. data swap).
+  // Reset pan/zoom when grid changes (e.g. data swap). Match initial default
+  // so labels stay readable across data swaps.
   useEffect(() => {
-    setZoom(1)
+    setZoom(1.4)
     setPan({ x: 0, y: 0 })
   }, [grid.cols, grid.rows])
 
@@ -223,7 +227,7 @@ export default function StallMap({
   )
 
   function resetView() {
-    setZoom(1)
+    setZoom(1.4)
     setPan({ x: 0, y: 0 })
   }
 
@@ -262,7 +266,7 @@ export default function StallMap({
   const labelSize = Math.max(0.9, Math.min(1.6, 1.4 / Math.sqrt(zoom)))
 
   return (
-    <div className="relative w-full h-full" style={{ background: '#F6F2E8', borderRadius: 8 }}>
+    <div className="relative w-full h-full" style={{ background: '#FAF8F2', borderRadius: 8 }}>
       {/* Zoom controls */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 bg-white/95 border border-neutral-200 rounded-lg shadow-sm">
         <button
@@ -309,7 +313,7 @@ export default function StallMap({
           minWidth: 1200,
           minHeight: 700,
           cursor: dragging.current.active ? 'grabbing' : 'grab',
-          background: '#F6F2E8',
+          background: '#FAF8F2',
           borderRadius: 8,
         }}
         preserveAspectRatio="xMidYMid meet"
@@ -388,7 +392,7 @@ export default function StallMap({
                   {s.occupant?.business_name ? ` · ${s.occupant.business_name}` : s.status ? ` · ${s.status}` : ''}
                 </title>
               </rect>
-              {labelFits && (
+              {labelFits && zoom >= 1.0 && (
                 <text
                   x={s.col + s.w / 2}
                   y={s.row + s.h / 2}

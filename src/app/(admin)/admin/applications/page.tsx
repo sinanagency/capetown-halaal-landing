@@ -426,18 +426,6 @@ export default function ApplicationsWorkbenchPage() {
         />
       </div>
 
-      {/* Bulk toolbar (shows above split when selection exists) */}
-      {selectedCount > 0 && (
-        <div className="px-5 py-2 bg-neutral-50 border-b border-neutral-200">
-          <BulkToolbar
-            count={selectedCount}
-            busy={busy}
-            onRun={runBulk}
-            onClear={() => setSelectedIds(new Set())}
-          />
-        </div>
-      )}
-
       {/* Two-pane body */}
       <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[minmax(320px,420px)_1fr]">
         <div className="border-r border-neutral-200 bg-white flex flex-col min-h-0">
@@ -468,22 +456,38 @@ export default function ApplicationsWorkbenchPage() {
         </div>
       </div>
 
-      {/* Footer shortcuts hint */}
-      <footer className="px-5 py-1.5 border-t border-neutral-200 bg-white text-[11px] text-neutral-500 flex items-center gap-3 flex-wrap">
-        <kbd className="kb">j</kbd><span>next</span>
-        <kbd className="kb">k</kbd><span>prev</span>
-        <kbd className="kb">a</kbd><span>approve</span>
-        <kbd className="kb">r</kbd><span>reject</span>
-        <kbd className="kb">i</kbd><span>info</span>
-        <kbd className="kb">t</kbd><span>tag</span>
-        <kbd className="kb">s</kbd><span>snooze</span>
-        <kbd className="kb">x</kbd><span>select</span>
-        <kbd className="kb">m</kbd><span>merge</span>
-        <kbd className="kb">?</kbd><span>help</span>
-        {hint && (
-          <span className="ml-auto text-emerald-600 font-medium">{hint}</span>
-        )}
-      </footer>
+      {/* Context-aware action bar:
+          - 0 rows selected: thin keyboard-hint strip (critical keys only).
+          - >=1 rows selected: BulkToolbar with explicit Approve/Reject/Tag/Cancel.
+          Same row, same height — no layout jump. */}
+      {selectedCount > 0 ? (
+        <footer className="px-5 py-1.5 border-t border-neutral-200 bg-neutral-50 flex items-center gap-3 min-h-[32px]">
+          <BulkToolbar
+            count={selectedCount}
+            busy={busy}
+            onRun={runBulk}
+            onClear={() => setSelectedIds(new Set())}
+          />
+          {hint && (
+            <span className="ml-auto text-emerald-600 font-medium text-[11px]">{hint}</span>
+          )}
+        </footer>
+      ) : (
+        <footer className="px-5 py-1.5 border-t border-neutral-200 bg-white text-[11px] text-neutral-500 flex items-center gap-3 flex-wrap min-h-[32px]">
+          <kbd className="kb">j</kbd><kbd className="kb">k</kbd><span>navigate</span>
+          <span className="text-neutral-300">.</span>
+          <kbd className="kb">a</kbd><span>approve focused</span>
+          <span className="text-neutral-300">.</span>
+          <kbd className="kb">r</kbd><span>reject focused</span>
+          <span className="text-neutral-300">.</span>
+          <kbd className="kb">x</kbd><span>select</span>
+          <span className="text-neutral-300">.</span>
+          <kbd className="kb">?</kbd><span>all shortcuts</span>
+          {hint && (
+            <span className="ml-auto text-emerald-600 font-medium">{hint}</span>
+          )}
+        </footer>
+      )}
 
       <ShortcutsOverlay open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       <DedupeDrawer
