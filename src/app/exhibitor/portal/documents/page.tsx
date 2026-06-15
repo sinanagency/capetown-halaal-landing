@@ -1,7 +1,9 @@
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { parsePortalState } from '@/lib/portal-state'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { paymentReference } from '@/lib/payments'
 import DocumentsManager, { type DocView } from '@/components/exhibitor/DocumentsManager'
+import GeneratedDocsPanel, { type StaffBadgeRef } from '@/components/exhibitor/GeneratedDocsPanel'
 import { PageShell, PageHeader } from '@/components/chrome/PageChrome'
 import { requirePaid } from '@/lib/exhibitor-paygate'
 import MiniTaskStrip from '@/components/exhibitor/MiniTaskStrip'
@@ -11,7 +13,8 @@ export const dynamic = 'force-dynamic'
 export default async function DocumentsPage() {
   await requirePaid()
   const ctx = await getExhibitorContext()
-  const state = parsePortalState(ctx?.application?.admin_notes as string)
+  const app = (ctx?.application || {}) as Record<string, unknown>
+  const state = parsePortalState((app.admin_notes as string) || null)
   const docs = state.docs || []
 
   // Legacy + seed rows may carry doc records without a `path` field (e.g. the
@@ -35,16 +38,47 @@ export default async function DocumentsPage() {
     })
   )
 
+  // Generated documents (festival side).
+  const invoiceStatus = state.payment?.status || 'none'
+  const invoiceRef = state.payment?.reference || paymentReference((app.id as string) || '')
+  const contractSigned = Boolean(app.contract_signed_at)
+  const staffBadges: StaffBadgeRef[] = (state.staff || []).map((s) => ({
+    name: s.name,
+    role: s.role || 'staff',
+    wc_order_id: s.wc_order_id,
+    fooevents_ticket_id: s.fooevents_ticket_id,
+  }))
+
   return (
     <PageShell>
       <MiniTaskStrip activeKey="documents" />
       <PageHeader
         kicker="Documents"
-        title="Compliance & paperwork"
-        subtitle="Upload your certificates here. The organisers review each one before the festival."
+        title="Your festival paperwork"
+        subtitle="Everything we generated for you, and everything you uploaded for us. Two sides of the same folder."
       />
-      <div className="max-w-3xl">
-        <DocumentsManager docs={views} />
+
+      <div className="max-w-3xl space-y-10">
+        {/* Section 1: documents WE generated for the vendor. */}
+        <section>
+          <h2 className="text-[11px] font-semibold tracking-[0.18em] uppercase text-[#1B1A17]/55 mb-3">
+            From the organisers
+          </h2>
+          <GeneratedDocsPanel
+            invoiceStatus={invoiceStatus}
+            invoiceRef={invoiceRef}
+            contractSigned={contractSigned}
+            staffBadges={staffBadges}
+          />
+        </section>
+
+        {/* Section 2: documents the vendor uploaded. */}
+        <section>
+          <h2 className="text-[11px] font-semibold tracking-[0.18em] uppercase text-[#1B1A17]/55 mb-3">
+            Compliance documents you upload
+          </h2>
+          <DocumentsManager docs={views} />
+        </section>
       </div>
     </PageShell>
   )
