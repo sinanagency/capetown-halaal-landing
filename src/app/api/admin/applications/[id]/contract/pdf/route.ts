@@ -58,11 +58,28 @@ export async function GET(
     )
   }
 
+  // Stream the PDF bytes through this same-origin route instead of redirecting
+  // to the signed Supabase URL. The drawer iframe must hit a same-origin
+  // response or Chrome refuses to render (cross-origin redirect + default
+  // X-Frame-Options on the storage host blocks the embed).
   const { data: signed, error: signErr } = await admin.storage
     .from(VENDOR_DOCS_BUCKET)
     .createSignedUrl(path, 300)
   if (signErr || !signed?.signedUrl) {
     return NextResponse.json({ error: 'Could not generate download link' }, { status: 500 })
   }
-  return NextResponse.redirect(signed.signedUrl)
+  const upstream = await fetch(signed.signedUrl)
+  if (!upstream.ok || !upstream.body) {
+    return NextResponse.json({ error: 'Could not fetch contract PDF' }, { status: 502 })
+  }
+  const filename = `vendor-contract-${id}.pdf`
+  return new NextResponse(upstream.body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Cache-Control': 'private, max-age=60',
+    },
+  })
 }

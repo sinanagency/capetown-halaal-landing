@@ -393,7 +393,11 @@ export function DocumentsClient() {
                               type="button"
                               onClick={() => setViewer({
                                 open: true,
-                                url: r.pdf_url,
+                                // Route through our same-origin proxy so the
+                                // drawer iframe can render the FooEvents PDF
+                                // inline (cross-origin direct embed is blocked
+                                // by tickets.youngatheart.co.za).
+                                url: `/api/admin/documents/tickets/proxy?url=${encodeURIComponent(r.pdf_url ?? '')}`,
                                 label: r.ticket_type ? `Ticket · ${r.ticket_type}` : 'Ticket',
                                 holder,
                               })}
