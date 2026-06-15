@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getExhibitorContext } from '@/lib/exhibitor'
+import { getRole } from '@/lib/admin-rbac'
 import PortalNav from '@/components/exhibitor/PortalNav'
 import { parsePortalState } from '@/lib/portal-state'
 import { WaOptInBanner } from '@/components/exhibitor/WaOptInBanner'
@@ -11,6 +12,14 @@ export default async function PortalLayout({ children }: { children: React.React
   const ctx = await getExhibitorContext()
   if (!ctx) redirect('/exhibitor/login')
   if (ctx.mustChangePassword) redirect('/exhibitor/set-password')
+  // Fail-closed when the auth user has no linked vendor application (Law 2).
+  // Admin accounts get routed back to the admin portal; everyone else lands
+  // on the vendor login. Without this, half-rendered pages call /api/exhibitor/*
+  // and surface raw "Unauthorized" strings in the UI.
+  if (!ctx.application) {
+    const role = await getRole(ctx.userId).catch(() => null)
+    redirect(role ? '/admin' : '/exhibitor/login')
+  }
 
   // NOTE: contract-sign gate moved out of the layout into individual pages
   // (Overview + paygate). Path-detection in Next 16 layouts is unreliable, so a

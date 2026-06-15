@@ -183,23 +183,34 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
     <>
       {/* Logo block: horizontal, tight against text (matches main site treatment).
           Drops the h-32 stacked layout for h-12 inline. */}
-      <div className="px-4 py-4 border-b border-neutral-200 relative">
-        <div className={cn('flex items-center gap-2.5', collapsed && 'justify-center')}>
-          <Image
-            src="/logo.png"
-            alt="Young at Heart"
-            width={56}
-            height={56}
-            priority
-            className="h-12 w-auto flex-shrink-0 translate-y-[11%]"
-          />
-          {!collapsed && (
+      <div className={cn('border-b border-neutral-200 relative', collapsed ? 'px-2 py-3' : 'px-4 py-4')}>
+        {collapsed ? (
+          <div className="flex justify-center">
+            <Image
+              src="/logo.png"
+              alt="Young at Heart"
+              width={40}
+              height={40}
+              priority
+              className="h-10 w-10 object-contain"
+            />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <Image
+              src="/logo.png"
+              alt="Young at Heart"
+              width={56}
+              height={56}
+              priority
+              className="h-12 w-auto flex-shrink-0 translate-y-[11%]"
+            />
             <div className="leading-tight min-w-0">
               <p className="font-bold text-sm text-neutral-900 truncate">Young at Heart</p>
               <p className="text-[10px] text-neutral-500">Admin Portal</p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
@@ -208,15 +219,17 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         >
           <X className="w-5 h-5" />
         </button>
-        {/* Desktop collapse toggle: floats on the right edge */}
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="hidden lg:flex absolute -right-3 top-6 w-6 h-6 items-center justify-center rounded-full bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-neutral-400 shadow-sm z-10"
-        >
-          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-        </button>
+        {/* Desktop collapse toggle: hidden on Dashboard, floats on right edge elsewhere. */}
+        {pathname !== '/admin' && (
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className="hidden lg:flex absolute -right-3 top-6 w-6 h-6 items-center justify-center rounded-full bg-white border border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-neutral-400 shadow-sm z-10"
+          >
+            {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
