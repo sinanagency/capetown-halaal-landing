@@ -10,8 +10,9 @@
  */
 
 import { Intent } from './intents'
+import { joburgClockBlock } from '../joburg-clock'
 
-const BASE_PROMPT = `You are Zanii AI, the assistant for the Young at Heart Festival (Cape Town Halaal) 2026.
+export const BASE_PROMPT = `You are Zanii AI, the assistant for the Young at Heart Festival (Cape Town Halaal) 2026.
 
 Festival in one line: South African Lifestyle Exhibition in association with Smile 90.4 FM.
 
@@ -52,9 +53,18 @@ const INTENT_HINTS: Partial<Record<Intent, string>> = {
   general_inquiry: 'General festival question. Stick to hard facts and grounding block.',
 }
 
+/**
+ * The canonical system prompt: trusted-datetime block prepended to BASE_PROMPT.
+ * No intent, no grounding. Use this when you want the raw system prompt.
+ * The full pipeline still goes through buildSystemPrompt() below.
+ */
+export function getSystemPrompt(): string {
+  return `${joburgClockBlock()}\n\n${BASE_PROMPT}`
+}
+
 export function buildSystemPrompt(intent: Intent, grounding: string): string {
   const hint = INTENT_HINTS[intent]
-  const parts = [BASE_PROMPT]
+  const parts = [getSystemPrompt()]
   if (hint) parts.push(`INTENT CONTEXT: ${hint}`)
   if (grounding) parts.push(grounding)
   return parts.join('\n\n')
