@@ -26,10 +26,12 @@ export default async function PortalLayout({ children }: { children: React.React
   const inboxUnread = await hasUnreadAdminReply({ vendorPhone: prefillPhone })
 
   return (
-    <div className="min-h-screen bg-[#F6F2E8] text-[#1B1A17]">
-      <PortalNav businessName={businessName} inboxUnread={inboxUnread} />
-      {showWaBanner && <WaOptInBanner prefillPhone={prefillPhone} firstName={firstName} />}
-      <main>{children}</main>
+    <div className="h-screen overflow-hidden flex flex-col bg-[#F6F2E8] text-[#1B1A17]">
+      <div className="flex-shrink-0">
+        <PortalNav businessName={businessName} inboxUnread={inboxUnread} />
+        {showWaBanner && <WaOptInBanner prefillPhone={prefillPhone} firstName={firstName} />}
+      </div>
+      <main className="flex-1 overflow-y-auto min-h-0">{children}</main>
     </div>
   )
 }

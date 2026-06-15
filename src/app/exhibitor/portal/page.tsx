@@ -68,9 +68,11 @@ export default async function Overview() {
   const paymentDue = (app?.payment_due_date as string) || '1 Sep 2026'
 
   const termsAccepted = !!state.terms_accepted_at
+  const contractSigned = !!app?.contract_signed_at
   const steps = [
     { done: true, label: 'Application approved', sub: 'Welcome to the festival', href: '/exhibitor/portal' },
     { done: termsAccepted, label: 'Accept terms & conditions', sub: termsAccepted ? 'Recorded against your account' : 'Required before payment', href: '/exhibitor/portal/terms' },
+    { done: contractSigned, label: 'Sign vendor contract', sub: contractSigned ? 'Vendor Contract 2026 signed' : 'Locks your stall fee and your spot.', href: '/exhibitor/portal/contract' },
     { done: isPaid, label: 'Pay your stall fee', sub: isPaid ? 'Received, thank you' : `Due ${paymentDue}`, href: '/exhibitor/portal/payments' },
     { done: !!stall, label: 'Stall allocated', sub: stall ? `${stall} · ${stallZone}` : 'Organisers will place you', href: '/exhibitor/portal/stand' },
     {

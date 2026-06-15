@@ -191,60 +191,57 @@ export default function AllocationPage() {
 
   if (!ready) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-neutral-400">
+      <div className="h-screen overflow-hidden flex items-center justify-center text-neutral-400 bg-neutral-50">
         <Loader2 className="w-5 h-5 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="p-6 sm:p-8 max-w-[1600px]">
-      <div className="mb-1">
-        <p className="text-xs font-semibold text-[#cd2653] uppercase tracking-[0.2em]">BOOTH ALLOCATION</p>
-        <h1 className="text-2xl font-bold text-neutral-900">Floor plan</h1>
-        <p className="text-sm text-neutral-500 mt-1">
-          Pick a stall on the map, then assign it to an approved vendor. Filter by sector or tier to narrow the pool.
-        </p>
+    <div className="h-screen overflow-hidden flex flex-col bg-neutral-50">
+      <div className="flex-shrink-0 px-6 py-3 border-b border-neutral-200 bg-white flex items-center gap-4">
+        <div className="flex-shrink-0">
+          <p className="text-[10px] font-semibold text-[#cd2653] uppercase tracking-[0.2em]">Booth allocation</p>
+          <h1 className="text-base font-bold text-neutral-900 leading-tight">Floor plan</h1>
+        </div>
+        {!loading && data && (
+          <div className="ml-auto min-w-0 flex-1">
+            <AllocationFilters
+              stalls={countdownStalls}
+              applications={data.applications}
+              capacity={Object.fromEntries(
+                (Object.keys(data.availability) as StallType[]).map((t) => [t, data.availability[t].total])
+              ) as Record<StallType, number>}
+              sector={sector}
+              setSector={setSector}
+              tier={tier}
+              setTier={setTier}
+              status={status}
+              setStatus={setStatus}
+            />
+          </div>
+        )}
       </div>
 
-      {loading && (
-        <div className="flex items-center gap-2 text-neutral-400 text-sm py-10">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading live allocation…
-        </div>
-      )}
-
-      {!loading && data && (
-        <div className="mt-5 space-y-4">
-          <AllocationFilters
-            stalls={countdownStalls}
-            applications={data.applications}
-            capacity={Object.fromEntries(
-              (Object.keys(data.availability) as StallType[]).map((t) => [t, data.availability[t].total])
-            ) as Record<StallType, number>}
-            sector={sector}
-            setSector={setSector}
-            tier={tier}
-            setTier={setTier}
-            status={status}
-            setStatus={setStatus}
-          />
-
-          <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
-            <div className="h-[calc(100vh-260px)] min-h-[640px] w-full">
-              <FloorCommand
-                mode="admin"
-                hideModeSwitch
-                booths={booths}
-                grid={data.grid}
-                applications={floorApps}
-                onAllocate={handleAllocate}
-                onRelease={handleRelease}
-                onToggleBlock={handleToggleBlock}
-              />
-            </div>
+      <div className="flex-1 min-h-0 bg-white">
+        {loading && (
+          <div className="flex items-center justify-center h-full gap-2 text-neutral-400 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading live allocation...
           </div>
-        </div>
-      )}
+        )}
+        {!loading && data && (
+          <FloorCommand
+            mode="admin"
+            hideModeSwitch
+            booths={booths}
+            grid={data.grid}
+            applications={floorApps}
+            onAllocate={handleAllocate}
+            onRelease={handleRelease}
+            onToggleBlock={handleToggleBlock}
+          />
+        )}
+      </div>
     </div>
   )
 }

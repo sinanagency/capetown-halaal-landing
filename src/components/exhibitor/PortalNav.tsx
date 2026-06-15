@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
-type Item = { href: string; label: string; icon: typeof LayoutGrid }
+type Item = { href: string; label: string; icon: typeof LayoutGrid; iconOnly?: boolean }
 
 // Primary sections live inline, with room to breathe. Secondary/account items
 // live under the avatar menu — no cramped "More" dropdown in the nav itself.
@@ -19,7 +19,7 @@ const MAIN: Item[] = [
   { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
   { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
   { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
-  { href: '/exhibitor/portal/support', label: 'Inbox', icon: Inbox },
+  { href: '/exhibitor/portal/support', label: 'Inbox', icon: Inbox, iconOnly: true },
 ]
 const ACCOUNT: Item[] = [
   { href: '/exhibitor/portal/payments', label: 'Payments', icon: CreditCard },
@@ -79,6 +79,17 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
               const active = pathname === i.href
               const Icon = i.icon
               const showDot = inboxUnread && (i.href === '/exhibitor/portal/support' || i.href === '/exhibitor/portal')
+              if (i.iconOnly) {
+                return (
+                  <a key={i.href} href={i.href} aria-label={i.label} title={i.label}
+                    className={`relative flex items-center justify-center rounded-full p-2 transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
+                    <Icon className="w-5 h-5" />
+                    {showDot && (
+                      <span aria-label="unread reply" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />
+                    )}
+                  </a>
+                )
+              }
               return (
                 <a key={i.href} href={i.href}
                   className={`relative flex items-center gap-2 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
