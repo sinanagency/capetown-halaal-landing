@@ -55,14 +55,16 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
     // masked sticky strip — content scrolls UNDER this, never above the bar
     <div className="sticky top-0 z-50 bg-[#fbfafa]/85 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-3 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-3 min-h-[72px] py-2.5">
-          {/* logo */}
-          <a href="/exhibitor/portal" className="flex items-center gap-2.5 shrink-0 pr-2">
+        <div className="flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-3 min-h-[72px] py-2.5">
+          {/* brand: logo + label as a single block with real right padding so
+              the pill strip cannot underlap. h-14 instead of scale() — the
+              transform was visually bleeding the logo over the first pill
+              (the "Overview" clipping). */}
+          <a href="/exhibitor/portal" className="flex items-center gap-3 shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
             <img
               src="/logo.png"
               alt="Young at Heart"
-              className="h-12 w-auto flex-shrink-0"
-              style={{ transform: 'scale(1.15)', transformOrigin: 'center' }}
+              className="h-14 w-auto flex-shrink-0 self-center"
             />
             <span className="hidden lg:flex flex-col justify-center leading-tight">
               <span className="block font-bold text-neutral-900 text-sm">Young at Heart</span>
