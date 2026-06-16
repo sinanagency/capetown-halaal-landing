@@ -74,7 +74,8 @@ async function run() {
   console.log(`Created ${created} new tickets`)
 
   // 4. Link wa_threads that have vendor_application_id but no ticket_id
-  const waThreads = await sql(`wa_threads?select=id,wa_phone,vendor_application_id&ticket_id=is.null&not.is.vendor_application_id`)
+  // wa_threads uses wa_phone as PK, not id.
+  const waThreads = await sql(`wa_threads?select=wa_phone,vendor_application_id&ticket_id=is.null&vendor_application_id=not.is.null`)
   console.log(`\nWA threads without ticket_id (with vendor link): ${waThreads.length}`)
 
   let waLinked = 0
@@ -82,8 +83,7 @@ async function run() {
     if (!t.vendor_application_id) continue
     const tickets = await sql(`vendor_tickets?select=id&vendor_application_id=eq.${t.vendor_application_id}&limit=1`)
     if (tickets.length === 0) continue
-    await sql(`wa_threads?id=eq.${t.id}`)
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/wa_threads?id=eq.${t.id}`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/wa_threads?wa_phone=eq.${encodeURIComponent(t.wa_phone)}`, {
       method: 'PATCH',
       headers,
       body: JSON.stringify({ ticket_id: tickets[0].id }),
@@ -93,7 +93,7 @@ async function run() {
   console.log(`Linked ${waLinked} WA threads`)
 
   // 5. Link support_inbox_threads that have vendor_application_id but no ticket_id
-  const mailThreads = await sql(`support_inbox_threads?select=id,peer_email,vendor_application_id&ticket_id=is.null&not.is.vendor_application_id`)
+  const mailThreads = await sql(`support_inbox_threads?select=id,peer_email,vendor_application_id&ticket_id=is.null&vendor_application_id=not.is.null`)
   console.log(`\nSupport threads without ticket_id (with vendor link): ${mailThreads.length}`)
 
   let mailLinked = 0

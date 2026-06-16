@@ -20,14 +20,11 @@ function resolveMediaRef(text) {
         .test(String(text || "").trim());
 }
 export async function shouldProcess(adapterName, sender, wamid, text, adapters) {
-    // 1) Wamid dedup: atomic insert on wa_seen table
     if (wamid) {
         const seen = await adapters.seenByWamid(wamid);
         if (seen)
             return { action: "skip", reason: "duplicate_wamid" };
     }
-    // 2) Concurrency guard: 2s processing lock per sender (Meta sends same
-    //    message with different wamids, observed 2026-06-16 on Jensen).
     const now = Date.now();
     const lockKey = `${adapterName}::${sender}`;
     const lastSeen = PROCESSING_LOCKS.get(lockKey);
@@ -37,8 +34,6 @@ export async function shouldProcess(adapterName, sender, wamid, text, adapters) 
         return { action: "skip", reason: "concurrent_duplicate" };
     }
     PROCESSING_LOCKS.set(lockKey, now);
-    // 3) Media-pending buffer: short media-referencing text that arrives
-    //    before the image webhook. Buffer and wait for the image.
     if (text && resolveMediaRef(text)) {
         MEDIA_PENDING.set(sender, { text, ts: now });
         let timedOut = false;
