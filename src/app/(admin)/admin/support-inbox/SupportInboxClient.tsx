@@ -76,6 +76,20 @@ interface TicketHit { email: string; name: string | null; phone: string | null }
 
 const ALL_TAGS: Tag[] = ['payment', 'load-in', 'badges', 'contract', 'refund', 'general']
 
+// Some legacy inbound rows have the FULL RFC822 source in body_text instead
+// of the parsed body (mailparser fallback path before the cron started
+// stripping headers). Detect that shape and drop everything up to the first
+// blank line so the operator sees the actual message, not "Return-Path:".
+// Modern rows are unaffected.
+function stripRfc822Headers(body: string | null): string {
+  if (!body) return ''
+  const head = body.slice(0, 400)
+  const looksLikeRfc822 = /^(Return-Path|Received|From|To|Subject|Message-ID|X-[A-Za-z-]+):/m.test(head)
+  if (!looksLikeRfc822) return body
+  const splitIdx = body.search(/\r?\n\r?\n/)
+  return splitIdx >= 0 ? body.slice(splitIdx + 2).trim() : body
+}
+
 function fmt(ts: string | null): string {
   if (!ts) return ''
   const d = new Date(ts)
@@ -677,7 +691,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                                 dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body_html || '') }}
                               />
                             ) : (
-                              <p className="whitespace-pre-wrap break-words">{m.body_text}</p>
+                              <p className="whitespace-pre-wrap break-words">{stripRfc822Headers(m.body_text)}</p>
                             )}
                             <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-white/70' : 'text-neutral-400'}`}>
                               {m.direction === 'out' ? 'You' : (m.from_name || m.from_address)} · {new Date(m.received_at).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
