@@ -133,6 +133,17 @@ function encode(state: PortalState): string {
 }
 
 /**
+ * Pure function: given existing admin_notes and a PortalState, produce the
+ * updated admin_notes string with the PORTAL marker replaced/inserted while
+ * preserving any human prose and the ⟦STALL:..⟧ allocation marker.
+ */
+export function updatePortalStateImpl(notes: string, state: PortalState): string {
+  state.v = 1
+  const rest = (notes || '').replace(PORTAL_RE, '').replace(/\n{3,}/g, '\n\n').trim()
+  return rest ? `${rest}\n${encode(state)}` : encode(state)
+}
+
+/**
  * Read-modify-write the PORTAL marker on admin_notes, preserving any human
  * prose and the ⟦STALL:..⟧ allocation marker untouched. mutate() receives the
  * current state and returns the next one.
@@ -149,9 +160,50 @@ export async function updatePortalState(
     .single()
   const notes = (data?.admin_notes as string) || ''
   const next = mutate(parsePortalState(notes))
-  next.v = 1
-  const rest = notes.replace(PORTAL_RE, '').replace(/\n{3,}/g, '\n\n').trim()
-  const newNotes = rest ? `${rest}\n${encode(next)}` : encode(next)
+  const newNotes = updatePortalStateImpl(notes, next)
   await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', applicationId)
   return next
+}
+
+/**
+ * Read Supabase columns and merge them into the portal state marker on
+ * admin_notes. Returns the merged state.
+ */
+export async function syncPortalState(
+  applicationId: string,
+  supabase: ReturnType<typeof createAdminClient>
+): Promise<PortalState> {
+  const { data: app, error } = await supabase
+    .from('vendor_applications')
+    .select('payment_status, portal_stage, admin_notes, payment_amount, payment_due_date, paid_at, contract_signed_at')
+    .eq('id', applicationId)
+    .single()
+
+  if (error || !app) throw new Error(`syncPortalState: no row ${applicationId}`)
+
+  const state = parsePortalState(app.admin_notes || '')
+
+  if (app.payment_status) {
+    state.payment = {
+      ...state.payment,
+      status: app.payment_status as NonNullable<PortalState['payment']>['status'],
+      amount: app.payment_amount || state.payment?.amount,
+      due: app.payment_due_date || state.payment?.due,
+      paid_at: app.paid_at || state.payment?.paid_at,
+    }
+  }
+
+  if (app.portal_stage) {
+    state.stage = app.portal_stage as PortalState['stage']
+  } else if (app.payment_status === 'paid') {
+    state.stage = 'paid'
+  }
+
+  const updated = updatePortalStateImpl(app.admin_notes || '', state)
+  await supabase
+    .from('vendor_applications')
+    .update({ admin_notes: updated })
+    .eq('id', applicationId)
+
+  return state
 }

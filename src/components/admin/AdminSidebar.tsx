@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -25,18 +25,17 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Operations',
+    label: 'OPERATIONS',
     items: [
       { name: 'Applications', href: '/admin/applications', icon: FileText },
-      { name: 'Verifier', href: '/admin/verifier', icon: ShieldCheck },
+      { name: 'Allocation', href: '/admin/allocation', icon: Map },
+      { name: 'Vendors', href: '/admin/vendors', icon: Users },
       { name: 'People', href: '/admin/people', icon: IdCard },
       { name: 'Documents', href: '/admin/documents', icon: Files },
-      { name: 'Vendors', href: '/admin/vendors', icon: Users },
-      { name: 'Allocation', href: '/admin/allocation', icon: Map },
     ],
   },
   {
-    label: 'Communications',
+    label: 'COMMUNICATIONS',
     items: [
       { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
       { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
@@ -44,25 +43,21 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'Money',
+    label: 'MONEY',
     items: [
-      { name: 'Ticket Sales', href: '/admin/tickets', icon: Ticket },
+      { name: 'Tickets', href: '/admin/tickets', icon: Ticket },
       { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
     ],
   },
   {
-    label: 'Insights',
+    label: 'SYSTEM',
     items: [
+      { name: 'Verifier', href: '/admin/verifier', icon: ShieldCheck },
       { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [
-      { name: 'Activity Feed', href: '/admin/settings/activity', icon: SettingsIcon },
-      { name: 'Operators', href: '/admin/settings/operators', icon: SettingsIcon },
-      { name: 'Audit Log', href: '/admin/settings/audit', icon: SettingsIcon },
-      { name: 'Comms Health', href: '/admin/settings/comms-health', icon: SettingsIcon },
+      { name: 'Activity Feed', href: '/admin/settings/activity', icon: Activity },
+      { name: 'Operators', href: '/admin/settings/operators', icon: Shield },
+      { name: 'Audit Log', href: '/admin/settings/audit', icon: FileText },
+      { name: 'Comms Health', href: '/admin/settings/comms-health', icon: Activity },
     ],
   },
 ]
@@ -266,25 +261,25 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
           </div>
         ))}
 
-        {/* External group lives at the bottom, separated by a divider. */}
-        {!collapsed && <div className="pt-4 mt-6 border-t border-neutral-100">
-          <p className="px-4 text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">External</p>
+        {/* External group lives at the bottom, separated by a thin divider. */}
+        {!collapsed && <div className="pt-3 mt-4 border-t border-neutral-200/30">
+          <p className="px-4 text-[10px] font-medium text-neutral-400 uppercase tracking-wider mb-1.5">External</p>
           <a
             href="https://tickets.youngatheart.co.za"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
+            className="flex items-center gap-3 px-4 py-2 min-h-[36px] rounded-lg text-xs font-medium text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors"
           >
-            <ExternalLink className="w-4.5 h-4.5" />
+            <ExternalLink className="w-4 h-4" />
             Ticket Store
           </a>
           <a
             href="https://cthalaal.co.za"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-lg text-sm font-medium text-neutral-600 hover:bg-neutral-100 transition-colors"
+            className="flex items-center gap-3 px-4 py-2 min-h-[36px] rounded-lg text-xs font-medium text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 transition-colors"
           >
-            <ExternalLink className="w-4.5 h-4.5" />
+            <ExternalLink className="w-4 h-4" />
             Main Website
           </a>
         </div>}

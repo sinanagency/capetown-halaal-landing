@@ -37,8 +37,19 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const cleanName = businessName.replace(/^DEMO\s*·?\s*/i, '')
+
+  useEffect(() => {
+    const lastViewed = localStorage.getItem('announcements-last-viewed')
+    if (lastViewed) {
+      fetch(`/api/exhibitor/announcements/since?since=${lastViewed}`)
+        .then(r => r.json())
+        .then(data => setHasUnreadAnnouncements(data.length > 0))
+        .catch(() => {})
+    }
+  }, [])
 
   useEffect(() => {
     function onDoc(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false) }
@@ -78,7 +89,7 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             {MAIN.map((i) => {
               const active = pathname === i.href
               const Icon = i.icon
-              const showDot = inboxUnread && (i.href === '/exhibitor/portal/support' || i.href === '/exhibitor/portal')
+              const showDot = (inboxUnread || hasUnreadAnnouncements) && (i.href === '/exhibitor/portal/support' || i.href === '/exhibitor/portal')
               if (i.iconOnly) {
                 return (
                   <a key={i.href} href={i.href} aria-label={i.label} title={i.label}

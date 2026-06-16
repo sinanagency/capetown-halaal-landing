@@ -49,7 +49,15 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="md:h-screen md:overflow-hidden bg-[#f8f8f8] md:flex">
+    <div className="md:h-screen md:overflow-hidden bg-[#f8f8f8] md:flex" style={{
+        '--admin-bg': '#f8f8f8',
+        '--admin-card-bg': '#ffffff',
+        '--admin-text-primary': '#171717',
+        '--admin-text-secondary': '#737373',
+        '--admin-text-muted': '#a3a3a3',
+        '--admin-border': '#e5e5e5',
+        '--admin-accent': '#cd2653',
+      } as React.CSSProperties}>
       <AdminSidebar role={role} email={email} />
       <main className="flex-1 min-w-0 md:overflow-y-auto md:h-screen">
         {children}

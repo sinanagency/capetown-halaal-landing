@@ -1,0 +1,110 @@
+[
+  {
+    "slug": "homepage",
+    "url": "https://cthalaal.co.za/",
+    "status": 200,
+    "finalUrl": "https://cthalaal.co.za/",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "admin-login",
+    "url": "https://cthalaal.co.za/admin/login",
+    "status": 200,
+    "finalUrl": "https://cthalaal.co.za/admin/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "exhibitor-login",
+    "url": "https://cthalaal.co.za/exhibitor/login",
+    "status": 200,
+    "finalUrl": "https://cthalaal.co.za/exhibitor/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "admin-comms-health",
+    "url": "https://cthalaal.co.za/admin/settings/comms-health",
+    "status": 307,
+    "finalUrl": "https://cthalaal.co.za/admin/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "exhibitor-portal-documents",
+    "url": "https://cthalaal.co.za/exhibitor/portal/documents",
+    "status": 307,
+    "finalUrl": "https://cthalaal.co.za/exhibitor/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "exhibitor-portal-stand",
+    "url": "https://cthalaal.co.za/exhibitor/portal/stand",
+    "status": 307,
+    "finalUrl": "https://cthalaal.co.za/exhibitor/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "admin-allocation",
+    "url": "https://cthalaal.co.za/admin/allocation",
+    "status": 307,
+    "finalUrl": "https://cthalaal.co.za/admin/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "admin-applications",
+    "url": "https://cthalaal.co.za/admin/applications",
+    "status": 307,
+    "finalUrl": "https://cthalaal.co.za/admin/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  },
+  {
+    "slug": "admin-documents",
+    "url": "https://cthalaal.co.za/admin/documents",
+    "status": 307,
+    "finalUrl": "https://cthalaal.co.za/admin/login",
+    "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+    "consoleErrors": [],
+    "pageErrors": [],
+    "fiveXX": [],
+    "nextDigest": null,
+    "nav_error": null
+  }
+]

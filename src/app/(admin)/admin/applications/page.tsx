@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { Loader2, Layers, Search } from 'lucide-react'
 import { QueueList } from '@/components/admin/applications/QueueList'
 import { PreviewPane } from '@/components/admin/applications/PreviewPane'
@@ -50,6 +51,13 @@ export default function ApplicationsWorkbenchPage() {
   const [sector, setSector] = useState<string | null>(null)
   const [score, setScore] = useState<ScoreBucket>('all')
   const [tier, setTier] = useState<string | null>(null)
+
+  // ---- sort + additional filters ----
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'oldest')
+  const [paymentFilter, setPaymentFilter] = useState(searchParams.get('payment') || '')
+  const [docFilter, setDocFilter] = useState(searchParams.get('doc') || '')
 
   // ---- triage UI state ----
   const [focusedId, setFocusedId] = useState<string | null>(null)
@@ -123,9 +131,50 @@ export default function ApplicationsWorkbenchPage() {
         if (score === 'mid' && !(s >= 40 && s < 80)) return false
         if (score === 'high' && !(s >= 80)) return false
       }
+      if (paymentFilter) {
+        const ps = r.payment_status
+        if (paymentFilter === 'none') {
+          if (ps && ps !== 'none') return false
+        } else if (ps !== paymentFilter) {
+          return false
+        }
+      }
+      if (docFilter === 'complete') {
+        if ((r.docCount ?? 0) < 3) return false
+      } else if (docFilter === 'incomplete') {
+        if ((r.docCount ?? 0) >= 3) return false
+      } else if (docFilter === 'rejected') {
+        if (!r.docs_rejected) return false
+      }
       return true
     })
-  }, [rows, sector, score])
+  }, [rows, sector, score, paymentFilter, docFilter])
+
+  // ---- sort visible rows ----
+  const sortedVisibleRows = useMemo<WorkbenchApplication[]>(() => {
+    const sorted = [...visibleRows]
+    switch (sortBy) {
+      case 'newest':
+        sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        break
+      case 'score_asc':
+        sorted.sort((a, b) => (a.completeness_score ?? 0) - (b.completeness_score ?? 0))
+        break
+      case 'score_desc':
+        sorted.sort((a, b) => (b.completeness_score ?? 0) - (a.completeness_score ?? 0))
+        break
+      case 'payment_due':
+        sorted.sort((a, b) => {
+          const aDue = a.paid_at ? new Date(a.paid_at).getTime() : -1
+          const bDue = b.paid_at ? new Date(b.paid_at).getTime() : -1
+          return aDue - bDue
+        })
+        break
+      default:
+        sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    }
+    return sorted
+  }, [visibleRows, sortBy])
 
   // When the filter slice changes, snap focus to the first row of the new
   // slice so j/k traversal and a/r/i act on something visible.
@@ -135,6 +184,19 @@ export default function ApplicationsWorkbenchPage() {
       return visibleRows[0]?.id ?? null
     })
   }, [visibleRows])
+
+  // ---- sync filter state to URL ----
+  useEffect(() => {
+    const params = new URLSearchParams()
+    params.set('sort', sortBy)
+    if (paymentFilter) params.set('payment', paymentFilter)
+    if (docFilter) params.set('doc', docFilter)
+    const qs = params.toString()
+    const current = window.location.search.replace(/^\?/, '')
+    if (qs !== current) {
+      router.replace(`?${qs}`, { scroll: false })
+    }
+  }, [sortBy, paymentFilter, docFilter, router])
 
   // ---- derived: focused row + phone-cluster siblings ----
   // Focused row lookup uses the full rows array so a row that drops out of
@@ -372,7 +434,7 @@ export default function ApplicationsWorkbenchPage() {
   const selectedCount = selectedIds.size
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-neutral-50">
+    <div className="flex flex-col h-dvh overflow-hidden bg-neutral-50">
       {/* Top bar */}
       <header className="flex items-center gap-3 px-5 py-2.5 border-b border-neutral-200 bg-white">
         <div className="flex items-baseline gap-2">
@@ -385,6 +447,14 @@ export default function ApplicationsWorkbenchPage() {
           <span className="text-xs text-neutral-400 ml-1 tabular-nums">
             ({pendingTotal} pending total)
           </span>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+            className="text-xs border border-neutral-200 rounded-lg px-2 py-1 bg-white ml-2">
+            <option value="oldest">Oldest first</option>
+            <option value="newest">Newest first</option>
+            <option value="score_asc">Score ascending</option>
+            <option value="score_desc">Score descending</option>
+            <option value="payment_due">Payment due soon</option>
+          </select>
         </div>
         <span className="w-px h-5 bg-neutral-200" />
         <div className="relative max-w-xs flex-1">
@@ -412,7 +482,7 @@ export default function ApplicationsWorkbenchPage() {
       </header>
 
       {/* Filter chips (status / sector / score / tier) */}
-      <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200">
+      <div className="px-5 py-3 bg-neutral-50 border-b border-neutral-200 space-y-2">
         <ApplicationsFilters
           rows={rows}
           status={status}
@@ -424,6 +494,22 @@ export default function ApplicationsWorkbenchPage() {
           tier={tier}
           setTier={setTier}
         />
+        <div className="flex items-center gap-2">
+          <select value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}
+            className="text-xs border border-neutral-200 rounded-lg px-2 py-1 bg-white">
+            <option value="">Payment</option>
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+            <option value="none">Not invoiced</option>
+          </select>
+          <select value={docFilter} onChange={e => setDocFilter(e.target.value)}
+            className="text-xs border border-neutral-200 rounded-lg px-2 py-1 bg-white">
+            <option value="">Documents</option>
+            <option value="complete">All complete</option>
+            <option value="incomplete">Incomplete</option>
+            <option value="rejected">Has rejected</option>
+          </select>
+        </div>
       </div>
 
       {/* Two-pane body */}
@@ -436,7 +522,7 @@ export default function ApplicationsWorkbenchPage() {
           ) : (
             <div className="overflow-y-auto flex-1 min-h-0">
               <QueueList
-                rows={visibleRows}
+                rows={sortedVisibleRows}
                 focusedId={focusedId}
                 selectedIds={selectedIds}
                 onFocus={setFocusedId}

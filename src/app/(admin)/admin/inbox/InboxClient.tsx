@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   Inbox, Search, MessageCircle, Mail, CheckCircle2, Clock, AlertTriangle,
-  ChevronRight, Filter, Loader2, ExternalLink, X, Send,
+  ChevronRight, Filter, Loader2, ExternalLink, X, Send, Columns3, Rows3, Menu,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThreadView } from '@/components/admin/ThreadView'
@@ -97,11 +97,19 @@ export function InboxClient() {
   const [threads, setThreads] = useState<ThreadCard[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [compact, setCompact] = useState(() => {
+    try {
+      return localStorage.getItem('inbox-density') === 'compact'
+    } catch {
+      return false
+    }
+  })
   const [searchQ, setSearchQ] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkRunning, setBulkRunning] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const loadThreads = useCallback(async () => {
     setLoading(true)
@@ -280,144 +288,181 @@ export function InboxClient() {
     })
   }
 
+  const sidebarContent = (
+    <>
+      <h2 className="text-sm font-semibold text-neutral-900 mb-4 flex items-center gap-2">
+        <Inbox className="w-4 h-4" /> Unified Inbox
+      </h2>
+
+      <nav className="space-y-1 mb-6">
+        {BUCKETS.map((b) => {
+          const Icon = b.icon
+          const active = bucket === b.id
+          const count = counts[b.id]
+          return (
+            <button
+              key={b.id}
+              onClick={() => setBucket(b.id)}
+              className={cn(
+                'w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors',
+                active
+                  ? 'bg-[#cd2653] text-white'
+                  : 'text-neutral-700 hover:bg-neutral-100'
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <Icon className="w-4 h-4" />
+                {b.label}
+              </span>
+              <span
+                className={cn(
+                  'text-xs font-medium tabular-nums',
+                  active ? 'text-white/90' : 'text-neutral-500'
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="border-t border-neutral-100 pt-4">
+        <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
+          Channel
+        </p>
+        <div className="space-y-1">
+          {CHANNELS.map((c) => {
+            const active = channel === c.id
+            const Icon = c.id === 'wa' ? MessageCircle : c.id === 'mail' ? Mail : Filter
+            return (
+              <button
+                key={c.id}
+                onClick={() => setChannel(c.id)}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+                  active
+                    ? 'bg-neutral-900 text-white'
+                    : 'text-neutral-700 hover:bg-neutral-100'
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                {c.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="border-t border-neutral-100 pt-4 mt-4">
+        <div className="flex items-center justify-between px-3 mb-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+            Identity
+          </p>
+          <button
+            type="button"
+            onClick={() => setIdentity(new Set(['vendor', 'ticket_buyer', 'unknown']))}
+            className="text-[10px] font-semibold text-neutral-500 hover:text-[#cd2653]"
+          >
+            All
+          </button>
+        </div>
+        <div className="space-y-1">
+          {IDENTITY_KINDS.map((k) => {
+            const active = identity.has(k.id)
+            return (
+              <button
+                key={k.id}
+                type="button"
+                onClick={() => toggleIdentity(k.id)}
+                className={cn(
+                  'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+                  active
+                    ? 'bg-[#cd2653]/10 text-[#cd2653] font-medium'
+                    : 'text-neutral-700 hover:bg-neutral-100'
+                )}
+                aria-pressed={active}
+              >
+                <span
+                  className={cn(
+                    'w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[10px]',
+                    active ? 'bg-[#cd2653] border-[#cd2653] text-white' : 'border-neutral-300'
+                  )}
+                >
+                  {active ? 'x' : ''}
+                </span>
+                {k.label}
+              </button>
+            )
+          })}
+        </div>
+        {identity.size === 0 && (
+          <p className="px-3 mt-2 text-[10px] text-neutral-500">
+            No identity selected. Showing all threads.
+          </p>
+        )}
+      </div>
+    </>
+  )
+
   return (
     // h-[100dvh] + overflow-hidden caps the page at one viewport so chrome
     // (sidebar, filter rail, thread list header, reply composer) pins and the
     // inner panes own the scroll. Without this the parent <main overflow-auto>
     // grows with content and the whole page doom-scrolls.
     <div className="flex h-[100dvh] overflow-hidden bg-[#f8f8f8]">
-      {/* Sidebar */}
-      <aside className="w-60 border-r border-neutral-200 bg-white p-4 flex flex-col overflow-y-auto">
-        <h2 className="text-sm font-semibold text-neutral-900 mb-4 flex items-center gap-2">
-          <Inbox className="w-4 h-4" /> Unified Inbox
-        </h2>
+      {/* Mobile top bar */}
+      <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-neutral-200 bg-white">
+        <button onClick={() => setSidebarOpen(v => !v)} className="p-1 text-neutral-600">
+          <Menu className="w-5 h-5" />
+        </button>
+        <span className="text-sm font-medium">Unified Inbox</span>
+      </div>
 
-        <nav className="space-y-1 mb-6">
-          {BUCKETS.map((b) => {
-            const Icon = b.icon
-            const active = bucket === b.id
-            const count = counts[b.id]
-            return (
-              <button
-                key={b.id}
-                onClick={() => setBucket(b.id)}
-                className={cn(
-                  'w-full flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors',
-                  active
-                    ? 'bg-[#cd2653] text-white'
-                    : 'text-neutral-700 hover:bg-neutral-100'
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  <Icon className="w-4 h-4" />
-                  {b.label}
-                </span>
-                <span
-                  className={cn(
-                    'text-xs font-medium tabular-nums',
-                    active ? 'text-white/90' : 'text-neutral-500'
-                  )}
-                >
-                  {count}
-                </span>
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="border-t border-neutral-100 pt-4">
-          <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-neutral-400 mb-2">
-            Channel
-          </p>
-          <div className="space-y-1">
-            {CHANNELS.map((c) => {
-              const active = channel === c.id
-              const Icon = c.id === 'wa' ? MessageCircle : c.id === 'mail' ? Mail : Filter
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setChannel(c.id)}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
-                    active
-                      ? 'bg-neutral-900 text-white'
-                      : 'text-neutral-700 hover:bg-neutral-100'
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                  {c.label}
-                </button>
-              )
-            })}
-          </div>
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div className="md:hidden fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 bg-white p-4 overflow-y-auto shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-semibold">Unified Inbox</span>
+              <button onClick={() => setSidebarOpen(false)}><X className="w-4 h-4" /></button>
+            </div>
+            {sidebarContent}
+          </aside>
         </div>
+      )}
 
-        {/* Identity filter — defaults to vendor + ticket_buyer so the queue
-            lands on real festival intent, not on first-message strangers.
-            Operator can widen via the All button or narrow via individual
-            toggles. */}
-        <div className="border-t border-neutral-100 pt-4 mt-4">
-          <div className="flex items-center justify-between px-3 mb-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-              Identity
-            </p>
-            <button
-              type="button"
-              onClick={() => setIdentity(new Set(['vendor', 'ticket_buyer', 'unknown']))}
-              className="text-[10px] font-semibold text-neutral-500 hover:text-[#cd2653]"
-            >
-              All
-            </button>
-          </div>
-          <div className="space-y-1">
-            {IDENTITY_KINDS.map((k) => {
-              const active = identity.has(k.id)
-              return (
-                <button
-                  key={k.id}
-                  type="button"
-                  onClick={() => toggleIdentity(k.id)}
-                  className={cn(
-                    'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
-                    active
-                      ? 'bg-[#cd2653]/10 text-[#cd2653] font-medium'
-                      : 'text-neutral-700 hover:bg-neutral-100'
-                  )}
-                  aria-pressed={active}
-                >
-                  <span
-                    className={cn(
-                      'w-3.5 h-3.5 rounded-sm border flex items-center justify-center text-[10px]',
-                      active ? 'bg-[#cd2653] border-[#cd2653] text-white' : 'border-neutral-300'
-                    )}
-                  >
-                    {active ? 'x' : ''}
-                  </span>
-                  {k.label}
-                </button>
-              )
-            })}
-          </div>
-          {identity.size === 0 && (
-            <p className="px-3 mt-2 text-[10px] text-neutral-500">
-              No identity selected. Showing all threads.
-            </p>
-          )}
-        </div>
+      {/* Desktop sidebar */}
+      <aside className="w-60 hidden md:flex flex-col overflow-y-auto p-4 border-r border-neutral-200 bg-white">
+        {sidebarContent}
       </aside>
 
       {/* Thread list */}
-      <section className="w-[360px] border-r border-neutral-200 bg-white flex flex-col">
+      <section className="w-full md:w-[360px] flex-shrink-0 border-r border-neutral-200 bg-white flex flex-col">
         <div className="p-3 border-b border-neutral-100">
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <input
-              type="search"
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              placeholder="Search messages, vendors..."
-              className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#cd2653]/30 focus:border-[#cd2653]"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+              <input
+                type="search"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                placeholder="Search messages, vendors..."
+                className="w-full pl-9 pr-3 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#cd2653]/30 focus:border-[#cd2653]"
+              />
+            </div>
+            <button onClick={() => {
+              setCompact(v => {
+                const next = !v
+                try { localStorage.setItem('inbox-density', next ? 'compact' : 'default') } catch {}
+                return next
+              })
+            }}
+              className="text-neutral-400 hover:text-neutral-600 p-1 rounded"
+              title="Toggle compact view">
+              {compact ? <Columns3 className="w-4 h-4" /> : <Rows3 className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 
@@ -439,7 +484,8 @@ export function InboxClient() {
                   <li key={t.id}>
                     <div
                       className={cn(
-                        'w-full text-left px-3 py-3 border-b border-neutral-100 flex gap-2 transition-colors group',
+                        'w-full text-left px-3 border-b border-neutral-100 flex gap-2 transition-colors group',
+                        compact ? 'py-1.5' : 'py-3',
                         isSelected ? 'bg-[#cd2653]/5' : 'hover:bg-neutral-50',
                         isChecked && 'bg-amber-50/40'
                       )}

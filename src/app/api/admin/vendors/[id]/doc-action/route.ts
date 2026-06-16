@@ -14,7 +14,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { updatePortalState } from '@/lib/portal-state'
+import { updatePortalState, syncPortalState } from '@/lib/portal-state'
+import { notifyVendor } from '@/lib/notifications'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -88,6 +89,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .eq('id', id)
     }
   }
+
+  await syncPortalState(id, db).catch((e) =>
+    console.error('[doc-action] syncPortalState failed:', (e as Error).message)
+  )
+
+  await notifyVendor({
+    event: action === 'approve' ? 'document_approved' : 'document_rejected',
+    applicationId: id,
+    data: {
+      docType: type,
+      ...(action === 'reject' ? { reason: note || '' } : {}),
+    },
+  }).catch((e) =>
+    console.error('[doc-action] notifyVendor failed:', (e as Error).message)
+  )
 
   return NextResponse.json({ ok: true, docs: next.docs || [], all_required_approved: allRequiredApproved })
 }

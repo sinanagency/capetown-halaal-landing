@@ -20,6 +20,8 @@ export interface VendorRow {
   payment_amount: number | null
   docs_count: number
   contract_signed: boolean
+  docs_complete_at: string | null
+  contract_signed_at: string | null
   blockers: string[]
   created_at: string
 }
@@ -39,6 +41,7 @@ const PAYMENT_PILL: Record<string, string> = {
 export function VendorsList({ rows }: { rows: VendorRow[] }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [viewMode, setViewMode] = useState<'table' | 'pipeline'>('table')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [composerOpen, setComposerOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -159,6 +162,17 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
         )}
       </div>
 
+      <div className="flex items-center gap-2 mb-4">
+        <button onClick={() => setViewMode('table')}
+          className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${viewMode === 'table' ? 'bg-[#cd2653] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}>
+          Table
+        </button>
+        <button onClick={() => setViewMode('pipeline')}
+          className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${viewMode === 'pipeline' ? 'bg-[#cd2653] text-white' : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'}`}>
+          Pipeline
+        </button>
+      </div>
+
       <div className="flex flex-wrap gap-2 mb-4">
         {([
           { k: 'all', label: 'All' },
@@ -188,6 +202,9 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
         ))}
       </div>
 
+      {viewMode === 'pipeline' ? (
+        <PipelineView rows={filtered} />
+      ) : (
       <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-neutral-500">
@@ -195,6 +212,7 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
             <p>No vendors match these filters.</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 border-b border-neutral-200 text-left text-xs uppercase tracking-wide text-neutral-500">
               <tr>
@@ -318,8 +336,10 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
+      )}
 
       {composerOpen && (
         <VendorBulkComposer
@@ -336,6 +356,44 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
           onClose={() => setComposerOpen(false)}
         />
       )}
+    </div>
+  )
+}
+
+const PIPELINE_STAGES = [
+  { key: 'approved', label: 'Approved', filter: (r: VendorRow) => !r.contract_signed_at },
+  { key: 'contract', label: 'Contract', filter: (r: VendorRow) => r.contract_signed_at && r.payment_status !== 'paid' && r.payment_status !== 'deferred' },
+  { key: 'paid', label: 'Paid', filter: (r: VendorRow) => r.payment_status === 'paid' || r.payment_status === 'deferred' },
+  { key: 'ready', label: 'Show-ready', filter: (r: VendorRow) => r.payment_status === 'paid' && r.docs_complete_at },
+]
+
+function PipelineView({ rows }: { rows: VendorRow[] }) {
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      {PIPELINE_STAGES.map(stage => {
+        const stageRows = rows.filter(stage.filter)
+        return (
+          <div key={stage.key} className="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-neutral-100 bg-neutral-50">
+              <p className="text-xs font-semibold text-neutral-500 uppercase">{stage.label}</p>
+              <p className="text-lg font-semibold text-neutral-800">{stageRows.length}</p>
+            </div>
+            <div className="p-2 space-y-1 max-h-[60vh] overflow-y-auto">
+              {stageRows.length === 0 ? (
+                <p className="text-xs text-neutral-400 text-center py-4">No vendors</p>
+              ) : (
+                stageRows.map((row: VendorRow) => (
+                  <a key={row.id} href={`/admin/vendors/${row.id}`}
+                    className="block px-3 py-2 rounded-lg text-sm hover:bg-neutral-50 transition-colors">
+                    <p className="font-medium text-neutral-800 truncate">{row.business_name}</p>
+                    <p className="text-xs text-neutral-400 truncate">{row.contact_name} · {row.phone}</p>
+                  </a>
+                ))
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

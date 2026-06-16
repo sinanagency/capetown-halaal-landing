@@ -24,7 +24,7 @@ export default async function VendorsListPage() {
   const { data: apps } = await admin
     .from('vendor_applications')
     .select(
-      'id, business_name, contact_name, email, phone, product_categories, preferred_booth_tier, admin_notes, contract_signed_at, contract_pdf_path, created_at'
+      'id, business_name, contact_name, email, phone, product_categories, preferred_booth_tier, admin_notes, contract_signed_at, contract_pdf_path, docs_complete_at, created_at'
     )
     .eq('status', 'approved')
     .order('business_name', { ascending: true })
@@ -58,6 +58,8 @@ export default async function VendorsListPage() {
       payment_amount: paymentAmount,
       docs_count: docsCount,
       contract_signed: contractSigned,
+      docs_complete_at: (a.docs_complete_at as string) || null,
+      contract_signed_at: (a.contract_signed_at as string) || null,
       blockers,
       created_at: (a.created_at as string) || '',
     }

@@ -1,0 +1,339 @@
+{
+  "login": {
+    "loginShot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/01-admin-login-hero.png",
+    "heroProbe": {
+      "logos": [
+        {
+          "src": "/_next/image?url=%2Fabout%2Ffestival-crowd.jpg&w=3840&q=75&dpl=dpl_BRvqUGcP6L7yYC28ZS6m2La7okPR",
+          "alt": "",
+          "cls": "object-cover object-center",
+          "w": 720,
+          "h": 957
+        },
+        {
+          "src": "/_next/image?url=%2Flogo.png&w=256&q=75&dpl=dpl_BRvqUGcP6L7yYC28ZS6m2La7okPR",
+          "alt": "Young at Heart",
+          "cls": "flex-shrink-0 translate-y-[11%]",
+          "w": 96,
+          "h": 128
+        },
+        {
+          "src": "/_next/image?url=%2Flogo.png&w=256&q=75&dpl=dpl_BRvqUGcP6L7yYC28ZS6m2La7okPR",
+          "alt": "Young at Heart",
+          "cls": "flex-shrink-0 translate-y-[11%]",
+          "w": 96,
+          "h": 128
+        }
+      ],
+      "bgEls": [
+        "linear-gradient(to top, lab(3.57273 3.7611 0.464383 / 0.95) 0%, lab(3.57273 3.7611 0.464383 / 0.45) 50%, lab(3.57273 3.7611 0.464383 / 0.85) 100%)",
+        "radial-gradient(55% 45% at 12% 4%, rgba(205, 38, 83, 0.38) 0%, rgba(0, 0, 0, 0) 60%)"
+      ],
+      "title": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+      "h1": [
+        "Festival operations command.",
+        "Admin sign in"
+      ]
+    },
+    "afterUrl": "https://cthalaal.co.za/admin",
+    "errors": {
+      "consoleErrors": [
+        "Failed to load dashboard: TypeError: Failed to fetch\n    at https://cthalaal.co.za/_next/static/chunks/086fd979393149a3.js?dpl=dpl_BRvqUGcP6L7yYC28ZS6m2La7okPR:1:21737\n    at https://cthalaal.co.za/_next/static/chunks/086fd979393149a3.js?dpl=dpl_BRvqUGcP6L7yYC28ZS6m2La7okPR:1:22160\n    at ih (https://cthalaal.co.za/_next/static/chunks/4661a30a749c0347.js?dpl=dpl_BRvqUGcP6L7yYC28ZS6m2La7okPR:1:1022"
+      ],
+      "pageErrors": [],
+      "fiveXX": []
+    }
+  },
+  "sidebarLogo": {
+    "atUrl": "https://cthalaal.co.za/admin",
+    "probe": {
+      "found": true,
+      "hasImg": true,
+      "src": "/_next/image?url=%2Flogo.png&w=384&q=75&dpl=dpl_BRvqUGcP6L7yYC28ZS6m2La7okPR",
+      "cls": "h-32 w-auto",
+      "height": "128px",
+      "width": "96.3438px",
+      "transform": "none",
+      "clientHeight": 128
+    }
+  },
+  "applications": {
+    "url": "https://cthalaal.co.za/admin/applications",
+    "shot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/03-admin-applications.png",
+    "probe": {
+      "chipsFound": [
+        "Sector"
+      ],
+      "chipsTotal": 1,
+      "hasSearch": true,
+      "chipButtonsSample": [
+        "Sign Out",
+        "Dedupe",
+        "Open",
+        "Pending",
+        "Info requested",
+        "Approved",
+        "Rejected",
+        "All",
+        "All",
+        "Beauty & Wellness",
+        "Business & Trade",
+        "Fashion & Modest Wear",
+        "Food & Beverage",
+        "Health & Pharmacy",
+        "Home & Living",
+        "Other",
+        "Travel & Tourism",
+        "All",
+        "High (80+)",
+        "Mid (40 to 79)",
+        "Low (under 40)",
+        "All",
+        "Marquee Table 2×2m",
+        "Marquee Full 3×3m",
+        "Marquee Double Table 4×2m",
+        "Marquee Full Double 6×3m",
+        "Outdoor Bedouin 2×3m",
+        "Food Gazebo 3×3m",
+        "Mini Dessert Truck 3.5m",
+        "Food Truck 4.5m"
+      ],
+      "bodySnippet": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\n200\nto go\n(457 pending total)\nDedupe\nback to dashboard\nSTATUS\nOpen\nPending\nInfo requested\nApproved\nRejected\nAll\nSECTOR\nAll\nBeauty & Wellness\nBusiness & Trade\nFashion & Modest Wear\nFood & Beverage\nHealth & Pharmacy\nHome & Livin"
+    }
+  },
+  "allocation": {
+    "url": "https://cthalaal.co.za/admin/allocation",
+    "shot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/04-admin-allocation.png",
+    "probe": {
+      "svgCount": 30,
+      "biggestSvg": {
+        "w": 1200,
+        "h": 700,
+        "children": 245
+      },
+      "hasSearch": true,
+      "mentionsPanZoom": true,
+      "bodySnippet": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\n\nBOOTH ALLOCATION\n\nFloor p"
+    }
+  },
+  "inbox": {
+    "url": "https://cthalaal.co.za/admin/inbox",
+    "shot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/05-admin-inbox.png",
+    "probe": {
+      "bodyText": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\nUnified Inbox\nNeeds you\n0\nOpen\n0\nSnoozed\n0\nDone\n0\n\nCHANNEL\n\nAll\nWhatsApp\nMail\n\nIDENTITY\n\nAll\nx\nVendors\nx\nTicket buyers\nUnknown\nNo threads in this view.\n\nPick a thread to start.\n\nTerms & Conditions\nRefund & Cancellation\nPrivacy",
+      "docH": 1705,
+      "winH": 900,
+      "scrollLockedish": false,
+      "rawPTagsCount": 0,
+      "hasVendor": true,
+      "hasTicket": true
+    }
+  },
+  "supportInbox": {
+    "url": "https://cthalaal.co.za/admin/support-inbox",
+    "shot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/06-admin-support-inbox.png",
+    "probe": {
+      "bodyText": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\n\nFESTIVAL EMAIL\n\nSupport Inbox\n\nMail to support@youngatheart.co.za. Tag it, assign it, snooze it, or reply.\n\n92 UNREAD\nLIVE\nInbox\nSent\nAll\nopen\nsnoozed\nresolved\nall\npayment\nload-in\nbadges\ncontract\nrefund\ngeneral\n\nDirect Axis Financial Services\n\n10:05\n\ndirectaxisapplicationdesk28@outlook.com\n\n5% Offer (DirectAxis)\n\n1\n\nadmin@globalforceems.co.za\n\n13 Jun\n\nadmin@globalforceems.co.za\n\nMEDICAL SERVICES FOR CAPE TOWN HALAAL MARKE",
+      "rawTagInVisibleText": false,
+      "hasSent": true,
+      "tabsSample": [
+        "Dashboard",
+        "Applications457",
+        "Verifier",
+        "People",
+        "Documents",
+        "Vendors",
+        "Allocation",
+        "Inbox",
+        "Support Inbox92",
+        "Broadcast",
+        "Ticket Sales",
+        "Follow Up",
+        "Analytics",
+        "Activity Feed",
+        "Operators",
+        "Audit Log",
+        "Comms Health",
+        "Ticket Store",
+        "Main Website",
+        "View Live Site",
+        "Sign Out",
+        "Inbox",
+        "Sent",
+        "All",
+        "open",
+        "snoozed",
+        "resolved",
+        "all",
+        "payment",
+        "load-in",
+        "badges",
+        "contract",
+        "refund",
+        "general",
+        "Terms & Conditions",
+        "Refund & Cancellation",
+        "Privacy Policy",
+        "Contact",
+        "support@youngatheart.co.za",
+        "+27 65 943 5012"
+      ]
+    }
+  },
+  "documents": {
+    "url": "https://cthalaal.co.za/admin/documents",
+    "shot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/07-admin-documents.png",
+    "probe": {
+      "bodySnippet": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\n\nOPERATIONS\n\nDocuments\n\nEvery vendor document and ticket PDF in one place. Click View to open the file in a new tab.\n\nVendor D",
+      "linkCount": 30,
+      "pdfLinkCount": 0,
+      "pdfLinksSample": []
+    }
+  },
+  "sidebarNav": {
+    "found": true,
+    "items": [
+      {
+        "href": "/admin",
+        "text": "Dashboard"
+      },
+      {
+        "href": "/admin/applications",
+        "text": "Applications457"
+      },
+      {
+        "href": "/admin/verifier",
+        "text": "Verifier"
+      },
+      {
+        "href": "/admin/people",
+        "text": "People"
+      },
+      {
+        "href": "/admin/documents",
+        "text": "Documents"
+      },
+      {
+        "href": "/admin/vendors",
+        "text": "Vendors"
+      },
+      {
+        "href": "/admin/allocation",
+        "text": "Allocation"
+      },
+      {
+        "href": "/admin/bot-inbox",
+        "text": "Inbox"
+      },
+      {
+        "href": "/admin/support-inbox",
+        "text": "Support Inbox92"
+      },
+      {
+        "href": "/admin/broadcast",
+        "text": "Broadcast"
+      },
+      {
+        "href": "/admin/tickets",
+        "text": "Ticket Sales"
+      },
+      {
+        "href": "/admin/follow-up",
+        "text": "Follow Up"
+      },
+      {
+        "href": "/admin/analytics",
+        "text": "Analytics"
+      },
+      {
+        "href": "/admin/settings/activity",
+        "text": "Activity Feed"
+      },
+      {
+        "href": "/admin/settings/operators",
+        "text": "Operators"
+      },
+      {
+        "href": "/admin/settings/audit",
+        "text": "Audit Log"
+      },
+      {
+        "href": "/admin/settings/comms-health",
+        "text": "Comms Health"
+      },
+      {
+        "href": "https://tickets.youngatheart.co.za",
+        "text": "Ticket Store"
+      },
+      {
+        "href": "https://cthalaal.co.za",
+        "text": "Main Website"
+      },
+      {
+        "href": "https://cthalaal.co.za",
+        "text": "View Live Site"
+      }
+    ],
+    "hasDocuments": true,
+    "hasOperations": false,
+    "hasOperationsText": true
+  },
+  "commsHealth": {
+    "url": "https://cthalaal.co.za/admin/settings/comms-health",
+    "shot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/08-comms-health.png",
+    "probe": {
+      "bodySnippet": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\nSettings\nComms Health\n\nLive probes against WhatsApp, Email, and DGX. Polls every 30 seconds.\n\nUpdated 0s ago\nWhatsApp\nUnknown\n\nMeta Cloud API delivery channel.\n\nLatency\n0ms\nLast outbound\nNo record\n\nenv_missing:META_WABA_TOKEN\n\nEmail\nHealthy\n\nResend transactional and blast channel.\n\nLatency\n100ms\nResend API\nreachable\nSMTP\ngodaddy_smtp_removed_2026_06_08 (resend-only)\nDGX\nUnknown\n\nZanii inference, primary and failover.\n\nLate",
+      "hasProbePending": false,
+      "labelsPresent": {
+        "whatsapp": true,
+        "email": true,
+        "dgx": true
+      },
+      "pillsSample": [
+        "Young at Heart Admin",
+        "Dashboard",
+        "Applications",
+        "457",
+        "Verifier",
+        "People",
+        "Documents",
+        "Vendors",
+        "Allocation",
+        "Inbox",
+        "Support Inbox",
+        "92",
+        "Broadcast",
+        "Ticket Sales",
+        "Follow Up",
+        "Analytics",
+        "Activity Feed",
+        "Operators",
+        "Audit Log",
+        "Comms Health",
+        "WhatsApp",
+        "Email",
+        "DGX",
+        "·",
+        "·"
+      ]
+    }
+  },
+  "specialRequirements": {
+    "rowsTried": 1,
+    "rowProbes": [
+      {
+        "href": "/admin/applications/502b36e5-5121-403d-a55a-2fc039d5f171",
+        "label": "Open full",
+        "probe": {
+          "foundHeading": false,
+          "sectionSnippet": "",
+          "isRawJsonLooking": false,
+          "hasLabeledFields": false,
+          "pageTitle": "Young at Heart Festival 2026 | Cape Town Halaal Lifestyle Expo",
+          "bodySnippet": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\nAll Applications\nThe Smash"
+        },
+        "screenshot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/09-special-req-1.png"
+      }
+    ]
+  }
+}

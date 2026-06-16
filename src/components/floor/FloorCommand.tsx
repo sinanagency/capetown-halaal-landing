@@ -597,7 +597,7 @@ export default function FloorCommand({
       </div>
 
       <style jsx>{`
-        @media (max-width: 760px) {
+        @media (max-width: 768px) {
           .floor-drawer {
             position: fixed !important;
             inset: auto 0 0 0 !important;

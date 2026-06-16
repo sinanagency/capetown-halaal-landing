@@ -173,10 +173,10 @@ export function PreviewPane({
               <p className="text-sm text-neutral-500 truncate">{row.contact_name}</p>
             </div>
             <Link
-              href={`/admin/applications/${row.id}`}
+              href={`/admin/vendors/${row.id}`}
               className="shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded border border-neutral-200 hover:border-neutral-400 text-neutral-700"
             >
-              Open full <ExternalLink className="w-3 h-3" />
+              Open full profile <ExternalLink className="w-3 h-3" />
             </Link>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -216,6 +216,22 @@ export function PreviewPane({
           }}
           onReopen={onReopen ? () => onReopen(row.id) : undefined}
         />
+
+        {/* Payment & Allocation Status */}
+        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-100 -mx-5">
+          <div className="flex items-center gap-4 text-xs">
+            <span className="flex items-center gap-1">
+              <span className={`w-2 h-2 rounded-full ${
+                row.payment_status === 'paid' ? 'bg-emerald-500' :
+                row.payment_status === 'pending' ? 'bg-amber-500' : 'bg-neutral-300'
+              }`} />
+              Payment: {row.payment_status || 'none'}
+            </span>
+            <span>Docs: {row.docCount ?? 0}/3</span>
+            <span>Contract: {row.contract_signed ? 'Signed' : 'Pending'}</span>
+            <span>Stall: {row.stall_code || 'Unallocated'}</span>
+          </div>
+        </div>
 
         {/* Contact + categories */}
         <section className="space-y-2 text-sm">

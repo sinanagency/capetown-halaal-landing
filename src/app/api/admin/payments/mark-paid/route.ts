@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { confirmPayment, type PaymentMethod } from '@/lib/payments/confirm'
+import { syncPortalState } from '@/lib/portal-state'
 import { assertRole } from '@/lib/admin-rbac'
 
 export const runtime = 'nodejs'
@@ -62,5 +63,10 @@ export async function POST(req: NextRequest) {
 
   const result = await confirmPayment({ applicationId, method, amount, providerRef, silent })
   if (!result.ok) return NextResponse.json({ ok: false, error: result.error }, { status: 500 })
+
+  await syncPortalState(applicationId, db).catch((e) =>
+    console.error('[mark-paid] syncPortalState failed:', (e as Error).message)
+  )
+
   return NextResponse.json({ ok: true, alreadyPaid: result.alreadyPaid, amount: result.amount })
 }

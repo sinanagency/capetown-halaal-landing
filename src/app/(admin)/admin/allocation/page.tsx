@@ -42,6 +42,8 @@ export default function AllocationPage() {
   const [sector, setSector] = useState<string | null>(null)
   const [tier, setTier] = useState<string | null>(null)
   const [status, setStatus] = useState<StatusFilter>('all')
+  const [selectedVendor, setSelectedVendor] = useState<string | null>(null)
+  const [vendorSearch, setVendorSearch] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -149,6 +151,22 @@ export default function AllocationPage() {
       }))
   }, [data, sector, tier])
 
+  // ---- unallocated vendors for left panel ----
+  const unallocatedVendors = useMemo(() => {
+    if (!data) return []
+    return data.applications.filter((a) => {
+      if (a.app_status !== 'approved') return false
+      if (a.stall) return false
+      if (vendorSearch.trim()) {
+        const q = vendorSearch.toLowerCase()
+        if (!a.business_name.toLowerCase().includes(q)) return false
+      }
+      if (sector && !(a.categories || []).includes(sector)) return false
+      if (tier && a.tier !== tier) return false
+      return true
+    })
+  }, [data, vendorSearch, sector, tier])
+
   // ---- Persistence callbacks wired to /api/admin/stalls ----
   const postStall = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/admin/stalls', {
@@ -191,14 +209,14 @@ export default function AllocationPage() {
 
   if (!ready) {
     return (
-      <div className="h-screen overflow-hidden flex items-center justify-center text-neutral-400 bg-neutral-50">
+      <div className="h-dvh overflow-hidden flex items-center justify-center text-neutral-400 bg-neutral-50">
         <Loader2 className="w-5 h-5 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-neutral-50">
+    <div className="h-dvh overflow-hidden flex flex-col bg-neutral-50">
       <div className="flex-shrink-0 px-6 py-3 border-b border-neutral-200 bg-white flex items-center gap-4">
         <div className="flex-shrink-0">
           <p className="text-[10px] font-semibold text-[#cd2653] uppercase tracking-[0.2em]">Booth allocation</p>
@@ -223,24 +241,66 @@ export default function AllocationPage() {
         )}
       </div>
 
-      <div className="flex-1 min-h-0 bg-white">
-        {loading && (
-          <div className="flex items-center justify-center h-full gap-2 text-neutral-400 text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading live allocation...
+      <div className="flex-1 min-h-0 flex">
+        {!loading && data && (
+          <div className="w-80 flex-shrink-0 border-r border-neutral-200 bg-white flex flex-col overflow-hidden">
+            <div className="p-3 border-b border-neutral-100">
+              <h2 className="text-xs font-semibold text-neutral-800 uppercase tracking-wider mb-2">Unallocated Vendors</h2>
+              <input
+                type="text"
+                value={vendorSearch}
+                onChange={e => setVendorSearch(e.target.value)}
+                placeholder="Search vendors..."
+                className="w-full px-2 py-1.5 text-xs border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#cd2653]"
+              />
+            </div>
+            <div className="overflow-y-auto flex-1">
+              {unallocatedVendors.length === 0 ? (
+                <div className="p-4 text-xs text-neutral-400">No unallocated vendors found.</div>
+              ) : (
+                <div className="divide-y divide-neutral-100">
+                  {unallocatedVendors.map((v) => (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setSelectedVendor(v.id === selectedVendor ? null : v.id)}
+                      className={`w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors ${
+                        selectedVendor === v.id ? 'bg-[#cd2653]/5 border-l-2 border-[#cd2653]' : ''
+                      }`}
+                    >
+                      <div className="text-sm font-medium text-neutral-900 truncate">{v.business_name}</div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[11px] text-neutral-500">{v.tier_label}</span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-medium">
+                          {v.app_status}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
-        {!loading && data && (
-          <FloorCommand
-            mode="admin"
-            hideModeSwitch
-            booths={booths}
-            grid={data.grid}
-            applications={floorApps}
-            onAllocate={handleAllocate}
-            onRelease={handleRelease}
-            onToggleBlock={handleToggleBlock}
-          />
-        )}
+        <div className="flex-1 min-h-0 bg-white">
+          {loading && (
+            <div className="flex items-center justify-center h-full gap-2 text-neutral-400 text-sm">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading live allocation...
+            </div>
+          )}
+          {!loading && data && (
+            <FloorCommand
+              mode="admin"
+              hideModeSwitch
+              booths={booths}
+              grid={data.grid}
+              applications={floorApps}
+              onAllocate={handleAllocate}
+              onRelease={handleRelease}
+              onToggleBlock={handleToggleBlock}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
