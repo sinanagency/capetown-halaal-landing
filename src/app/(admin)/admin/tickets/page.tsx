@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, ArrowUpRight, Calendar, Mail, Phone, X } from 'lucide-react'
+import { Loader2, ArrowUpRight, Calendar, Mail, Phone, X, TrendingUp } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid
@@ -70,30 +70,43 @@ export default function TicketsPage() {
   const [error, setError] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('completed')
+  const [revenueData, setRevenueData] = useState<{
+    tickets_total: number; tickets_30d: number;
+    vendors_total: number; vendors_30d: number;
+    total_in: number; total_30d: number;
+  } | null>(null)
 
   const load = async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/admin/tickets')
-      if (res.status === 401) {
+      const [ticketRes, revenueRes] = await Promise.all([
+        fetch('/api/admin/tickets'),
+        fetch('/api/admin/broadcast/revenue'),
+      ])
+      if (ticketRes.status === 401) {
         window.location.href = '/admin/login'
         return
       }
-      if (res.status === 403) {
+      if (ticketRes.status === 403) {
         window.location.href = '/admin/login?error=not_admin'
         return
       }
-      if (res.status === 502) {
-        const body = await res.json().catch(() => ({}))
+      if (ticketRes.status === 502) {
+        const body = await ticketRes.json().catch(() => ({}))
         setError(body.error || 'Ticket store unavailable. The WooCommerce API may be down.')
         return
       }
-      if (!res.ok) {
-        setError(`Server returned ${res.status}`)
+      if (!ticketRes.ok) {
+        setError(`Server returned ${ticketRes.status}`)
         return
       }
-      setData(await res.json())
+      setData(await ticketRes.json())
+
+      if (revenueRes.ok) {
+        const r = await revenueRes.json()
+        if (r?.vendors_total !== undefined) setRevenueData(r)
+      }
     } catch (e) {
       console.error('Failed to load tickets:', e)
       setError('Network error. Try refreshing.')
@@ -176,6 +189,15 @@ export default function TicketsPage() {
             value={data.totalOrders > 0 ? formatCurrency(data.totalRevenue / data.totalOrders) : 'R0'}
           />
         </div>
+
+        {/* Money In breakdown — from tickets + vendor payments */}
+        {revenueData && (
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard label="Tickets Revenue" value={formatCurrency(revenueData.tickets_total)} hint={`${formatCurrency(revenueData.tickets_30d)} last 30d`} />
+            <StatCard label="Vendor Revenue" value={formatCurrency(revenueData.vendors_total)} hint={`${formatCurrency(revenueData.vendors_30d)} last 30d`} />
+            <StatCard label="Total In" value={formatCurrency(revenueData.total_in)} hint={`${formatCurrency(revenueData.total_30d)} last 30d`} />
+          </div>
+        )}
 
         {/* Charts */}
         <div className="grid lg:grid-cols-3 gap-6">

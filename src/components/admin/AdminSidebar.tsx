@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -32,6 +32,7 @@ const navGroups: NavGroup[] = [
       { name: 'Vendors', href: '/admin/vendors', icon: Users },
       { name: 'People', href: '/admin/people', icon: IdCard },
       { name: 'Documents', href: '/admin/documents', icon: Files },
+      { name: 'Verifier', href: '/admin/verifier', icon: ShieldCheck },
     ],
   },
   {
@@ -39,6 +40,8 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
       { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
+      { name: 'Unified Inbox', href: '/admin/inbox', icon: Inbox },
+      { name: 'Vendor Support', href: '/admin/support', icon: LifeBuoy },
       { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
     ],
   },
@@ -47,12 +50,12 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Tickets', href: '/admin/tickets', icon: Ticket },
       { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
+      { name: 'Contacts', href: '/admin/contacts', icon: BookOpen },
     ],
   },
   {
     label: 'SYSTEM',
     items: [
-      { name: 'Verifier', href: '/admin/verifier', icon: ShieldCheck },
       { name: 'Analytics', href: '/admin/analytics', icon: BarChart3 },
       { name: 'Activity Feed', href: '/admin/settings/activity', icon: Activity },
       { name: 'Operators', href: '/admin/settings/operators', icon: Shield },
