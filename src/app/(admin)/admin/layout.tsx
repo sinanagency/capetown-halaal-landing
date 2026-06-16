@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getRole } from '@/lib/admin-rbac'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 import { CommandK } from '@/components/admin/CommandK'
+import { AdminTour } from '@/components/admin/AdminTour'
 import type { AdminRole } from '@/lib/admin-rbac'
 
 export const dynamic = 'force-dynamic'
@@ -63,6 +64,7 @@ export default async function AdminLayout({
         {children}
       </main>
       <CommandK />
+      <AdminTour />
     </div>
   )
 }

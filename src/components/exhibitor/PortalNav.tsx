@@ -119,12 +119,12 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
   return (
     <div className="sticky top-0 z-50 bg-[#fbfafa]/85 backdrop-blur-md" onClick={closeDropdowns}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-3 min-h-[72px] py-2.5">
-          <a href="/exhibitor/portal" className="flex items-center gap-2.5 min-h-[3.5rem] shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
+        <div className="flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-4 min-h-[72px] py-2.5">
+          <a href="/exhibitor/portal" className="flex items-center gap-3 min-h-[3.5rem] shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
             <img
               src="/logo.png"
               alt="Young at Heart"
-              className="h-10 w-10 object-contain flex-shrink-0"
+              className="h-10 w-auto object-contain flex-shrink-0"
             />
             <span className="hidden lg:flex flex-col justify-center leading-tight">
               <span className="block font-bold text-neutral-900 text-sm">Young at Heart</span>
@@ -132,7 +132,7 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             </span>
           </a>
 
-          <nav className="flex items-center gap-1 lg:gap-2 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav className="flex items-center gap-2 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV_GROUPS.map((g) => {
               const active = isActive(g.href) || hasActiveDropdown(g)
               const Icon = g.icon

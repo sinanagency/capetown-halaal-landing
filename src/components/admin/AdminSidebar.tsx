@@ -334,6 +334,18 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
 
       {/* Role chip + Logout */}
       <div className="p-3 border-t border-neutral-200 space-y-2">
+        {!collapsed && (
+          <button
+            onClick={() => {
+              const ev = new CustomEvent('cth:open-tour')
+              window.dispatchEvent(ev)
+            }}
+            className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition-colors min-h-[36px]"
+          >
+            <BookOpen className="w-4 h-4" />
+            Guide
+          </button>
+        )}
         {!collapsed && <div className="flex items-center justify-between gap-2 px-1">
           <div className="min-w-0 flex-1">
             <p className="text-[11px] text-neutral-400 uppercase tracking-wider">Signed in</p>
