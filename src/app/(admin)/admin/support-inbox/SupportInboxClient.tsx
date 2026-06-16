@@ -461,7 +461,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
               Inner panes scroll independently via overflow-y-auto. */}
           <div className="grid lg:grid-cols-[360px_1fr] grid-rows-[minmax(0,1fr)] flex-1 min-h-0">
             {/* Thread list */}
-            <div className="border-r border-neutral-200 flex flex-col">
+            <div className="border-r border-neutral-200 flex flex-col min-h-0 overflow-hidden">
               <div className="p-3 border-b border-neutral-200">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />

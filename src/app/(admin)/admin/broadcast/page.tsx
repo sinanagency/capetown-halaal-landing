@@ -73,16 +73,6 @@ interface CountsResponse {
   optout_count: number
 }
 
-interface RevenueResponse {
-  tickets_total: number
-  tickets_30d: number
-  vendors_total: number
-  vendors_30d: number
-  total_in: number
-  total_30d: number
-  ticket_error?: string
-}
-
 const ZAR = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 })
 
 const SECTOR_OPTIONS: { value: string; label: string }[] = [
@@ -177,19 +167,6 @@ export default function BroadcastPage() {
   const [spinning, setSpinning] = useState(false)
   const [spinError, setSpinError] = useState<string | null>(null)
   const [spinVariants, setSpinVariants] = useState<string[] | null>(null)
-
-  // Revenue ("Money In") state.
-  const [revenue, setRevenue] = useState<RevenueResponse | null>(null)
-
-  // Fetch revenue once on mount.
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/admin/broadcast/revenue', { credentials: 'include' })
-      .then(async (r) => r.ok ? r.json() as Promise<RevenueResponse> : null)
-      .then((j) => { if (!cancelled && j) setRevenue(j) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [])
 
   // Refresh counts when filters change.
   useEffect(() => {
@@ -349,13 +326,6 @@ export default function BroadcastPage() {
           Reach a filtered slice of your vendor base on email, WhatsApp, or both.
         </p>
       </header>
-
-      {/* Money In KPI cards */}
-      <section className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-        <MoneyCard label="Tickets revenue" total={revenue?.tickets_total} last30={revenue?.tickets_30d} loading={!revenue} />
-        <MoneyCard label="Vendor revenue" total={revenue?.vendors_total} last30={revenue?.vendors_30d} loading={!revenue} />
-        <MoneyCard label="Total in" total={revenue?.total_in} last30={revenue?.total_30d} loading={!revenue} emphasis />
-      </section>
 
       {/* Compact filter rail (mirrors ApplicationsFilters) */}
       <section className="mb-6">
@@ -619,29 +589,6 @@ export default function BroadcastPage() {
 }
 
 // ---------------- subcomponents ----------------
-
-function MoneyCard({ label, total, last30, loading, emphasis }: {
-  label: string
-  total?: number
-  last30?: number
-  loading?: boolean
-  emphasis?: boolean
-}) {
-  return (
-    <div className={
-      'rounded-xl border bg-white p-4 ' +
-      (emphasis ? 'border-[#cd2653]/30 ring-1 ring-[#cd2653]/10' : 'border-neutral-200')
-    }>
-      <p className="text-[11px] uppercase tracking-wide font-semibold text-neutral-500">{label}</p>
-      <p className={'mt-1 text-2xl font-semibold ' + (emphasis ? 'text-[#cd2653]' : 'text-neutral-900')}>
-        {loading ? '...' : (typeof total === 'number' ? ZAR.format(total) : ZAR.format(0))}
-      </p>
-      <p className="mt-0.5 text-xs text-neutral-500">
-        {loading ? ' ' : `${typeof last30 === 'number' ? ZAR.format(last30) : ZAR.format(0)} last 30 days`}
-      </p>
-    </div>
-  )
-}
 
 function BroadcastFilters({ filters, channel, setChannel, onChange, onClearAll }: {
   filters: Filters
