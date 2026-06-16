@@ -6,7 +6,7 @@ import {
   Loader2, Send, Search, Tag, UserCheck, Clock, CheckCircle2, RotateCcw,
   Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck,
 } from 'lucide-react'
-import { PageShell, PageHeader, Card, Pill, ButtonPrimary, Empty } from '@/components/chrome/PageChrome'
+import { PageHeader, Card, Pill, ButtonPrimary, Empty } from '@/components/chrome/PageChrome'
 import { sanitizeEmailHtml } from '@/lib/sanitize'
 
 // XSS proof for sanitizeEmailHtml — confirm the allowlist strips dangerous
@@ -299,8 +299,9 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   }
 
   return (
-    <PageShell>
-      <PageHeader
+    <div className="h-full flex flex-col bg-[#FFFFFF] text-[#1B1A17]">
+      <div className="max-w-7xl w-full mx-auto px-6 sm:px-8 lg:px-10 py-6 flex-1 flex flex-col min-h-0">
+        <PageHeader
         kicker="Festival Email"
         title="Support Inbox"
         subtitle="Mail to support@youngatheart.co.za. Tag it, assign it, snooze it, or reply."
@@ -771,6 +772,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
           </div>
         </Card>
       )}
-    </PageShell>
+      </div>
+    </div>
   )
 }
