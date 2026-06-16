@@ -198,9 +198,9 @@ export function BotInboxClient({
         subtitle="Every conversation with the YAH WhatsApp bot, in one place. Click a thread to read it, see the AI summary, pick a suggested reply or type your own."
       />
 
-      <div className="grid lg:grid-cols-[340px_1fr] gap-5">
-        {/* LEFT: thread list */}
-        <div className="space-y-5">
+      <div className="grid lg:grid-cols-[340px_1fr] gap-5 lg:h-[calc(100vh-220px)] lg:min-h-[640px]">
+        {/* LEFT: thread list (independent scroll, sticky-ish within the grid) */}
+        <div className="space-y-5 lg:overflow-y-auto lg:pr-1">
           <Card padded={false}>
             <div className="p-3 space-y-2">
               <div className="relative">
@@ -336,8 +336,9 @@ export function BotInboxClient({
           )}
         </div>
 
-        {/* RIGHT: active thread */}
-        <div>
+        {/* RIGHT: active thread — bounded so the conversation scrolls inside
+            this column instead of pushing the page down. */}
+        <div className="lg:overflow-y-auto lg:pr-1 lg:min-h-0">
           {active ? (
             <ActiveThread key={active.phone} active={active} />
           ) : (
