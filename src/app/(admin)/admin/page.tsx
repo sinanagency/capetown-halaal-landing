@@ -9,6 +9,7 @@ import {
   Loader2, Clock, Eye, ShoppingCart, AlertTriangle, BarChart3, Activity,
   ChevronRight
 } from 'lucide-react'
+import { TaskCenter } from '@/components/admin/TaskCenter'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
@@ -267,6 +268,9 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Task Center */}
+      <TaskCenter />
 
       {/* Alert Bar */}
       {needsAttention.length > 0 && (
