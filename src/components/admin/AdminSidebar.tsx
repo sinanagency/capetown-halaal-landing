@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen, Wallet } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen, Wallet, MessageCircle } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -38,10 +38,9 @@ const navGroups: NavGroup[] = [
   {
     label: 'COMMUNICATIONS',
     items: [
+      { name: 'Customer Inbox', href: '/admin/customer-inbox', icon: MessageCircle },
       { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
       { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
-      { name: 'Unified Inbox', href: '/admin/inbox', icon: Inbox },
-      { name: 'Vendor Support', href: '/admin/support', icon: LifeBuoy },
       { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
     ],
   },
