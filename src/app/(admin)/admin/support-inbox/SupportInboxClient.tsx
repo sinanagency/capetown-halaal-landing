@@ -299,8 +299,8 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   }
 
   return (
-    <div className="h-full flex flex-col bg-[#FFFFFF] text-[#1B1A17]">
-      <div className="max-w-7xl w-full mx-auto px-6 sm:px-8 lg:px-10 py-6 flex-1 flex flex-col min-h-0">
+    <div className="h-full flex flex-col bg-[#FFFFFF] text-[#1B1A17] overflow-hidden px-6 sm:px-8 lg:px-10 py-6">
+      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0 overflow-hidden">
         <PageHeader
         kicker="Festival Email"
         title="Support Inbox"
@@ -455,7 +455,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
       ) : threads.length === 0 ? (
         <Empty title="No mail matching this filter." hint="Try changing the status or tag filter above." />
       ) : (
-        <Card padded={false} className="overflow-hidden flex flex-col min-h-0">
+        <Card padded={false} className="flex-1 overflow-hidden flex flex-col min-h-0">
           {/* Flex-1 + min-h-0 so the grid fills whatever space remains after
               the header + tab strip, without overflowing the admin main area.
               Inner panes scroll independently via overflow-y-auto. */}
