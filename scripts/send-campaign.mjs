@@ -67,6 +67,7 @@ if (!audience) {
 const base = argFlag('local') ? 'http://localhost:3000' : 'https://cthalaal.co.za'
 const dryRun = argFlag('dry')
 const limit = argVal('limit')
+const offset = argVal('offset')
 
 const payload = {
   audience,
@@ -74,7 +75,9 @@ const payload = {
   content: spec.content,
   testTo: spec.testTo || [],
   dryRun,
+  ...(offset ? { offset: Number(offset) } : {}),
   ...(limit ? { limit: Number(limit) } : {}),
+  ...(Array.isArray(spec.excludeEmails) && spec.excludeEmails.length ? { excludeEmails: spec.excludeEmails } : {}),
 }
 
 console.log(`\n→ ${dryRun ? 'DRY RUN' : 'SENDING'}  ·  audience=${audience}  ·  ${base}`)
@@ -94,10 +97,10 @@ if (!res.ok) {
 
 if (out.capWarning) console.log(`⚠️  ${out.capWarning}\n`)
 if (dryRun) {
-  console.log(`Would send to ${out.willSend} of ${out.total} recipients.`)
+  console.log(`Would send to ${out.willSend} of ${out.total} recipients (offset=${out.offset ?? 0}, nextOffset=${out.nextOffset}).`)
   console.log(`Sample: ${out.sample.join(', ')}`)
 } else {
-  console.log(`✓ Sent ${out.sent}  ·  ✗ Failed ${out.failed}  ·  of ${out.total} total`)
+  console.log(`✓ Sent ${out.sent}  ·  ✗ Failed ${out.failed}  ·  of ${out.total} total  ·  offset=${out.offset ?? 0} → nextOffset=${out.nextOffset}`)
   if (out.errors?.length) console.log('First errors:', out.errors)
 }
 console.log('')

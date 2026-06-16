@@ -10,7 +10,7 @@ export const maxDuration = 300
 
 const FROM = 'Young at Heart Festival <support@youngatheart.co.za>'
 const FREE_DAILY_CAP = 100 // Resend free tier = 100/day. Guard against silent overflow.
-const PACE_MS = 600 // ~1.6 sends/sec, comfortably under Resend's 2/sec rate limit
+const PACE_MS = 300 // ~3.3 sends/sec, comfortably under Resend's 10/sec Pro rate limit. Keeps batches under Vercel's per-request window.
 
 type Audience = 'vendors' | 'vendors_pending' | 'vendors_approved' | 'buyers' | 'test'
 
@@ -42,7 +42,7 @@ async function getRecipients(audience: Audience, testTo: string[]): Promise<{ em
     return (data || []).map((r) => ({ email: r.email, name: firstName(r.name) }))
   }
 
-  let q = admin.from('vendor_applications').select('email, contact_name')
+  let q = admin.from('vendor_applications').select('email, contact_name').order('email', { ascending: true })
   if (audience === 'vendors_pending') q = q.in('status', ['pending', 'info_requested'])
   else if (audience === 'vendors_approved') q = q.eq('status', 'approved')
   const { data } = await q
@@ -75,6 +75,8 @@ export async function POST(request: NextRequest) {
     testTo?: string[]
     dryRun?: boolean
     limit?: number
+    offset?: number
+    excludeEmails?: string[]
   }
   try {
     body = await request.json()
@@ -87,16 +89,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'audience, subject and content.heading are required' }, { status: 400 })
   }
 
-  const recipients = clean(await getRecipients(audience, testTo))
+  const exclude = new Set((body.excludeEmails || []).map((e) => (e || '').trim().toLowerCase()))
+  const allRecipients = clean(await getRecipients(audience, testTo))
+  const recipients = exclude.size ? allRecipients.filter((r) => !exclude.has(r.email)) : allRecipients
   const total = recipients.length
+  const excluded = allRecipients.length - total
 
-  // Cap: never silently exceed the free-tier daily limit unless explicitly overridden.
+  // Resumable batching: offset slices into the deterministic ordered cohort so multi-call sends are non-overlapping.
+  const offset = Math.max(0, Math.floor(body.offset ?? 0))
+  const remainingFromOffset = Math.max(0, total - offset)
   const cap = body.limit ?? FREE_DAILY_CAP
-  const willSend = Math.min(total, cap)
-  const skippedOverCap = total - willSend
+  const willSend = Math.min(remainingFromOffset, cap)
+  const skippedOverCap = remainingFromOffset - willSend
+  const nextOffset = offset + willSend
   const capWarning =
     skippedOverCap > 0
-      ? `Recipient list (${total}) exceeds the send cap (${cap}). Only the first ${willSend} will be sent. Raise "limit" (and your Resend plan) to send the rest.`
+      ? `Recipient list (${remainingFromOffset} remaining from offset ${offset}) exceeds the send cap (${cap}). Only ${willSend} will be sent this call. Re-run with offset=${nextOffset} for the rest.`
       : null
 
   if (dryRun) {
@@ -105,10 +113,14 @@ export async function POST(request: NextRequest) {
       audience,
       subject,
       total,
+      excluded,
+      offset,
       willSend,
+      nextOffset,
+      remainingFromOffset,
       skippedOverCap,
       capWarning,
-      sample: recipients.slice(0, 5).map((r) => r.email),
+      sample: recipients.slice(offset, offset + 5).map((r) => r.email),
     })
   }
 
@@ -143,7 +155,7 @@ export async function POST(request: NextRequest) {
   let sent = 0
   let failed = 0
   const errors: { email: string; error: string }[] = []
-  const slice = recipients.slice(0, willSend)
+  const slice = recipients.slice(offset, offset + willSend)
 
   for (const r of slice) {
     try {
@@ -169,8 +181,12 @@ export async function POST(request: NextRequest) {
     audience,
     subject,
     total,
+    excluded,
+    offset,
     sent,
     failed,
+    nextOffset,
+    remainingFromOffset,
     skippedOverCap,
     capWarning,
     errors: errors.slice(0, 25),
