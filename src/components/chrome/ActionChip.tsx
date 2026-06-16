@@ -36,7 +36,7 @@ export function ActionChip({ icon, label, tone, onClick }: ActionChipProps) {
       >
         {icon}
       </div>
-      <span className="text-xs font-medium text-[var(--text-primary)]">
+      <span className="text-xs font-medium text-[var(--text-primary)] truncate">
         {label}
       </span>
     </button>

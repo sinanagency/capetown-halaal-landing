@@ -200,10 +200,10 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
             <Image
               src="/logo.png"
               alt="Young at Heart"
-              width={56}
-              height={56}
+              width={48}
+              height={48}
               priority
-              className="h-12 w-auto flex-shrink-0 translate-y-[11%]"
+              className="h-10 w-10 object-contain flex-shrink-0"
             />
             <div className="leading-tight min-w-0">
               <p className="font-bold text-sm text-neutral-900 truncate">Young at Heart</p>

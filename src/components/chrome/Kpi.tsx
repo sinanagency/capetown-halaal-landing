@@ -9,11 +9,11 @@ interface KpiProps {
 
 export function Kpi({ label, value, delta, hint }: KpiProps) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="uppercase tracking-wider text-[var(--text-tertiary)] text-xs font-semibold">
+    <div className="flex flex-col gap-0.5 min-w-0">
+      <span className="uppercase tracking-wider text-[var(--text-tertiary)] text-xs font-semibold truncate">
         {label}
       </span>
-      <span className="font-serif text-[var(--text-primary)] text-3xl">
+      <span className="font-serif text-[var(--text-primary)] text-2xl sm:text-3xl truncate">
         {value}
       </span>
       {delta && (
@@ -27,7 +27,7 @@ export function Kpi({ label, value, delta, hint }: KpiProps) {
         </span>
       )}
       {hint && (
-        <span className="text-xs text-[var(--text-tertiary)]">{hint}</span>
+        <span className="text-xs text-[var(--text-tertiary)] truncate">{hint}</span>
       )}
     </div>
   )
