@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Send, Sparkles, Loader2, MessageCircle, Crown, Star, ArrowRight, Clock, UserCheck, CheckCircle2, RotateCcw, Search, Tag, Link2 } from 'lucide-react'
 import type { BotAdmin } from '@/lib/bot/admins'
-import { PageShell, PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
+import { PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
 
 interface MsgRow {
   id: string
@@ -191,16 +191,17 @@ export function BotInboxClient({
   }, [search, mailThreads])
 
   return (
-    <PageShell>
-      <PageHeader
-        kicker="WhatsApp"
-        title="Bot Inbox"
-        subtitle="Every conversation with the YAH WhatsApp bot, in one place. Click a thread to read it, see the AI summary, pick a suggested reply or type your own."
-      />
+    <div className="h-full flex flex-col bg-[#FFFFFF] text-[#1B1A17] overflow-hidden px-6 sm:px-8 lg:px-10 py-6">
+      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0 overflow-hidden">
+        <PageHeader
+          kicker="WhatsApp"
+          title="Bot Inbox"
+          subtitle="Every conversation with the YAH WhatsApp bot, in one place. Click a thread to read it, see the AI summary, pick a suggested reply or type your own."
+        />
 
-      <div className="grid lg:grid-cols-[340px_1fr] gap-5 lg:h-[calc(100vh-220px)] lg:min-h-[640px]">
-        {/* LEFT: thread list (independent scroll, sticky-ish within the grid) */}
-        <div className="space-y-5 lg:overflow-y-auto lg:pr-1">
+        <div className="grid lg:grid-cols-[340px_1fr] gap-5 grid-rows-[minmax(0,1fr)] flex-1 min-h-0">
+          {/* LEFT: thread list (independent scroll) */}
+          <div className="flex flex-col min-h-0 overflow-y-auto space-y-5 pr-1">
           <Card padded={false}>
             <div className="p-3 space-y-2">
               <div className="relative">
@@ -338,7 +339,7 @@ export function BotInboxClient({
 
         {/* RIGHT: active thread — bounded so the conversation scrolls inside
             this column instead of pushing the page down. */}
-        <div className="lg:overflow-y-auto lg:pr-1 lg:min-h-0">
+        <div className="flex flex-col min-h-0 overflow-y-auto pr-1">
           {active ? (
             <ActiveThread key={active.phone} active={active} />
           ) : (
@@ -348,7 +349,8 @@ export function BotInboxClient({
           )}
         </div>
       </div>
-    </PageShell>
+      </div>
+    </div>
   )
 }
 
