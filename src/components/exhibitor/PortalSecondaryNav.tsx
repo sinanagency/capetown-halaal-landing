@@ -12,6 +12,7 @@ export default function PortalSecondaryNav() {
           { href: '/exhibitor/portal/profile', label: 'Profile' },
           { href: '/exhibitor/portal/payments', label: 'Payments' },
           { href: '/exhibitor/portal/resources', label: 'Resources' },
+          { href: '/exhibitor/portal/map-versions', label: 'Site Map' },
           { href: '/exhibitor/portal/settings', label: 'Account Settings' },
         ].map(item => (
           <Link key={item.href} href={item.href}

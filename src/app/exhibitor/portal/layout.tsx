@@ -37,6 +37,10 @@ export default async function PortalLayout({ children }: { children: React.React
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-[#F6F2E8] text-[#1B1A17]">
+      {/* Override PageShell min-h-screen inside the vendor portal so short
+          pages don't force the main area to scroll. The layout constrains
+          height; PageShell's 100vh minimum would exceed available space. */}
+      <style>{'main > div:first-child { min-height: fit-content !important; }'}</style>
       <div className="flex-shrink-0">
         <PortalNav businessName={businessName} inboxUnread={inboxUnread} />
         {showWaBanner && <WaOptInBanner prefillPhone={prefillPhone} firstName={firstName} />}
