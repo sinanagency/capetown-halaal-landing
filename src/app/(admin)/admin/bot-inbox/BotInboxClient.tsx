@@ -155,15 +155,31 @@ export function BotInboxClient({
   // Search across vendor/guest threads. Matches against display label, raw
   // phone, and the latest preview body.
   const [search, setSearch] = useState('')
+  // Source filter: cut noise by limiting threads to vendors, ticket buyers,
+  // unknowns, or all. Default 'all' keeps prior behavior.
+  type SourceFilter = 'all' | 'vendor' | 'ticket_buyer' | 'unknown'
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const filteredGuests = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return guestThreads
-    return guestThreads.filter((t) =>
-      t.label.toLowerCase().includes(q) ||
-      t.phone.toLowerCase().includes(q) ||
-      t.latestPreview.toLowerCase().includes(q)
-    )
-  }, [search, guestThreads])
+    return guestThreads.filter((t) => {
+      if (sourceFilter !== 'all' && t.badge !== sourceFilter) return false
+      if (!q) return true
+      return (
+        t.label.toLowerCase().includes(q) ||
+        t.phone.toLowerCase().includes(q) ||
+        t.latestPreview.toLowerCase().includes(q)
+      )
+    })
+  }, [search, sourceFilter, guestThreads])
+  const sourceCounts = useMemo(() => {
+    const c = { all: guestThreads.length, vendor: 0, ticket_buyer: 0, unknown: 0 }
+    for (const t of guestThreads) {
+      if (t.badge === 'vendor') c.vendor++
+      else if (t.badge === 'ticket_buyer') c.ticket_buyer++
+      else c.unknown++
+    }
+    return c
+  }, [guestThreads])
   const filteredMail = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return mailThreads
@@ -186,7 +202,7 @@ export function BotInboxClient({
         {/* LEFT: thread list */}
         <div className="space-y-5">
           <Card padded={false}>
-            <div className="p-3">
+            <div className="p-3 space-y-2">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
                 <input
@@ -195,6 +211,32 @@ export function BotInboxClient({
                   placeholder="Search threads."
                   className="w-full rounded-lg bg-white border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:border-[#cd2653]"
                 />
+              </div>
+              {/* Source filter: cut noise. Counts come from the unfiltered set
+                  so an operator can see how many of each kind exist. */}
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { k: 'all',          label: 'All',        n: sourceCounts.all },
+                  { k: 'vendor',       label: 'Vendors',    n: sourceCounts.vendor },
+                  { k: 'ticket_buyer', label: 'Attendees',  n: sourceCounts.ticket_buyer },
+                  { k: 'unknown',      label: 'Unknown',    n: sourceCounts.unknown },
+                ] as { k: SourceFilter; label: string; n: number }[]).map((opt) => {
+                  const on = sourceFilter === opt.k
+                  return (
+                    <button
+                      key={opt.k}
+                      type="button"
+                      onClick={() => setSourceFilter(opt.k)}
+                      className={`text-[11px] font-medium px-2 py-1 rounded-full border transition-colors ${
+                        on
+                          ? 'bg-[#cd2653] text-white border-[#cd2653]'
+                          : 'bg-white text-neutral-600 border-neutral-200 hover:border-[#cd2653]/40'
+                      }`}
+                    >
+                      {opt.label} <span className={on ? 'text-white/80' : 'text-neutral-400'}>· {opt.n}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </Card>

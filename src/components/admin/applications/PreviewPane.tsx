@@ -384,15 +384,16 @@ function PreviewActionToolbar({
   // the parent wired a handler.
   if (status === 'approved' || status === 'rejected') {
     const when = row.approved_at
-      ? new Date(row.approved_at).toLocaleTimeString('en-ZA', {
+      ? new Date(row.approved_at).toLocaleString('en-ZA', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
           hour: '2-digit',
           minute: '2-digit',
         })
       : null
-    const label =
-      status === 'approved'
-        ? `Already approved${when ? ` at ${when}` : ''}`
-        : 'Already rejected'
+    const verb = status === 'approved' ? 'approved' : 'rejected'
+    const label = when ? `Already ${verb} on ${when}` : `Already ${verb}`
     return (
       <div className="flex flex-wrap items-center gap-2">
         <span

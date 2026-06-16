@@ -219,22 +219,6 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         >
           <X className="w-5 h-5" />
         </button>
-        {/* Desktop collapse toggle: hidden on Dashboard. Lives INSIDE the logo
-            block, top-right corner, fully contained (no overhang). */}
-        {pathname !== '/admin' && (
-          <button
-            type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cn(
-              'hidden lg:flex absolute items-center justify-center rounded-md bg-neutral-50 border border-neutral-200 text-neutral-500 hover:bg-[#cd2653] hover:text-white hover:border-[#cd2653] transition-colors',
-              collapsed ? 'left-1/2 -translate-x-1/2 bottom-1 w-8 h-6' : 'right-2 top-1/2 -translate-y-1/2 w-7 h-7'
-            )}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-        )}
       </div>
 
       {/* Navigation */}
@@ -318,6 +302,27 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
           View Live Site
         </a>
       </div>}
+
+      {/* Desktop collapse toggle: clean full-width row above the role chip.
+          Hidden on /admin. Shows icon + label when expanded, icon only when
+          collapsed. Never competes with logo for space. */}
+      {pathname !== '/admin' && (
+        <div className="hidden lg:block px-3 pb-2">
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={cn(
+              'flex items-center rounded-lg text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 w-full transition-colors min-h-[36px]',
+              collapsed ? 'justify-center px-2 py-2' : 'gap-2 px-3 py-2'
+            )}
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+            {!collapsed && <span>Collapse</span>}
+          </button>
+        </div>
+      )}
 
       {/* Role chip + Logout */}
       <div className="p-3 border-t border-neutral-200 space-y-2">
