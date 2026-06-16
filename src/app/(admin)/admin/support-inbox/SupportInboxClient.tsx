@@ -369,10 +369,10 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
 
       {tab === 'sent' ? (
         <Card padded={false} className="overflow-hidden">
-          {/* Bounded height + overflow-hidden keeps scroll INSIDE the card, not
-              on the whole page. Without this, a long list doom-scrolls the
-              parent <main overflow-auto>. */}
-          <div className="h-[calc(100dvh-15rem)] flex flex-col">
+          {/* Flex-1 + min-h-0 keeps scroll INSIDE the card, not on the whole
+              page. Without this, a long list doom-scrolls the parent <main
+              overflow-auto>. */}
+          <div className="flex-1 min-h-0 flex flex-col">
             <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
               <p className="text-xs text-neutral-500">
                 Outbound mail from support@youngatheart.co.za, newest first. Limit 100.
@@ -436,11 +436,11 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
       ) : threads.length === 0 ? (
         <Empty title="No mail matching this filter." hint="Try changing the status or tag filter above." />
       ) : (
-        <Card padded={false} className="overflow-hidden">
-          {/* Hard-bounded viewport height + overflow-hidden so chrome (header,
-              tabs, filter row, composer) pins and only the thread list +
-              message body scroll. */}
-          <div className="grid lg:grid-cols-[360px_1fr] h-[calc(100dvh-15rem)] min-h-[420px]">
+        <Card padded={false} className="overflow-hidden flex flex-col min-h-0">
+          {/* Flex-1 + min-h-0 so the grid fills whatever space remains after
+              the header + tab strip, without overflowing the admin main area.
+              Inner panes scroll independently via overflow-y-auto. */}
+          <div className="grid lg:grid-cols-[360px_1fr] flex-1 min-h-0 min-h-[420px]">
             {/* Thread list */}
             <div className="border-r border-neutral-200 flex flex-col">
               <div className="p-3 border-b border-neutral-200">
