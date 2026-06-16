@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { VendorApplication } from '@/lib/supabase/types'
@@ -58,6 +58,22 @@ function formatFullDate(dateString: string) {
   })
 }
 
+async function fetchWithRetry(url: string, maxRetries = 2, delay = 800): Promise<Response | null> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, { next: { revalidate: 0 } })
+      return res
+    } catch (err) {
+      if (attempt === maxRetries) {
+        console.warn(`[fetchWithRetry] ${url} failed after ${maxRetries} retries:`, err)
+        return null
+      }
+      await new Promise(r => setTimeout(r, delay * (attempt + 1)))
+    }
+  }
+  return null
+}
+
 const PIPELINE_COLORS = {
   approved: '#22c55e',
   pending: '#f59e0b',
@@ -88,46 +104,72 @@ export default function AdminDashboard() {
   const [estimatedRevenue, setEstimatedRevenue] = useState(0)
   const [categoryBreakdown, setCategoryBreakdown] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
   const [chartTab, setChartTab] = useState('revenue')
   const [bottomTab, setBottomTab] = useState('pending')
 
-  useEffect(() => {
-    async function loadData() {
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    setError(false)
+
+    const [statsRes, ticketRes, appsRes] = await Promise.all([
+      fetchWithRetry('/api/admin/stats'),
+      fetchWithRetry('/api/admin/tickets'),
+      fetchWithRetry('/api/applications?status=pending'),
+    ])
+
+    const isAuthError =
+      statsRes?.status === 401 || ticketRes?.status === 401 || appsRes?.status === 401
+    if (isAuthError) {
+      router.push('/admin/login')
+      return
+    }
+
+    let anyData = false
+
+    if (statsRes?.ok) {
       try {
-        const [statsRes, ticketRes, appsRes] = await Promise.all([
-          fetch('/api/admin/stats'),
-          fetch('/api/admin/tickets'),
-          fetch('/api/applications?status=pending'),
-        ])
-
-        if (statsRes.status === 401 || appsRes.status === 401) {
-          router.push('/admin/login')
-          return
-        }
-
-        if (statsRes.ok) {
-          const data = await statsRes.json()
-          setVendorStats(data.stats)
-          setRecentCount(data.recentCount || 0)
-          setEstimatedRevenue(data.estimatedRevenue || 0)
-          setCategoryBreakdown(data.categoryBreakdown || {})
-        }
-        if (ticketRes.ok) {
-          const data = await ticketRes.json()
-          setTicketStats(data)
-        }
-        if (appsRes.ok) {
-          const data = await appsRes.json()
-          setRecentApps(data.applications?.slice(0, 5) || [])
-        }
-      } catch (error) {
-        console.error('Failed to load dashboard:', error)
-      } finally {
-        setLoading(false)
+        const data = await statsRes.json()
+        setVendorStats(data.stats)
+        setRecentCount(data.recentCount || 0)
+        setEstimatedRevenue(data.estimatedRevenue || 0)
+        setCategoryBreakdown(data.categoryBreakdown || {})
+        anyData = true
+      } catch (e) {
+        console.warn('Failed to parse stats response:', e)
       }
     }
-    loadData()
+
+    if (ticketRes?.ok) {
+      try {
+        const data = await ticketRes.json()
+        setTicketStats(data)
+        anyData = true
+      } catch (e) {
+        console.warn('Failed to parse tickets response:', e)
+      }
+    }
+
+    if (appsRes?.ok) {
+      try {
+        const data = await appsRes.json()
+        setRecentApps(data.applications?.slice(0, 5) || [])
+        anyData = true
+      } catch (e) {
+        console.warn('Failed to parse applications response:', e)
+      }
+    }
+
+    if (!anyData) {
+      setError(true)
+    }
+
+    setLoading(false)
   }, [router])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
 
   const chartData = useMemo(() => {
     if (!ticketStats?.salesByDate) return []
@@ -190,6 +232,22 @@ export default function AdminDashboard() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin text-neutral-300" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <AlertTriangle className="w-10 h-10 text-red-400" />
+        <p className="text-neutral-600 text-sm">Failed to load dashboard data</p>
+        <button
+          type="button"
+          onClick={loadData}
+          className="px-4 py-2 bg-[#cd2653] text-white text-sm font-medium rounded-lg hover:bg-[#b81e47] transition-colors"
+        >
+          Retry
+        </button>
       </div>
     )
   }
@@ -441,7 +499,7 @@ export default function AdminDashboard() {
       <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-100">
           <div className="flex items-center gap-2">
-            {['pending', 'recent-orders', 'activity'].map(tab => (
+            {['pending', 'recent-orders'].map(tab => (
               <button
                 key={tab}
                 type="button"
@@ -526,9 +584,6 @@ export default function AdminDashboard() {
           )
         )}
 
-        {bottomTab === 'activity' && (
-          <div className="px-5 py-10 text-center text-neutral-300 text-sm">No recent activity</div>
-        )}
       </div>
     </div>
   )

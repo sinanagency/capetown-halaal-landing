@@ -72,11 +72,11 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
               the pill strip cannot underlap. h-14 instead of scale() — the
               transform was visually bleeding the logo over the first pill
               (the "Overview" clipping). */}
-          <a href="/exhibitor/portal" className="flex items-center gap-3 shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
+          <a href="/exhibitor/portal" className="flex items-center gap-3 min-h-[3.5rem] shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
             <img
               src="/logo.png"
               alt="Young at Heart"
-              className="h-14 w-auto flex-shrink-0 self-center translate-y-[11%]"
+              className="h-12 w-auto object-contain object-center flex-shrink-0"
             />
             <span className="hidden lg:flex flex-col justify-center leading-tight">
               <span className="block font-bold text-neutral-900 text-sm">Young at Heart</span>
@@ -103,7 +103,7 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
               }
               return (
                 <a key={i.href} href={i.href}
-                  className={`relative flex items-center gap-2 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
+                  className={`relative flex items-center gap-2 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${i.label === 'Overview' ? 'min-w-[5.5rem] ' : ''}${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
                   <Icon className="w-4 h-4" />{i.label}
                   {showDot && (
                     <span aria-label="unread reply" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />

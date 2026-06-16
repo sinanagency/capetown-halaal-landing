@@ -97,6 +97,13 @@ export default function AllocationPage() {
     })
   }, [data, tier, sector, status])
 
+  // Countdown stats: filtered available / total for the chip.
+  const countdownStats = useMemo(() => {
+    const total = countdownStalls.length
+    const available = countdownStalls.filter((s) => !s.status || s.status === 'available').length
+    return { available, total }
+  }, [countdownStalls])
+
   // ---- Adapter: MapStall[] + zones -> FloorBooth[] (same shape StandView builds) ----
   const booths = useMemo<FloorBooth[]>(() => {
     if (!data) return []
@@ -223,7 +230,10 @@ export default function AllocationPage() {
           <h1 className="text-base font-bold text-neutral-900 leading-tight">Floor plan</h1>
         </div>
         {!loading && data && (
-          <div className="ml-auto min-w-0 flex-1">
+          <div className="ml-auto min-w-0 flex-1 flex items-center gap-3">
+            <span className="text-xs font-medium text-neutral-500 bg-neutral-100/80 border border-neutral-200 px-2.5 py-1 rounded-full whitespace-nowrap">
+              {countdownStats.available}/{countdownStats.total} stalls
+            </span>
             <AllocationFilters
               stalls={countdownStalls}
               applications={data.applications}
