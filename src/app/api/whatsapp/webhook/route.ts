@@ -23,6 +23,7 @@ import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
 import { handleAdminMessage } from '@/lib/bot/admin-chat'
 import { isMaintenanceEnabled } from '@/lib/maintenance'
 import { guardReply, logGuardRedaction } from '@/lib/bot/reply-guard'
+import { shouldProcess, mediaArrived } from '@/lib/brain-core/index.js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -126,8 +127,12 @@ async function handleInbound(msg: {
 }) {
   const e164 = toE164(msg.from)
 
-  // Dedup: Meta retries webhooks. Skip if we've already stored this message id.
-  if (await alreadySeen(msg.messageId)) return
+  // Brain-core webhook guard: dedup (wamid + 2s sender lock) + media-pending buffer.
+  const guard = await shouldProcess("cth", e164, msg.messageId, msg.text, {
+    seenByWamid: async (id) => alreadySeen(id),
+    logToChat: async (_sender, _text) => {},
+  })
+  if (guard.action !== "process") return
   await logMessage({ direction: 'in', wa_phone: e164, body: msg.text, status: 'received', providerMessageId: msg.messageId })
 
   // 1) STOP — hard opt-out, confirm once, then go silent.
