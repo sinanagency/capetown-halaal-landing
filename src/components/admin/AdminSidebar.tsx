@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -177,17 +177,18 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
   const sidebarBody = (
     <>
       {/* Logo block: horizontal, tight against text (matches main site treatment).
-          Drops the h-32 stacked layout for h-12 inline. */}
+          Drops the h-32 stacked layout for h-12 inline. Collapse toggle lives
+          here so it is always visible, not buried at the bottom. */}
       <div className={cn('border-b border-neutral-200 relative', collapsed ? 'px-2 py-3' : 'px-4 py-4')}>
         {collapsed ? (
           <div className="flex justify-center">
             <Image
               src="/logo.png"
               alt="Young at Heart"
-              width={40}
-              height={40}
+              width={48}
+              height={48}
               priority
-              className="h-10 w-10 object-contain"
+              className="h-12 w-12 object-contain"
             />
           </div>
         ) : (
@@ -213,6 +214,19 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
           aria-label="Close menu"
         >
           <X className="w-5 h-5" />
+        </button>
+        {/* Sidebar collapse toggle — always visible in the logo row */}
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={cn(
+            'hidden lg:flex items-center justify-center rounded-lg text-neutral-400 hover:text-[#cd2653] hover:bg-neutral-100 transition-colors absolute',
+            collapsed ? 'top-1/2 -right-3 -translate-y-1/2 bg-white border border-neutral-200 shadow-sm w-6 h-6 rounded-full' : 'top-3 right-3 p-1.5'
+          )}
+        >
+          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <PanelLeftClose className="w-4 h-4" />}
         </button>
       </div>
 
@@ -297,27 +311,6 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
           View Live Site
         </a>
       </div>}
-
-      {/* Desktop collapse toggle: clean full-width row above the role chip.
-          Hidden on /admin. Shows icon + label when expanded, icon only when
-          collapsed. Never competes with logo for space. */}
-      {pathname !== '/admin' && (
-        <div className="hidden lg:block px-3 pb-2">
-          <button
-            type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={cn(
-              'flex items-center rounded-lg text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 w-full transition-colors min-h-[36px]',
-              collapsed ? 'justify-center px-2 py-2' : 'gap-2 px-3 py-2'
-            )}
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-            {!collapsed && <span>Collapse</span>}
-          </button>
-        </div>
-      )}
 
       {/* Role chip + Logout */}
       <div className="p-3 border-t border-neutral-200 space-y-2">

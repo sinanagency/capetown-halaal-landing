@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Loader2, Send, Search, Tag, UserCheck, Clock, CheckCircle2, RotateCcw,
-  Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck,
+  Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck, PanelRightClose,
 } from 'lucide-react'
 import { PageHeader, Card, Pill, ButtonPrimary, Empty } from '@/components/chrome/PageChrome'
 import { sanitizeEmailHtml } from '@/lib/sanitize'
@@ -138,6 +138,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('open')
   const [tagFilter, setTagFilter] = useState<Tag | null>(null)
   const [search, setSearch] = useState('')
+  const [threadsCollapsed, setThreadsCollapsed] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
@@ -459,9 +460,9 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
           {/* Flex-1 + min-h-0 so the grid fills whatever space remains after
               the header + tab strip, without overflowing the admin main area.
               Inner panes scroll independently via overflow-y-auto. */}
-          <div className="grid lg:grid-cols-[360px_1fr] grid-rows-[minmax(0,1fr)] flex-1 min-h-0">
-            {/* Thread list */}
-            <div className="border-r border-neutral-200 flex flex-col min-h-0 overflow-hidden">
+          <div className={`grid ${threadsCollapsed ? 'lg:grid-cols-[0px_1fr]' : 'lg:grid-cols-[360px_1fr]'} grid-rows-[minmax(0,1fr)] flex-1 min-h-0`}>
+            {/* Thread list — collapsible via threadsCollapsed state */}
+            <div className={`border-r border-neutral-200 flex flex-col min-h-0 overflow-hidden transition-all duration-200 ${threadsCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
               <div className="p-3 border-b border-neutral-200">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
@@ -530,6 +531,13 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                           <Pill tone="brand">snoozed {fmt(active.snoozed_until)}</Pill>
                         )}
                         {active.status === 'resolved' && <Pill tone="success">resolved</Pill>}
+                        <button
+                          onClick={() => setThreadsCollapsed((c) => !c)}
+                          className="ml-1 text-neutral-400 hover:text-[#cd2653] transition-colors p-1 rounded-md hover:bg-neutral-100"
+                          title={threadsCollapsed ? 'Show thread list' : 'Hide thread list'}
+                        >
+                          <PanelRightClose className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
