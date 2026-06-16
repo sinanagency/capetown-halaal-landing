@@ -387,7 +387,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
       </div>
 
       {tab === 'sent' ? (
-        <Card padded={false} className="overflow-hidden">
+        <Card padded={false} className="flex-1 overflow-hidden flex flex-col min-h-0">
           {/* Flex-1 + min-h-0 keeps scroll INSIDE the card, not on the whole
               page. Without this, a long list doom-scrolls the parent <main
               overflow-auto>. */}
@@ -459,7 +459,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
           {/* Flex-1 + min-h-0 so the grid fills whatever space remains after
               the header + tab strip, without overflowing the admin main area.
               Inner panes scroll independently via overflow-y-auto. */}
-          <div className="grid lg:grid-cols-[360px_1fr] flex-1 min-h-0 min-h-[420px]">
+          <div className="grid lg:grid-cols-[360px_1fr] grid-rows-[minmax(0,1fr)] flex-1 min-h-0">
             {/* Thread list */}
             <div className="border-r border-neutral-200 flex flex-col">
               <div className="p-3 border-b border-neutral-200">
