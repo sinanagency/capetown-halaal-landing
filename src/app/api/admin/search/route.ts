@@ -76,6 +76,8 @@ function ilikeEscape(s: string): string {
   return s.replace(/[\\%_]/g, (m) => '\\' + m)
 }
 
+const UUID_FRAGMENT_RE = /^[0-9a-f]{8,}$/i
+
 export async function GET(req: NextRequest) {
   try {
     // --- Auth: same pattern as /api/admin/applications/route.ts:24-36 ---
@@ -113,22 +115,34 @@ export async function GET(req: NextRequest) {
     // Query 1: vendor_applications
     //   - Phone-shape: regexp_replace(phone,'\D','','g') LIKE '%<last9>'
     //     so the functional index idx_vendor_apps_phone_last9 fires.
+    //   - UUID-fragment: match id as well for app-id lookups.
     //   - Otherwise ILIKE across business_name, contact_name, email, phone.
+    //   - Also searches stall codes embedded in admin_notes (⟦STALL:code⟧).
     //   - Approved rows first (so live vendors beat stale pending dupes),
     //     then newest first.
     // ------------------------------------------------------------------
     const vendorsP = (async (): Promise<VendorHit[]> => {
       let qry = admin
         .from('vendor_applications')
-        .select('id, business_name, contact_name, phone, status, sector, created_at')
+        .select('id, business_name, contact_name, phone, status, sector, created_at, admin_notes')
 
       if (last9Str) {
         // Functional-index match: digits-only suffix.
         qry = qry.like('phone', `%${last9Str.slice(-9)}%`)
       } else {
-        qry = qry.or(
-          `business_name.ilike.${pattern},contact_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`
-        )
+        // Build dynamic OR clauses. Start with the main fields.
+        const orParts = [
+          `business_name.ilike.${pattern}`,
+          `contact_name.ilike.${pattern}`,
+          `email.ilike.${pattern}`,
+          `phone.ilike.${pattern}`,
+          `admin_notes.ilike.%⟦STALL:${safe}%`,
+        ]
+        // If query is UUID-shaped, add id match
+        if (UUID_FRAGMENT_RE.test(safe)) {
+          orParts.push(`id.ilike.${pattern}`)
+        }
+        qry = qry.or(orParts.join(','))
       }
 
       const { data, error } = await qry
@@ -148,6 +162,7 @@ export async function GET(req: NextRequest) {
         phone: string | null
         status: string | null
         sector: string | null
+        admin_notes: string | null
       }>
 
       // Approved-first sort.

@@ -17,11 +17,11 @@
  */
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   MessageSquare, FileText, CreditCard, FolderOpen, MapPin, ClipboardList,
   History, Sparkles, AlertTriangle, Check, X, RefreshCw, ExternalLink, Loader2,
-  Users, Ban, Send,
+  Users, Ban, Send, StickyNote, Plus,
 } from 'lucide-react'
 import { UnifiedTimeline } from '@/components/admin/comms/UnifiedTimeline'
 import type { PortalState, DocRecord } from '@/lib/portal-state'
@@ -34,6 +34,7 @@ import { REQUIRED_DOC_LABELS, REQUIRED_DOC_TYPES } from './doc-types'
 // hash-link to them.
 const HUB_SECTIONS: Array<{ id: string; label: string }> = [
   { id: 'summary',  label: 'Summary' },
+  { id: 'notes',    label: 'Notes' },
   { id: 'contract', label: 'Contract' },
   { id: 'payments', label: 'Payments' },
   { id: 'documents',label: 'Documents' },
@@ -215,7 +216,12 @@ export function VendorHub({ app, e164, portal: initialPortal, stall, neighbours,
           <AISummary id={id} />
         </Section>
 
-        {/* ─── 3: Contract ─── */}
+        {/* ─── 3: Quick Notes ─── */}
+        <Section id="notes" icon={<StickyNote className="w-4 h-4 text-[#cd2653]" />} title="Quick Notes">
+          <QuickNotesSection applicationId={id} />
+        </Section>
+
+        {/* ─── 4: Contract ─── */}
         <Section id="contract" icon={<FileText className="w-4 h-4 text-[#cd2653]" />} title="Contract">
           <ContractSection
             applicationId={id}
@@ -897,5 +903,113 @@ function AuditLog({ events }: { events: AuditEvent[] }) {
         </li>
       ))}
     </ol>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quick Notes (Agent 7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface QuickNoteItem {
+  id: string
+  text: string
+  created_at: string
+  author: string | null
+}
+
+function QuickNotesSection({ applicationId }: { applicationId: string }) {
+  const [notes, setNotes] = useState<QuickNoteItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [text, setText] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadNotes = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await fetch(`/api/admin/vendors/${applicationId}/notes`)
+      if (!res.ok) return
+      const d = await res.json()
+      setNotes((d.notes as QuickNoteItem[]) ?? [])
+    } catch (e) {
+      setError(String((e as Error)?.message || e))
+    } finally {
+      setLoading(false)
+    }
+  }, [applicationId])
+
+  useEffect(() => {
+    loadNotes()
+  }, [loadNotes])
+
+  async function saveNote() {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    setSaving(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/admin/vendors/${applicationId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed }),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setError(j.error || 'Failed to save note')
+        return
+      }
+      const d = await res.json()
+      setNotes((prev) => [d.note as QuickNoteItem, ...prev])
+      setText('')
+    } catch (e) {
+      setError(String((e as Error)?.message || e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type a quick note..."
+          rows={3}
+          className="flex-1 border border-neutral-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#cd2653]"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={saveNote}
+          disabled={saving || !text.trim()}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-[#cd2653] text-white hover:bg-[#b01f45] disabled:opacity-60"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+          Add Note
+        </button>
+        {error && <span className="text-xs text-red-600">{error}</span>}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-neutral-500 flex items-center gap-2">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading notes...
+        </p>
+      ) : notes.length === 0 ? (
+        <p className="text-sm text-neutral-500">No notes yet. Add one above.</p>
+      ) : (
+        <ul className="space-y-2">
+          {notes.map((n) => (
+            <li key={n.id} className="rounded-lg border border-neutral-100 bg-neutral-50 p-3">
+              <p className="text-sm text-neutral-900 whitespace-pre-wrap break-words">{n.text}</p>
+              <p className="text-[11px] text-neutral-400 mt-1.5">
+                {n.author && <span>{n.author} · </span>}
+                {fmtDate(n.created_at)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }

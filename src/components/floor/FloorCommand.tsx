@@ -44,6 +44,7 @@ export interface FloorCommandProps {
   onAllocate?: (boothCode: string, vendorName: string, status: 'allocated' | 'reserved') => Promise<void> | void
   onRelease?: (boothCode: string) => Promise<void> | void
   onToggleBlock?: (boothCode: string, nextBlocked: boolean) => Promise<void> | void
+  onStallClick?: (boothCode: string) => void
 }
 
 // ---------------- palette (white + brand-red only) ----------------
@@ -116,6 +117,7 @@ export default function FloorCommand({
   onAllocate,
   onRelease,
   onToggleBlock,
+  onStallClick,
 }: FloorCommandProps) {
   const [mode, setMode] = useState<'admin' | 'vendor'>(initialMode)
   const [selected, setSelected] = useState<string | null>(null)
@@ -205,7 +207,8 @@ export default function FloorCommand({
     if (b.type === 'facility') return
     setSelected(b.code)
     setVendorInput('')
-  }, [])
+    onStallClick?.(b.code)
+  }, [onStallClick])
 
   const closeDrawer = useCallback(() => {
     setSelected(null)

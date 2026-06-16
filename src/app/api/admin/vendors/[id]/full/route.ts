@@ -1,11 +1,11 @@
-import { redirect, notFound } from 'next/navigation'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePortalState } from '@/lib/portal-state'
 import { parseAllocation } from '@/lib/stalls'
-import { Vendor360 } from './Vendor360'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 interface CommItem {
   id: string
@@ -19,61 +19,50 @@ interface CommItem {
   template?: string | null
 }
 
-interface AuditEvent {
-  id: string
-  event_type: string
-  note: string | null
-  created_at: string
-  actor_email: string | null
-}
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
-export default async function Vendor360Page(props: { params: Promise<{ id: string }> }) {
-  const { id } = await props.params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/admin/login')
-  const admin = createAdminClient()
-  const { data: adminUser } = await admin.from('admin_users').select('id').eq('id', user.id).single()
-  if (!adminUser) redirect('/admin/login')
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const { data: app } = await admin
+  const db = createAdminClient()
+  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
+  if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
+  const { data: app } = await db
     .from('vendor_applications')
     .select('*')
     .eq('id', id)
     .single()
-  if (!app) notFound()
+  if (!app) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
   const a = app as Record<string, unknown>
+  const phoneRaw = ((a.phone as string) || '').trim()
+  const emailRaw = ((a.email as string) || '').trim().toLowerCase()
   const portal = parsePortalState((a.admin_notes as string) || '')
   const { stall } = parseAllocation((a.admin_notes as string) || '')
 
-  const phoneRaw = ((a.phone as string) || '').trim()
-  const emailRaw = ((a.email as string) || '').trim().toLowerCase()
   const digits = phoneRaw.replace(/[^0-9]/g, '')
   const last9 = digits.slice(-9)
 
   const [waRes, threadsRes, eventsRes] = await Promise.all([
     last9.length >= 9
-      ? admin.from('wa_messages').select('id, direction, body, created_at, wa_phone, template_name, status').filter('wa_phone', 'like', `%${last9}`).order('created_at', { ascending: false }).limit(200)
+      ? db.from('wa_messages').select('*').filter('wa_phone', 'like', `%${last9}`).order('created_at', { ascending: false }).limit(200)
       : Promise.resolve({ data: [] }),
     emailRaw
-      ? admin.from('support_inbox_threads').select('id, peer_email, peer_name, subject').ilike('peer_email', emailRaw).limit(20)
+      ? db.from('support_inbox_threads').select('id, peer_email, peer_name, subject').ilike('peer_email', emailRaw).limit(20)
       : Promise.resolve({ data: [] }),
-    (async () => {
-      try {
-        return await admin.from('vendor_application_events').select('id, event_type, note, created_at, actor_email').eq('application_id', id).order('created_at', { ascending: false }).limit(100)
-      } catch {
-        return { data: [] }
-      }
-    })(),
+    db.from('vendor_application_events').select('*').eq('application_id', id).order('created_at', { ascending: false }).limit(100),
   ])
 
   const threadIds = ((threadsRes.data || []) as Array<{ id: string }>).map((t) => t.id)
   let supportMessages: unknown[] = []
   if (threadIds.length) {
-    const { data: msgs } = await admin
+    const { data: msgs } = await db
       .from('support_inbox_messages')
-      .select('id, thread_id, direction, from_address, to_address, subject, body_text, received_at')
+      .select('*')
       .in('thread_id', threadIds)
       .order('received_at', { ascending: false })
       .limit(500)
@@ -84,7 +73,7 @@ export default async function Vendor360Page(props: { params: Promise<{ id: strin
 
   for (const m of (waRes.data || []) as Array<{
     id: string; direction: string; body: string | null; created_at: string
-    wa_phone: string; template_name: string | null
+    wa_phone: string; template_name: string | null; status: string | null
   }>) {
     const body = m.body || (m.template_name ? `[template: ${m.template_name}]` : '')
     if (!body) continue
@@ -124,8 +113,6 @@ export default async function Vendor360Page(props: { params: Promise<{ id: strin
 
   communications.sort((a, b) => +new Date(b.at) - +new Date(a.at))
 
-  const events = (eventsRes.data || []) as AuditEvent[]
-
   const approvedAt = a.approved_at as string | null | undefined
   const daysSinceApproval = approvedAt
     ? Math.floor((Date.now() - new Date(approvedAt).getTime()) / (1000 * 60 * 60 * 24))
@@ -138,16 +125,12 @@ export default async function Vendor360Page(props: { params: Promise<{ id: strin
     approved_count: (portal.docs || []).filter((d) => d.status === 'approved').length,
   }
 
-  return (
-    <Vendor360
-      initialData={{
-        vendor: a,
-        stall,
-        portal,
-        communications,
-        events,
-        stats,
-      }}
-    />
-  )
+  return NextResponse.json({
+    vendor: a,
+    stall,
+    portal,
+    communications,
+    events: (eventsRes.data || []),
+    stats,
+  })
 }

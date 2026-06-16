@@ -9,6 +9,7 @@ import {
   Loader2, Clock, Eye, ShoppingCart, AlertTriangle, BarChart3, Activity,
   ChevronRight
 } from 'lucide-react'
+import { AdminPage } from '@/components/admin/AdminPage'
 import { TaskCenter } from '@/components/admin/TaskCenter'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
@@ -253,22 +254,15 @@ export default function AdminDashboard() {
     )
   }
 
-  return (
-    <div className="p-6 lg:p-8 max-w-[1440px] space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">Dashboard</h1>
-          <p className="text-neutral-500 text-sm mt-0.5">Young at Heart Festival 2026</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs font-medium text-green-700">Live</span>
-          </div>
-        </div>
-      </div>
+  const liveBadge = (
+    <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full">
+      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+      <span className="text-xs font-medium text-green-700">Live</span>
+    </div>
+  )
 
+  return (
+    <AdminPage title="Dashboard" subtitle="Young at Heart Festival 2026" actions={liveBadge}>
       {/* Task Center */}
       <TaskCenter />
 
@@ -589,6 +583,6 @@ export default function AdminDashboard() {
         )}
 
       </div>
-    </div>
+    </AdminPage>
   )
 }

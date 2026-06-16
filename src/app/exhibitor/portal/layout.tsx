@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { getRole } from '@/lib/admin-rbac'
 import PortalNav from '@/components/exhibitor/PortalNav'
-import PortalSecondaryNav from '@/components/exhibitor/PortalSecondaryNav'
 import { parsePortalState } from '@/lib/portal-state'
 import { WaOptInBanner } from '@/components/exhibitor/WaOptInBanner'
 import { hasUnreadAdminReply } from '@/components/exhibitor/InboxCard'
@@ -44,7 +43,6 @@ export default async function PortalLayout({ children }: { children: React.React
       <div className="flex-shrink-0">
         <PortalNav businessName={businessName} inboxUnread={inboxUnread} />
         {showWaBanner && <WaOptInBanner prefillPhone={prefillPhone} firstName={firstName} />}
-        <PortalSecondaryNav />
       </div>
       <main className="flex-1 overflow-y-auto min-h-0">{children}</main>
     </div>

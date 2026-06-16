@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseAllocation, tierLabel } from '@/lib/stalls'
 import { parsePortalState } from '@/lib/portal-state'
+import { AdminPage } from '@/components/admin/AdminPage'
 import { VendorsList, type VendorRow } from '@/components/admin/vendors/VendorsList'
 
 export const dynamic = 'force-dynamic'
@@ -67,10 +68,8 @@ export default async function VendorsListPage() {
 
   if (rows.length === 0) {
     return (
-      <div className="p-6 sm:p-8 max-w-5xl">
-        <p className="text-xs font-semibold text-[#cd2653] uppercase tracking-[0.2em]">VENDORS</p>
-        <h1 className="text-2xl font-bold text-neutral-900">Approved vendors</h1>
-        <div className="mt-6 border border-dashed border-neutral-300 rounded-xl p-10 text-center text-neutral-500 text-sm">
+      <AdminPage title="Approved vendors" caption="VENDORS">
+        <div className="border border-dashed border-neutral-300 rounded-xl p-10 text-center text-neutral-500 text-sm">
           No approved vendors yet.
           <div className="mt-3">
             <Link href="/admin/applications" className="text-[#cd2653] hover:underline font-medium">
@@ -78,9 +77,13 @@ export default async function VendorsListPage() {
             </Link>
           </div>
         </div>
-      </div>
+      </AdminPage>
     )
   }
 
-  return <VendorsList rows={rows} />
+  return (
+    <AdminPage title="Approved vendors" caption="VENDORS">
+      <VendorsList rows={rows} />
+    </AdminPage>
+  )
 }

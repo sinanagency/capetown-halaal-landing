@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen, Wallet } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -48,6 +48,7 @@ const navGroups: NavGroup[] = [
   {
     label: 'MONEY',
     items: [
+      { name: 'Finance', href: '/admin/finance', icon: Wallet },
       { name: 'Tickets', href: '/admin/tickets', icon: Ticket },
       { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
       { name: 'Contacts', href: '/admin/contacts', icon: BookOpen },
@@ -252,8 +253,8 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
                   href={item.href}
                   title={collapsed ? item.name : undefined}
                   className={cn(
-                    'relative flex items-center rounded-lg text-sm font-medium transition-colors min-h-[44px]',
-                    collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-4 py-3',
+                    'relative flex items-center rounded-md text-sm font-medium transition-colors',
+                    collapsed ? 'justify-center px-2 py-3' : 'gap-3 px-3 py-2',
                     isActive ? 'bg-[#cd2653] text-white' : 'text-neutral-600 hover:bg-neutral-100'
                   )}
                 >

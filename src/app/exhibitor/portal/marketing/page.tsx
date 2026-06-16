@@ -1,30 +1,9 @@
-// Vendor marketing kit page.
-//
-// Combines two ideas:
-//   (i) auto-filled per-vendor PNG templates (IG Story, IG Feed, FB Post,
-//       Find-Us link card) generated server-side from the vendor's
-//       business_name + stall_code + logo via Puppeteer.
-//   (iii) a shared festival brand pack the vendor can lift verbatim
-//        (logos, colour codes, hashtags, hero images, suggested caption).
-//
-// Auth: the per-vendor PNG routes are session-gated, so the page itself only
-// renders when the exhibitor session resolves an application row. Anonymous
-// hits would render a usable brand pack but no auto-fill cards, so we gate
-// the page entirely behind requirePaid() to stay consistent with the rest
-// of the portal.
-//
-// Doctrine:
-//   - Law 2 (PII): every per-vendor download goes through a session-gated
-//     API route. The page itself only echoes the vendor's own data.
-//   - Law 7 (no em-dashes): all copy strings here use commas / periods /
-//     colons. The grep is run by the doctrine-reviewer before merge.
-
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { parsePortalState } from '@/lib/portal-state'
 import { parseAllocation } from '@/lib/stalls'
 import { requirePaid } from '@/lib/exhibitor-paygate'
 import { PageShell, PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
-import { Download, Sparkles, Hash, Palette, Image as ImageIcon } from 'lucide-react'
+import { Download, Sparkles, Hash, Palette, Image as ImageIcon, FileDown, ExternalLink } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,7 +13,7 @@ interface AssetCard {
   dims: string
   use: string
   href: string
-  ratio: string // tailwind aspect-ratio class for the preview
+  ratio: string
 }
 
 const ASSET_CARDS: AssetCard[] = [
@@ -89,10 +68,38 @@ const HERO_IMAGES = [
   { src: '/gallery/gallery-3450.jpg', alt: 'Festival vendor handing over food' },
 ]
 
-const SUGGESTED_CAPTION =
-  "Come find us at Cape Town's biggest halaal festival, 11 to 13 December 2026 at Youngsfield Military Base. " +
-  "Three days of food, family, and a real Young at Heart vibe. Tickets at cthalaal.co.za. " +
-  "#YoungAtHeartFest #CapeTownHalaal #CTH2026"
+const SUGGESTED_CAPTIONS = [
+  {
+    platform: 'Instagram',
+    caption: "Come find us at Cape Town's biggest halaal festival, 11 to 13 December 2026 at Youngsfield Military Base. Three days of food, family, and a real Young at Heart vibe. Tickets at cthalaal.co.za.",
+  },
+  {
+    platform: 'Facebook',
+    caption: "We are exhibiting at the Young at Heart Festival this December! Visit us at Youngsfield Military Base from 11 to 13 December 2026. Tickets on sale now at cthalaal.co.za. See you there.",
+  },
+  {
+    platform: 'TikTok',
+    caption: "Cape Town halaal festival, three days of food and family. Youngsfield, 11 to 13 Dec. You already know where to find us.",
+  },
+  {
+    platform: 'WhatsApp Status',
+    caption: "Cape Town Halaal Festival starts 11 Dec. We are at Youngsfield. See you there. Tickets at cthalaal.co.za.",
+  },
+]
+
+const BRAND_GUIDELINES = [
+  { rule: 'Do not crop or distort the festival logo', detail: 'Always use the provided PNG or SVG files as-is.' },
+  { rule: 'Keep the brand red as the primary accent', detail: 'Use #cd2653 for buttons, badges, links, headers.' },
+  { rule: 'Use Fraunces for headings, Inter for body text', detail: 'These are the official festival typefaces.' },
+  { rule: 'Do not place the logo on busy backgrounds', detail: 'Use the cream #F8F5EE or white as the backdrop.' },
+  { rule: 'Keep the event dates and venue accurate', detail: 'Youngsfield Military Base, Ottery, 11-13 Dec 2026.' },
+]
+
+const SOCIAL_BANNERS = [
+  { label: 'Facebook Cover', dims: '1640 x 624', file: 'social-fb-cover.png' },
+  { label: 'LinkedIn Banner', dims: '1584 x 396', file: 'social-linkedin-banner.png' },
+  { label: 'Instagram Square', dims: '1080 x 1080', file: 'social-ig-square.png' },
+]
 
 export default async function MarketingPage() {
   await requirePaid()
@@ -111,7 +118,6 @@ export default async function MarketingPage() {
         subtitle="Download ready to share assets with your stall code baked in, plus the festival brand pack so your audience knows it is the real Cape Town Halaal."
       />
 
-      {/* Section 1: per-vendor auto-filled assets */}
       <section className="mb-12">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
@@ -129,8 +135,6 @@ export default async function MarketingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {ASSET_CARDS.map((a) => (
             <Card key={a.key} className="flex flex-col">
-              {/* preview frame: hits the same route so we get the real PNG.
-                  loading="lazy" so the four don't fight each other on load. */}
               <div className={`w-full ${a.ratio} bg-[#F8F5EE] rounded-xl overflow-hidden border border-[#E5E5E5]/60 mb-4`}>
                 <img
                   src={a.href}
@@ -155,9 +159,51 @@ export default async function MarketingPage() {
             </Card>
           ))}
         </div>
+
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <ExternalLink className="w-5 h-5 text-blue-600 shrink-0" />
+            <p className="text-sm text-blue-900">
+              <strong>Edit on Canva.</strong> Use the official festival template to add your own photos, change colours, and create custom designs.
+            </p>
+          </div>
+          <a
+            href="https://www.canva.com/design/DAFoE4uQ4Lw/view"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-full px-4 py-2 transition-colors"
+          >
+            <ExternalLink className="w-4 h-4" /> Open Canva template
+          </a>
+        </div>
       </section>
 
-      {/* Section 2: shared festival brand pack */}
+      {/* Section 2: Social media banners */}
+      <section className="mb-12">
+        <div className="flex items-center gap-2 mb-4">
+          <ImageIcon className="w-4 h-4 text-[#cd2653]" />
+          <h2 className="font-serif text-2xl text-[#1B1A17]">Social media banners</h2>
+        </div>
+        <p className="text-sm text-[#1B1A17]/60 mb-6 max-w-2xl">
+          Ready sized banners for your profile and cover images. These are pre-rendered with the festival branding.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {SOCIAL_BANNERS.map((b) => (
+            <Card key={b.label} className="flex flex-col items-center gap-3 py-6">
+              <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">{b.dims}</span>
+              <h3 className="font-semibold text-[#1B1A17]">{b.label}</h3>
+              <a
+                href={`/api/exhibitor/portal/marketing/fb-post/png`}
+                download={b.file}
+                className="inline-flex items-center gap-2 text-xs font-medium text-[#cd2653] hover:underline"
+              >
+                <Download className="w-3 h-3" /> Download
+              </a>
+            </Card>
+          ))}
+        </div>
+      </section>
+
       <section>
         <div className="flex items-center gap-2 mb-4">
           <Palette className="w-4 h-4 text-[#cd2653]" />
@@ -168,7 +214,6 @@ export default async function MarketingPage() {
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-          {/* Logos card */}
           <Card>
             <div className="flex items-center gap-2 mb-3">
               <ImageIcon className="w-4 h-4 text-[#cd2653]" />
@@ -195,36 +240,27 @@ export default async function MarketingPage() {
             </div>
           </Card>
 
-          {/* Colours card */}
+          {/* Brand guidelines card */}
           <Card>
             <div className="flex items-center gap-2 mb-3">
-              <Palette className="w-4 h-4 text-[#cd2653]" />
-              <h3 className="font-semibold text-[#1B1A17]">Brand colours</h3>
+              <FileDown className="w-4 h-4 text-[#cd2653]" />
+              <h3 className="font-semibold text-[#1B1A17]">Brand guidelines</h3>
             </div>
-            <ul className="space-y-3">
-              {BRAND_COLORS.map((c) => (
-                <li key={c.hex} className="flex items-center gap-3">
-                  <span
-                    className="w-12 h-12 rounded-lg border border-[#E5E5E5] shrink-0"
-                    style={{ background: c.hex }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-sm text-[#1B1A17]">{c.name}</span>
-                      <code className="font-mono text-xs text-[#1B1A17]/80 bg-[#F8F5EE] px-2 py-0.5 rounded">{c.hex}</code>
-                    </div>
-                    <p className="text-[11px] text-[#1B1A17]/55 mt-0.5">{c.subtle}</p>
-                  </div>
+            <ul className="space-y-2.5">
+              {BRAND_GUIDELINES.map((g) => (
+                <li key={g.rule} className="text-sm">
+                  <span className="text-[#cd2653] font-medium">• </span>
+                  <span className="text-[#1B1A17]">{g.rule}</span>
+                  <p className="text-[11px] text-[#1B1A17]/55 mt-0.5 ml-3">{g.detail}</p>
                 </li>
               ))}
             </ul>
           </Card>
 
-          {/* Hashtags + caption card */}
           <Card>
             <div className="flex items-center gap-2 mb-3">
               <Hash className="w-4 h-4 text-[#cd2653]" />
-              <h3 className="font-semibold text-[#1B1A17]">Hashtags and caption</h3>
+              <h3 className="font-semibold text-[#1B1A17]">Hashtags and captions</h3>
             </div>
             <div className="flex flex-wrap gap-1.5 mb-4">
               {HASHTAGS.map((h) => (
@@ -233,14 +269,17 @@ export default async function MarketingPage() {
                 </code>
               ))}
             </div>
-            <p className="text-xs text-[#1B1A17]/55 uppercase tracking-[0.16em] font-semibold mb-1">Suggested caption</p>
-            <p className="text-sm text-[#1B1A17]/80 leading-relaxed">
-              {SUGGESTED_CAPTION}
-            </p>
+            <div className="space-y-3 max-h-60 overflow-y-auto">
+              {SUGGESTED_CAPTIONS.map((s) => (
+                <div key={s.platform}>
+                  <p className="text-[10px] text-[#1B1A17]/55 uppercase tracking-[0.16em] font-semibold mb-0.5">{s.platform}</p>
+                  <p className="text-xs text-[#1B1A17]/80 leading-relaxed">{s.caption}</p>
+                </div>
+              ))}
+            </div>
           </Card>
         </div>
 
-        {/* Hero photos */}
         <Card>
           <div className="flex items-center gap-2 mb-3">
             <ImageIcon className="w-4 h-4 text-[#cd2653]" />

@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, ArrowUpRight, Calendar, Mail, Phone, X, TrendingUp } from 'lucide-react'
+import { Loader2, ArrowUpRight, Calendar, Mail, Phone, X, TrendingUp, ExternalLink } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid
 } from 'recharts'
+import { AdminPage } from '@/components/admin/AdminPage'
 import {
-  PageShell, PageHeader, Card, StatCard, Tabs, ButtonPrimary,
+  Card, StatCard, Tabs, ButtonPrimary,
 } from '@/components/chrome/PageChrome'
 
 interface Order {
@@ -119,22 +120,18 @@ export default function TicketsPage() {
 
   if (loading) {
     return (
-      <PageShell>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-[#E5E5E5]/60" />
-        </div>
-      </PageShell>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-neutral-300" />
+      </div>
     )
   }
 
   if (!data) {
     return (
-      <PageShell>
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-          <p className="text-[#1B1A17]/55">{error || 'Failed to load ticket data.'}</p>
-          <ButtonPrimary onClick={load}>Retry</ButtonPrimary>
-        </div>
-      </PageShell>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-neutral-500">{error || 'Failed to load ticket data.'}</p>
+        <ButtonPrimary onClick={load}>Retry</ButtonPrimary>
+      </div>
     )
   }
 
@@ -160,23 +157,19 @@ export default function TicketsPage() {
     activeTab === 'failed' ? (data.failedOrders || []) :
     (data.pendingOrders || [])
 
+  const wcAction = (
+    <a
+      href="https://tickets.youngatheart.co.za/wp-admin/edit.php?post_type=shop_order"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 bg-white border border-neutral-200 hover:border-[#cd2653]/50 text-neutral-900 font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+    >
+      WooCommerce <ExternalLink className="w-3.5 h-3.5" />
+    </a>
+  )
+
   return (
-    <PageShell>
-      <PageHeader
-        kicker="Tickets"
-        title="Ticket Sales"
-        subtitle="Live from tickets.youngatheart.co.za"
-        actions={
-          <a
-            href="https://tickets.youngatheart.co.za/wp-admin/edit.php?post_type=shop_order"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-[#FFFFFF] border border-[#E5E5E5]/40 hover:border-[#cd2653]/50 text-[#1B1A17] font-semibold rounded-full px-5 py-2.5 text-sm transition-colors"
-          >
-            WooCommerce <ArrowUpRight className="w-3.5 h-3.5" />
-          </a>
-        }
-      />
+    <AdminPage title="Ticket Sales" caption="Tickets" subtitle="Live from tickets.youngatheart.co.za" actions={wcAction}>
 
       <div className="space-y-6">
         {/* Stats row */}
@@ -358,6 +351,6 @@ export default function TicketsPage() {
           </div>
         </div>
       )}
-    </PageShell>
+    </AdminPage>
   )
 }

@@ -109,6 +109,22 @@ export interface PortalState {
   }
   /** ISO timestamp the vendor ticked the terms-and-conditions acceptance step in the portal. */
   terms_accepted_at?: string
+  /** Quick admin notes with timestamps (Agent 7). */
+  quickNotes?: Array<{
+    id: string
+    text: string
+    created_at: string
+    author: string | null
+  }>
+  /** Stall change request submitted by vendor (Agent 12). */
+  stallChangeRequest?: {
+    requestedTier: string
+    currentTier: string
+    reason: string
+    status: 'pending' | 'approved' | 'rejected'
+    createdAt: string
+    adminNote?: string
+  }
 }
 
 export interface SupportMessage {

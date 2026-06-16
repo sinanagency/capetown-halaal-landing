@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Loader2, Layers, Search } from 'lucide-react'
+import { AdminPage } from '@/components/admin/AdminPage'
 import { QueueList } from '@/components/admin/applications/QueueList'
 import { PreviewPane } from '@/components/admin/applications/PreviewPane'
 import { ShortcutsOverlay } from '@/components/admin/applications/ShortcutsOverlay'
@@ -434,6 +435,7 @@ export default function ApplicationsWorkbenchPage() {
   const selectedCount = selectedIds.size
 
   return (
+    <AdminPage title="Applications" caption="OPERATIONS">
     <div className="flex flex-col h-dvh overflow-hidden bg-neutral-50">
       {/* Top bar */}
       <header className="flex items-center gap-3 px-5 py-2.5 border-b border-neutral-200 bg-white">
@@ -633,5 +635,6 @@ export default function ApplicationsWorkbenchPage() {
         }
       `}</style>
     </div>
+    </AdminPage>
   )
 }

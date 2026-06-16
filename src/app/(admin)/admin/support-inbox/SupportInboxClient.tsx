@@ -76,6 +76,8 @@ interface TicketHit { email: string; name: string | null; phone: string | null }
 
 const ALL_TAGS: Tag[] = ['payment', 'load-in', 'badges', 'contract', 'refund', 'general']
 
+const EMAIL_SIGNATURE = `\n\n--\nYoung at Heart Festival 2026\nCape Town Halaal\nsupport@youngatheart.co.za | cthalaal.co.za`
+
 // Some legacy inbound rows have the FULL RFC822 source in body_text instead
 // of the parsed body (mailparser fallback path before the cron started
 // stripping headers). Detect that shape and drop everything up to the first
@@ -256,10 +258,11 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
     if (!active || !reply.trim()) return
     setSending(true)
     try {
+      const bodyWithSig = reply + EMAIL_SIGNATURE
       const res = await fetch(`/api/admin/support-inbox/${active.id}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: reply }),
+        body: JSON.stringify({ body: bodyWithSig }),
       })
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
@@ -491,7 +494,15 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
               Inner panes scroll independently via overflow-y-auto. */}
           <div className={`grid ${threadsCollapsed ? 'lg:grid-cols-[0px_1fr]' : 'lg:grid-cols-[360px_1fr]'} grid-rows-[minmax(0,1fr)] flex-1 min-h-0`}>
             {/* Thread list — collapsible via threadsCollapsed state */}
-            <div className={`border-r border-neutral-200 flex flex-col min-h-0 overflow-hidden transition-all duration-200 ${threadsCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
+            <div className={`relative border-r border-neutral-200 flex flex-col min-h-0 overflow-hidden transition-all duration-200 ${threadsCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
+              {/* Collapse tab at left edge of thread list */}
+              <button
+                onClick={() => setThreadsCollapsed(true)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white border border-neutral-200 rounded-l-md px-1 py-3 shadow-sm text-neutral-400 hover:text-[#cd2653] hover:border-[#cd2653]/30 transition-colors"
+                title="Hide thread list"
+              >
+                <PanelRightClose className="w-4 h-4" />
+              </button>
               <div className="p-3 border-b border-neutral-200">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
@@ -539,16 +550,6 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
 
             {/* Thread view */}
             <div className="flex flex-col min-h-0 h-full relative">
-              {/* Peek reopen tab when threads are collapsed */}
-              {threadsCollapsed && (
-                <button
-                  onClick={() => setThreadsCollapsed(false)}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white border border-neutral-200 rounded-r-lg px-1 py-3 shadow-sm text-neutral-400 hover:text-[#cd2653] hover:border-[#cd2653]/30 transition-colors"
-                  title="Show thread list"
-                >
-                  <PanelRightClose className="w-4 h-4 rotate-180" />
-                </button>
-              )}
               {!active ? (
                 <div className="flex-1 flex items-center justify-center text-sm text-neutral-400">
                   Select a thread on the left.
@@ -570,24 +571,16 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                           <Pill tone="brand">snoozed {fmt(active.snoozed_until)}</Pill>
                         )}
                         {active.status === 'resolved' && <Pill tone="success">resolved</Pill>}
-                        <button
-                          onClick={() => setThreadsCollapsed((c) => !c)}
-                          className="ml-1 text-neutral-400 hover:text-[#cd2653] transition-colors p-1 rounded-md hover:bg-neutral-100"
-                          title={threadsCollapsed ? 'Show thread list' : 'Hide thread list'}
-                        >
-                          <PanelRightClose className="w-4 h-4" />
-                        </button>
                       </div>
                     </div>
 
-                    {/* Tool row */}
-                    <div className="flex flex-wrap gap-2 items-center">
-                      {/* Assign */}
+                    {/* Tool row — single 48px bar */}
+                    <div className="flex items-center gap-1.5 min-h-[48px]">
                       <select
                         value={active.assignee_id || ''}
                         onChange={(e) => act('assign', { assigneeId: e.target.value || null })}
                         disabled={actionBusy === 'assign'}
-                        className="text-xs rounded-full border border-neutral-200 bg-white px-3 py-1.5 outline-none focus:border-[#cd2653]"
+                        className="h-8 text-xs rounded-md border border-neutral-200 bg-white px-2 outline-none focus:border-[#cd2653]"
                       >
                         <option value="">Unassigned</option>
                         {operators.map((op) => (
@@ -597,79 +590,66 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                         ))}
                       </select>
 
-                      {/* Tag */}
                       <select
                         value={active.tag || ''}
                         onChange={(e) => act('tag', { tag: e.target.value || null })}
                         disabled={actionBusy === 'tag'}
-                        className="text-xs rounded-full border border-neutral-200 bg-white px-3 py-1.5 outline-none focus:border-[#cd2653]"
+                        className="h-8 text-xs rounded-md border border-neutral-200 bg-white px-2 outline-none focus:border-[#cd2653]"
                       >
-                        <option value="">No tag</option>
+                        <option value="">Tag</option>
                         {ALL_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
 
-                      {/* Snooze */}
                       <div className="flex items-center gap-0.5">
                         <button
                           onClick={() => act('snooze', { snoozeHours: 4 })}
-                          disabled={actionBusy === 'snooze'}
-                          className="text-xs font-medium px-3 py-1.5 rounded-l-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                          className="h-7 text-[11px] font-medium px-2 rounded-l-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
                         >
-                          {actionBusy === 'snooze' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />} 4h
+                          <Clock className="w-3 h-3" /> 4h
                         </button>
                         <button
                           onClick={() => act('snooze', { snoozeHours: 24 })}
-                          className="text-xs font-medium px-2.5 py-1.5 border-y border-neutral-200 bg-white hover:border-[#cd2653]/40"
+                          className="h-7 text-[11px] font-medium px-1.5 border-y border-neutral-200 bg-white hover:border-[#cd2653]/40"
                         >1d</button>
                         <button
                           onClick={() => act('snooze', { snoozeHours: 0 })}
-                          className="text-xs font-medium px-2.5 py-1.5 rounded-r-full border border-neutral-200 bg-white hover:border-[#cd2653]/40"
+                          className="h-7 text-[11px] font-medium px-1.5 rounded-r-md border border-neutral-200 bg-white hover:border-[#cd2653]/40"
                         >AM</button>
                       </div>
 
-                      {/* Resolve / reopen */}
                       {active.status !== 'resolved' ? (
                         <button
                           onClick={() => act('resolve')}
-                          disabled={actionBusy === 'resolve'}
-                          className="text-xs font-medium px-3 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-400 flex items-center gap-1"
+                          className="h-7 text-[11px] font-medium px-2.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-400 flex items-center gap-1"
                         >
-                          {actionBusy === 'resolve' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                          <CheckCircle2 className="w-3 h-3" />
                           Resolve
                         </button>
                       ) : (
                         <button
                           onClick={() => act('reopen')}
-                          disabled={actionBusy === 'reopen'}
-                          className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                          className="h-7 text-[11px] font-medium px-2.5 rounded-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
                         >
-                          {actionBusy === 'reopen' ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                          <RotateCcw className="w-3 h-3" />
                           Reopen
                         </button>
                       )}
 
-                      {/* Assign to me shortcut */}
-                      <button
-                        onClick={() => act('assign', { assigneeId: currentUserId })}
-                        disabled={actionBusy === 'assign' || active.assignee_id === currentUserId}
-                        className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 disabled:opacity-50 flex items-center gap-1"
-                      >
-                        <UserCheck className="w-3 h-3" /> Assign to me
-                      </button>
-
-                      {/* Link to vendor / ticket */}
                       <button
                         onClick={() => { setLinkPicker('vendor'); setLinkQuery('') }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                        className="h-7 text-[11px] font-medium px-2.5 rounded-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
                       >
-                        <Link2 className="w-3 h-3" /> {active.vendor_application_id ? 'Linked vendor' : 'Link vendor'}
+                        <Link2 className="w-3 h-3" /> {active.vendor_application_id ? 'Vendor' : 'Link'}
                       </button>
-                      <button
-                        onClick={() => { setLinkPicker('ticket'); setLinkQuery('') }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
-                      >
-                        <Link2 className="w-3 h-3" /> {active.ticket_buyer_id ? 'Linked ticket' : 'Link ticket'}
-                      </button>
+
+                      <div className="relative ml-auto">
+                        <button
+                          onClick={() => setThreadsCollapsed((c) => !c)}
+                          className="h-7 text-[11px] font-medium px-2 rounded-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                        >
+                          <PanelRightClose className={`w-3 h-3 transition-transform ${threadsCollapsed ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Link picker (inline) */}
@@ -810,7 +790,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                       </ButtonPrimary>
                     </form>
                     <p className="px-4 pb-3 text-[11px] text-neutral-500 flex items-center gap-1.5">
-                      <AlertCircle className="w-3 h-3" /> Sends from support@youngatheart.co.za via Resend. Lands in their inbox.
+                      <AlertCircle className="w-3 h-3" /> Sends from support@youngatheart.co.za via Resend with festival signature. Lands in their inbox.
                     </p>
                   </div>
                 </>

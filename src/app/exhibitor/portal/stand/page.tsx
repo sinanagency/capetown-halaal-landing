@@ -1,4 +1,5 @@
-import { Info } from 'lucide-react'
+import { Info, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
 import StandView from '@/components/exhibitor/StandView'
 import { requirePaid } from '@/lib/exhibitor-paygate'
 import { getExhibitorContext } from '@/lib/exhibitor'
@@ -38,6 +39,15 @@ export default async function MyStand() {
         </div>
 
         <PublishStallToggle initialPublish={initialPublish} hasStall={hasStall} />
+
+        <div className="flex justify-center pt-2">
+          <Link
+            href="/exhibitor/portal/stand/change"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#cd2653] hover:text-[#b01f45] transition-colors"
+          >
+            Request a stall change <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
       </div>
     </div>
   )
