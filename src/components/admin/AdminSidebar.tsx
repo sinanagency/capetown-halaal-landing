@@ -215,8 +215,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         >
           <X className="w-5 h-5" />
         </button>
-        {/* Sidebar collapse toggle — top-right when expanded, pinned to nav
-            bottom when collapsed so it never floats awkwardly. */}
+        {/* Sidebar collapse toggle — top-right when expanded. */}
         {!collapsed && (
           <button
             type="button"
@@ -299,21 +298,23 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         </div>}
       </nav>
 
-      {/* Collapsed expand button — sits between nav and Back to Site so it
-          is always visible and doesn't fight the logo space. */}
-      {collapsed && (
-        <div className="px-2 pb-2">
-          <button
-            type="button"
-            onClick={() => setCollapsed(false)}
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
-            className="flex items-center justify-center w-full py-2 rounded-lg text-neutral-400 hover:text-[#cd2653] hover:bg-neutral-100 transition-colors"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+      {/* Sidebar collapse toggle — dedicated row between nav and account
+          section. Always in the same position regardless of state. */}
+      <div className={cn('border-t border-neutral-200', collapsed ? 'px-2 py-2' : 'px-3 py-2')}>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={cn(
+            'flex items-center rounded-lg text-sm font-medium text-neutral-500 hover:text-[#cd2653] hover:bg-neutral-100 w-full transition-colors min-h-[36px]',
+            collapsed ? 'justify-center px-2' : 'gap-2 px-3'
+          )}
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          {!collapsed && <span className="text-xs">Collapse sidebar</span>}
+        </button>
+      </div>
 
       {/* Back to Site */}
       {!collapsed && <div className="px-3 pb-2">
