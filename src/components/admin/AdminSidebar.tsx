@@ -215,19 +215,19 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         >
           <X className="w-5 h-5" />
         </button>
-        {/* Sidebar collapse toggle — always visible in the logo row */}
-        <button
-          type="button"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className={cn(
-            'hidden lg:flex items-center justify-center rounded-lg text-neutral-400 hover:text-[#cd2653] hover:bg-neutral-100 transition-colors absolute',
-            collapsed ? 'top-1/2 -right-3 -translate-y-1/2 bg-white border border-neutral-200 shadow-sm w-6 h-6 rounded-full' : 'top-3 right-3 p-1.5'
-          )}
-        >
-          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <PanelLeftClose className="w-4 h-4" />}
-        </button>
+        {/* Sidebar collapse toggle — top-right when expanded, pinned to nav
+            bottom when collapsed so it never floats awkwardly. */}
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            className="hidden lg:flex absolute top-3 right-3 p-1.5 rounded-lg text-neutral-400 hover:text-[#cd2653] hover:bg-neutral-100 transition-colors"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -298,6 +298,22 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
           </a>
         </div>}
       </nav>
+
+      {/* Collapsed expand button — sits between nav and Back to Site so it
+          is always visible and doesn't fight the logo space. */}
+      {collapsed && (
+        <div className="px-2 pb-2">
+          <button
+            type="button"
+            onClick={() => setCollapsed(false)}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+            className="flex items-center justify-center w-full py-2 rounded-lg text-neutral-400 hover:text-[#cd2653] hover:bg-neutral-100 transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Back to Site */}
       {!collapsed && <div className="px-3 pb-2">

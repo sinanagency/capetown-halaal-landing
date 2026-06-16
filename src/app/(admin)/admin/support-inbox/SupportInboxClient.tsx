@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Loader2, Send, Search, Tag, UserCheck, Clock, CheckCircle2, RotateCcw,
-  Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck, PanelRightClose,
+  Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck, PanelRightClose, Users,
 } from 'lucide-react'
 import { PageHeader, Card, Pill, ButtonPrimary, Empty } from '@/components/chrome/PageChrome'
 import { sanitizeEmailHtml } from '@/lib/sanitize'
@@ -139,6 +139,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   const [tagFilter, setTagFilter] = useState<Tag | null>(null)
   const [search, setSearch] = useState('')
   const [threadsCollapsed, setThreadsCollapsed] = useState(false)
+  const [identityFilter, setIdentityFilter] = useState<'all' | 'vendor' | 'ticket' | 'unknown'>('all')
   const [activeId, setActiveId] = useState<string | null>(null)
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
@@ -230,15 +231,24 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
 
   const active = useMemo(() => threads.find((t) => t.id === activeId) || null, [threads, activeId])
   const filtered = useMemo(() => {
+    let result = threads
+    // Identity filter
+    if (identityFilter !== 'all') {
+      result = result.filter((t) => {
+        if (identityFilter === 'vendor') return !!t.vendor_application_id
+        if (identityFilter === 'ticket') return !!t.ticket_buyer_id
+        return !t.vendor_application_id && !t.ticket_buyer_id
+      })
+    }
     const q = search.trim().toLowerCase()
-    if (!q) return threads
-    return threads.filter((t) =>
+    if (!q) return result
+    return result.filter((t) =>
       t.peer_email.toLowerCase().includes(q) ||
       (t.peer_name || '').toLowerCase().includes(q) ||
       (t.subject || '').toLowerCase().includes(q) ||
       t.messages.some((m) => (m.body_text || '').toLowerCase().includes(q))
     )
-  }, [threads, search])
+  }, [threads, search, identityFilter])
 
   const totalUnread = threads.reduce((s, t) => s + (t.unread_count || 0), 0)
 
@@ -385,6 +395,25 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
             ))}
           </div>
         )}
+
+        {tab !== 'sent' && (
+          <div className="flex gap-1 items-center">
+            <Users className="w-3.5 h-3.5 text-neutral-400" />
+            {(['all', 'vendor', 'ticket', 'unknown'] as const).map((id) => (
+              <button
+                key={id}
+                onClick={() => setIdentityFilter(id === identityFilter ? 'all' : id)}
+                className={`text-[11px] font-medium px-2 py-1 rounded-full border ${
+                  identityFilter === id
+                    ? 'bg-neutral-900 text-white border-neutral-900'
+                    : 'bg-white border-neutral-200 text-neutral-600 hover:border-neutral-400'
+                }`}
+              >
+                {id === 'vendor' ? 'Vendors' : id === 'ticket' ? 'Ticket buyers' : id === 'unknown' ? 'Unknown' : 'All'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {tab === 'sent' ? (
@@ -509,7 +538,17 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
             </div>
 
             {/* Thread view */}
-            <div className="flex flex-col min-h-0 h-full">
+            <div className="flex flex-col min-h-0 h-full relative">
+              {/* Peek reopen tab when threads are collapsed */}
+              {threadsCollapsed && (
+                <button
+                  onClick={() => setThreadsCollapsed(false)}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white border border-neutral-200 rounded-r-lg px-1 py-3 shadow-sm text-neutral-400 hover:text-[#cd2653] hover:border-[#cd2653]/30 transition-colors"
+                  title="Show thread list"
+                >
+                  <PanelRightClose className="w-4 h-4 rotate-180" />
+                </button>
+              )}
               {!active ? (
                 <div className="flex-1 flex items-center justify-center text-sm text-neutral-400">
                   Select a thread on the left.
