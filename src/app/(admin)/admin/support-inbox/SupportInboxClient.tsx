@@ -87,7 +87,25 @@ function stripRfc822Headers(body: string | null): string {
   const looksLikeRfc822 = /^(Return-Path|Received|From|To|Subject|Message-ID|X-[A-Za-z-]+):/m.test(head)
   if (!looksLikeRfc822) return body
   const splitIdx = body.search(/\r?\n\r?\n/)
-  return splitIdx >= 0 ? body.slice(splitIdx + 2).trim() : body
+  if (splitIdx < 0) return body
+  const tail = body.slice(splitIdx + 2).trim()
+  if (!tail) return ''
+
+  // Some HTML-only emails (Content-Transfer-Encoding: base64, no text/plain
+  // alternative) leave the raw base64 blob in the tail. Detect by checking
+  // if the tail looks like base64 (alphanumeric + / + + + =) and decode it.
+  if (tail.length > 20) {
+    const sample = tail.replace(/\s/g, '').slice(0, 200)
+    if (/^[A-Za-z0-9+/=]+$/.test(sample)) {
+      try {
+        const decoded = atob(tail.replace(/\s/g, ''))
+        // Strip HTML tags since this was originally text/html
+        return decoded.replace(/<[^>]*>/g, '').trim().slice(0, 4000) || decoded.slice(0, 4000)
+      } catch { /* not valid base64, fall through */ }
+    }
+  }
+
+  return tail
 }
 
 function fmt(ts: string | null): string {
