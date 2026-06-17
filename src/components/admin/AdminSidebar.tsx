@@ -337,8 +337,10 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
         {!collapsed && (
           <button
             onClick={() => {
-              const ev = new CustomEvent('cth:open-tour')
-              window.dispatchEvent(ev)
+              try {
+                window.localStorage.setItem('admin.tour_state', JSON.stringify({ step: 0, active: true }))
+                window.location.reload()
+              } catch { /* ignore */ }
             }}
             className="flex items-center gap-3 px-3 py-2 w-full rounded-lg text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-700 transition-colors min-h-[36px]"
           >
@@ -399,6 +401,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
               component owned by a sibling agent. */}
           <button
             type="button"
+            data-cmdk-trigger="true"
             onClick={() => {
               const ev = new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true })
               document.dispatchEvent(ev)

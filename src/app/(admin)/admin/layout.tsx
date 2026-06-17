@@ -2,16 +2,13 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getRole } from '@/lib/admin-rbac'
+import type { AdminRole } from '@/lib/admin-rbac'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 import { CommandK } from '@/components/admin/CommandK'
-import { AdminTour } from '@/components/admin/AdminTour'
-import type { AdminRole } from '@/lib/admin-rbac'
+import { InteractiveTour } from '@/components/admin/InteractiveTour'
 
 export const dynamic = 'force-dynamic'
 
-// Public sub-routes that should NOT be gated by the admin layout (login page
-// itself, password reset, etc). Anything not in this list falls into the
-// auth + role check below.
 const PUBLIC_ADMIN_PATHS = new Set<string>([
   '/admin/login',
 ])
@@ -36,10 +33,6 @@ export default async function AdminLayout({
     console.error('Admin layout auth error:', e)
   }
 
-  // H8 (Pentest F5): defense-in-depth gate at the layout. Public admin paths
-  // (login) skip the check; everything else without a role redirects to
-  // /admin/login. Child pages keep their own checks so middleware bypass +
-  // layout bypass would still require defeating two layers.
   if (!role) {
     const h = await headers()
     const pathname = h.get('x-pathname') || ''
@@ -64,7 +57,7 @@ export default async function AdminLayout({
         {children}
       </main>
       <CommandK />
-      <AdminTour />
+      <InteractiveTour email={email} />
     </div>
   )
 }
