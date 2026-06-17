@@ -238,6 +238,7 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
               {filtered.map((r) => (
                 <tr
                   key={r.id}
+                  data-testid="vendor-card"
                   className="border-b border-neutral-100 last:border-b-0 hover:bg-neutral-50/60"
                 >
                   <td className="pl-4 pr-2 py-3">

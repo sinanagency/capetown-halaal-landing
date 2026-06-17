@@ -390,6 +390,7 @@ export default function FloorCommand({
       {/* MAIN */}
       <main style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div
+          data-testid="floor-map"
           style={{
             flex: 1, overflow: 'auto', padding: 24,
             background: `radial-gradient(900px 360px at 70% -5%, #fef7f5 0%, transparent 60%), ${C.ink}`,

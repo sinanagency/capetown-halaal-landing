@@ -120,6 +120,7 @@ export function QueueList({
         return (
           <div
             key={r.id}
+            data-testid="application-row"
             data-row-id={r.id}
             role="option"
             aria-selected={isFocused}
