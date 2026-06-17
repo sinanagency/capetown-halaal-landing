@@ -8,7 +8,7 @@ import {
   ChevronDown, MessageCircle, Settings, Map as MapIcon,
   BadgePercent, Receipt, FileText,
 } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 interface DropdownItem {
   href: string
@@ -21,7 +21,6 @@ interface NavGroup {
   label: string
   icon: typeof LayoutGrid
   dropdown?: DropdownItem[]
-  iconOnly?: boolean
 }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -34,22 +33,20 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck,
+    href: '/exhibitor/portal/documents', label: 'Tools', icon: Sparkles,
     dropdown: [
-      { href: '/exhibitor/portal/documents', label: 'All Documents', icon: FileText },
-      { href: '/exhibitor/portal/invoice', label: 'Invoices', icon: Receipt },
-      { href: '/exhibitor/portal/documents', label: 'Badges', icon: BadgePercent },
+      { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileText },
+      { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
+      { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
     ],
   },
-  { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
-  { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
   {
     href: '/exhibitor/portal/support', label: 'Support', icon: MessageCircle,
     dropdown: [
       { href: '/exhibitor/portal/support', label: 'Inbox', icon: MessageCircle },
+      { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
     ],
   },
-  { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
 ]
 
 const ACCOUNT: DropdownItem[] = [
@@ -83,12 +80,27 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const barRef = useRef<HTMLDivElement>(null)
   const cleanName = businessName.replace(/^DEMO\s*·?\s*/i, '')
 
   useClickOutside(menuRef, () => setMenuOpen(false))
 
-  const closeDropdowns = () => setOpenDropdown(null)
-  const toggleDropdown = (label: string) => setOpenDropdown((prev) => (prev === label ? null : label))
+  // Close dropdown when clicking outside the nav bar
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (barRef.current && !barRef.current.contains(e.target as Node)) {
+        setOpenDropdown(null)
+      }
+    }
+    if (openDropdown) {
+      document.addEventListener('mousedown', onDoc)
+      return () => document.removeEventListener('mousedown', onDoc)
+    }
+  }, [openDropdown])
+
+  const toggleDropdown = useCallback((label: string) => {
+    setOpenDropdown((prev) => (prev === label ? null : label))
+  }, [])
 
   useEffect(() => {
     const lastViewed = localStorage.getItem('announcements-last-viewed')
@@ -111,15 +123,10 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
     return pathname.startsWith(href)
   }
 
-  function hasActiveDropdown(group: NavGroup) {
-    if (!group.dropdown) return false
-    return group.dropdown.some((d) => pathname.startsWith(d.href))
-  }
-
   return (
-    <div className="sticky top-0 z-50 bg-[#fbfafa]/85 backdrop-blur-md" onClick={closeDropdowns}>
+    <div className="sticky top-0 z-50 bg-[#fbfafa]/85 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-4 min-h-[72px] py-2.5">
+        <div ref={barRef} className="relative flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-4 min-h-[72px] py-2.5">
           <a href="/exhibitor/portal" className="flex items-center gap-3 min-h-[3.5rem] shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
             <img
               src="/logo.png"
@@ -132,40 +139,26 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             </span>
           </a>
 
-          <nav className="flex items-center gap-2 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* Nav buttons with horizontal scroll */}
+          <div className="flex items-center gap-2 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV_GROUPS.map((g) => {
-              const active = isActive(g.href) || hasActiveDropdown(g)
+              const active = isActive(g.href)
               const Icon = g.icon
               const ddOpen = openDropdown === g.label
               const showDot = (inboxUnread || hasUnreadAnnouncements) && (g.href === '/exhibitor/portal/support' || g.href === '/exhibitor/portal')
 
               if (g.dropdown) {
                 return (
-                  <div key={g.label} className="relative" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleDropdown(g.label) }}
-                      className={`relative flex items-center gap-1.5 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}
-                    >
-                      <Icon className="w-4 h-4" />{g.label}<ChevronDown className={`w-3.5 h-3.5 transition-transform ${ddOpen ? 'rotate-180' : ''}`} />
-                      {showDot && (
-                        <span aria-label="unread" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />
-                      )}
-                    </button>
-                    {ddOpen && (
-                      <div className="absolute left-0 mt-2 w-56 bg-white border border-neutral-200 rounded-2xl shadow-xl p-1.5 z-50">
-                        {g.dropdown.map((d) => {
-                          const dActive = pathname === d.href
-                          const DIcon = d.icon
-                          return (
-                            <a key={d.href} href={d.href} onClick={() => setOpenDropdown(null)}
-                              className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm ${dActive ? 'text-[#cd2653] bg-[#cd2653]/5 font-medium' : 'text-neutral-700 hover:bg-neutral-50'}`}>
-                              <DIcon className="w-4 h-4" />{d.label}
-                            </a>
-                          )
-                        })}
-                      </div>
+                  <button
+                    key={g.label}
+                    onClick={(e) => { e.stopPropagation(); toggleDropdown(g.label) }}
+                    className={`relative flex items-center gap-1.5 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active || ddOpen ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}
+                  >
+                    <Icon className="w-4 h-4" />{g.label}<ChevronDown className={`w-3.5 h-3.5 transition-transform ${ddOpen ? 'rotate-180' : ''}`} />
+                    {showDot && (
+                      <span aria-label="unread" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />
                     )}
-                  </div>
+                  </button>
                 )
               }
 
@@ -179,10 +172,11 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
                 </a>
               )
             })}
-          </nav>
+          </div>
 
+          {/* Avatar menu */}
           <div className="relative shrink-0" ref={menuRef}>
-            <button onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o) }}
+            <button onClick={() => setMenuOpen((o) => !o)}
               aria-label="Account menu"
               aria-expanded={menuOpen}
               className="w-9 h-9 rounded-full bg-[#cd2653] text-white text-sm font-bold flex items-center justify-center hover:opacity-90 ring-1 ring-transparent hover:ring-[#cd2653]/30 transition-all">
@@ -212,6 +206,30 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             )}
           </div>
         </div>
+
+        {/* Dropdowns rendered OUTSIDE the overflow container, at bar level */}
+        {NAV_GROUPS.filter(g => g.dropdown).map((g) => {
+          if (openDropdown !== g.label || !g.dropdown) return null
+          return (
+            <div
+              key={g.label}
+              className="relative flex justify-center"
+            >
+              <div className="absolute mt-1 w-56 bg-white border border-neutral-200 rounded-2xl shadow-xl p-1.5 z-50">
+                {g.dropdown.map((d) => {
+                  const dActive = pathname === d.href
+                  const DIcon = d.icon
+                  return (
+                    <a key={d.href} href={d.href} onClick={() => setOpenDropdown(null)}
+                      className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm ${dActive ? 'text-[#cd2653] bg-[#cd2653]/5 font-medium' : 'text-neutral-700 hover:bg-neutral-50'}`}>
+                      <DIcon className="w-4 h-4" />{d.label}
+                    </a>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
