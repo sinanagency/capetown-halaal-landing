@@ -78,6 +78,7 @@ const payload = {
   ...(offset ? { offset: Number(offset) } : {}),
   ...(limit ? { limit: Number(limit) } : {}),
   ...(Array.isArray(spec.excludeEmails) && spec.excludeEmails.length ? { excludeEmails: spec.excludeEmails } : {}),
+  ...(spec.markNote ? { markNote: spec.markNote } : {}),
 }
 
 console.log(`\n→ ${dryRun ? 'DRY RUN' : 'SENDING'}  ·  audience=${audience}  ·  ${base}`)

@@ -33,7 +33,9 @@ const firstName = (n?: string | null) => {
   return f ? f.charAt(0).toUpperCase() + f.slice(1) : 'there'
 }
 
-async function getRecipients(audience: Audience, testTo: string[]): Promise<{ email: string; name: string }[]> {
+type Recipient = { email: string; name: string; id?: string; notes?: string }
+
+async function getRecipients(audience: Audience, testTo: string[]): Promise<Recipient[]> {
   const admin = createAdminClient()
   if (audience === 'test') return testTo.map((e) => ({ email: e, name: 'there' }))
 
@@ -42,22 +44,23 @@ async function getRecipients(audience: Audience, testTo: string[]): Promise<{ em
     return (data || []).map((r) => ({ email: r.email, name: firstName(r.name) }))
   }
 
-  let q = admin.from('vendor_applications').select('email, contact_name').order('email', { ascending: true })
+  // Vendor audiences carry id + admin_notes so a campaign can durably mark who it reached.
+  let q = admin.from('vendor_applications').select('id, email, contact_name, admin_notes').order('email', { ascending: true })
   if (audience === 'vendors_pending') q = q.in('status', ['pending', 'info_requested'])
   else if (audience === 'vendors_approved') q = q.eq('status', 'approved')
   const { data } = await q
-  return (data || []).map((r) => ({ email: r.email, name: firstName(r.contact_name) }))
+  return (data || []).map((r) => ({ id: r.id, email: r.email, name: firstName(r.contact_name), notes: r.admin_notes || '' }))
 }
 
 /** Dedupe by lowercased email, drop invalids. */
-function clean(list: { email: string; name: string }[]) {
+function clean(list: Recipient[]) {
   const seen = new Set<string>()
-  const out: { email: string; name: string }[] = []
+  const out: Recipient[] = []
   for (const r of list) {
     const e = (r.email || '').trim().toLowerCase()
     if (!EMAIL_RE.test(e) || seen.has(e)) continue
     seen.add(e)
-    out.push({ email: e, name: r.name })
+    out.push({ ...r, email: e })
   }
   return out
 }
@@ -77,6 +80,7 @@ export async function POST(request: NextRequest) {
     limit?: number
     offset?: number
     excludeEmails?: string[]
+    markNote?: string
   }
   try {
     body = await request.json()
@@ -89,9 +93,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'audience, subject and content.heading are required' }, { status: 400 })
   }
 
+  // Durable dedup: a markNote stamps admin_notes on send, so re-runs skip anyone already reached.
+  // This is the source of truth (immune to local-file/ledger drift). excludeEmails remains as a belt-and-braces extra.
+  const markNote = (body.markNote || '').trim()
   const exclude = new Set((body.excludeEmails || []).map((e) => (e || '').trim().toLowerCase()))
   const allRecipients = clean(await getRecipients(audience, testTo))
-  const recipients = exclude.size ? allRecipients.filter((r) => !exclude.has(r.email)) : allRecipients
+  const recipients = allRecipients.filter(
+    (r) =>
+      !exclude.has(r.email) &&
+      !(markNote && (r.notes || '').toLowerCase().includes(markNote.toLowerCase()))
+  )
   const total = recipients.length
   const excluded = allRecipients.length - total
 
@@ -157,6 +168,10 @@ export async function POST(request: NextRequest) {
   const errors: { email: string; error: string }[] = []
   const slice = recipients.slice(offset, offset + willSend)
 
+  const admin = markNote ? createAdminClient() : null
+  const today = new Date().toISOString().slice(0, 10)
+  const markLine = `${today}: ${markNote}`
+
   for (const r of slice) {
     try {
       const html = await renderFor(r.name)
@@ -170,6 +185,11 @@ export async function POST(request: NextRequest) {
       })
       if (error) throw new Error(error.message)
       sent++
+      // Stamp the durable marker only after a confirmed send, so dedup never claims an unsent vendor.
+      if (admin && r.id) {
+        const newNotes = (r.notes || '').trim() ? `${r.notes}\n${markLine}` : markLine
+        await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', r.id)
+      }
     } catch (e) {
       failed++
       errors.push({ email: r.email, error: (e as Error).message })
