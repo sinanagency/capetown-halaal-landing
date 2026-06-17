@@ -23,7 +23,7 @@ import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
 import { handleAdminMessage } from '@/lib/bot/admin-chat'
 import { isMaintenanceEnabled } from '@/lib/maintenance'
 import { guardReply, logGuardRedaction } from '@/lib/bot/reply-guard'
-import { shouldProcess, mediaArrived } from '@/lib/brain-core/index.js'
+import { shouldProcess } from '@/lib/brain-core/index.js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
