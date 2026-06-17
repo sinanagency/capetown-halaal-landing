@@ -214,7 +214,10 @@ export function InteractiveTour({ email }: { email?: string | null }) {
 
   if (!open) return null
 
+  const firstName = email ? email.split('@')[0].split('.').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ') : 'there'
+
   const s = STEPS[step]
+  const stepTitle = step === 0 ? `Welcome, ${firstName}!` : s.title
   const isFirst = step === 0
   const isLast = step === STEPS.length - 1
   const hasTarget = !!s.selector && !!targetRect
@@ -344,7 +347,7 @@ export function InteractiveTour({ email }: { email?: string | null }) {
               ) : (
                 <MousePointer className="w-5 h-5 text-[#cd2653]" />
               )}
-              <h3 className="font-serif text-lg text-neutral-900">{s.title}</h3>
+              <h3 className="font-serif text-lg text-neutral-900">{stepTitle}</h3>
             </div>
             <button onClick={close} className="text-neutral-400 hover:text-neutral-900 ml-2">
               <X className="w-4 h-4" />
