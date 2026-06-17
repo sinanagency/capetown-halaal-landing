@@ -20,6 +20,7 @@ const NAV_GROUPS: NavItem[] = [
   { href: '/exhibitor/portal/stand', label: 'My Stand', icon: MapPin },
   { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck },
   { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
+  { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/exhibitor/portal/support', label: 'Support', icon: MessageCircle },
 ]
 
@@ -28,7 +29,6 @@ const ACCOUNT: NavItem[] = [
   { href: '/exhibitor/portal/profile', label: 'Profile', icon: Store },
   { href: '/exhibitor/portal/resources', label: 'Resources', icon: BookOpen },
   { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
-  { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/exhibitor/portal/settings', label: 'Account Settings', icon: Settings },
 ]
 
