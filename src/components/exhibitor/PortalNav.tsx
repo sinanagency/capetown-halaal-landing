@@ -5,55 +5,30 @@ import { createClient } from '@/lib/supabase/client'
 import {
   LayoutGrid, MapPin, FileCheck, Users, Megaphone,
   CreditCard, Store, BookOpen, LogOut, Sparkles,
-  ChevronDown, MessageCircle, Settings, Map as MapIcon,
-  BadgePercent, Receipt, FileText,
+  MessageCircle, Settings,
 } from 'lucide-react'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
-interface DropdownItem {
+interface NavItem {
   href: string
   label: string
   icon: typeof LayoutGrid
 }
 
-interface NavGroup {
-  href: string
-  label: string
-  icon: typeof LayoutGrid
-  dropdown?: DropdownItem[]
-}
-
-const NAV_GROUPS: NavGroup[] = [
+const NAV_GROUPS: NavItem[] = [
   { href: '/exhibitor/portal', label: 'Overview', icon: LayoutGrid },
-  {
-    href: '/exhibitor/portal/stand', label: 'My Stand', icon: MapPin,
-    dropdown: [
-      { href: '/exhibitor/portal/stand', label: 'Stall Details', icon: MapPin },
-      { href: '/exhibitor/portal/stand/change', label: 'Change Request', icon: MapPin },
-    ],
-  },
-  {
-    href: '/exhibitor/portal/documents', label: 'Tools', icon: Sparkles,
-    dropdown: [
-      { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileText },
-      { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
-      { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
-    ],
-  },
-  {
-    href: '/exhibitor/portal/support', label: 'Support', icon: MessageCircle,
-    dropdown: [
-      { href: '/exhibitor/portal/support', label: 'Inbox', icon: MessageCircle },
-      { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
-    ],
-  },
+  { href: '/exhibitor/portal/stand', label: 'My Stand', icon: MapPin },
+  { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck },
+  { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
+  { href: '/exhibitor/portal/support', label: 'Support', icon: MessageCircle },
 ]
 
-const ACCOUNT: DropdownItem[] = [
+const ACCOUNT: NavItem[] = [
   { href: '/exhibitor/portal/payments', label: 'Payments', icon: CreditCard },
   { href: '/exhibitor/portal/profile', label: 'Profile', icon: Store },
   { href: '/exhibitor/portal/resources', label: 'Resources', icon: BookOpen },
-  { href: '/exhibitor/portal/map-versions', label: 'Site Map', icon: MapIcon },
+  { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
+  { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/exhibitor/portal/settings', label: 'Account Settings', icon: Settings },
 ]
 
@@ -78,29 +53,10 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const barRef = useRef<HTMLDivElement>(null)
   const cleanName = businessName.replace(/^DEMO\s*·?\s*/i, '')
 
   useClickOutside(menuRef, () => setMenuOpen(false))
-
-  // Close dropdown when clicking outside the nav bar
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (barRef.current && !barRef.current.contains(e.target as Node)) {
-        setOpenDropdown(null)
-      }
-    }
-    if (openDropdown) {
-      document.addEventListener('mousedown', onDoc)
-      return () => document.removeEventListener('mousedown', onDoc)
-    }
-  }, [openDropdown])
-
-  const toggleDropdown = useCallback((label: string) => {
-    setOpenDropdown((prev) => (prev === label ? null : label))
-  }, [])
 
   useEffect(() => {
     const lastViewed = localStorage.getItem('announcements-last-viewed')
@@ -126,7 +82,7 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
   return (
     <div className="sticky top-0 z-50 bg-[#fbfafa]/85 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3">
-        <div ref={barRef} className="relative flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-4 min-h-[72px] py-2.5">
+        <div className="flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-4 min-h-[72px] py-2.5">
           <a href="/exhibitor/portal" className="flex items-center gap-3 min-h-[3.5rem] shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
             <img
               src="/logo.png"
@@ -144,23 +100,7 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             {NAV_GROUPS.map((g) => {
               const active = isActive(g.href)
               const Icon = g.icon
-              const ddOpen = openDropdown === g.label
               const showDot = (inboxUnread || hasUnreadAnnouncements) && (g.href === '/exhibitor/portal/support' || g.href === '/exhibitor/portal')
-
-              if (g.dropdown) {
-                return (
-                  <button
-                    key={g.label}
-                    onClick={(e) => { e.stopPropagation(); toggleDropdown(g.label) }}
-                    className={`relative flex items-center gap-1.5 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active || ddOpen ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}
-                  >
-                    <Icon className="w-4 h-4" />{g.label}<ChevronDown className={`w-3.5 h-3.5 transition-transform ${ddOpen ? 'rotate-180' : ''}`} />
-                    {showDot && (
-                      <span aria-label="unread" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />
-                    )}
-                  </button>
-                )
-              }
 
               return (
                 <a key={g.href} href={g.href}
@@ -206,30 +146,6 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             )}
           </div>
         </div>
-
-        {/* Dropdowns rendered OUTSIDE the overflow container, at bar level */}
-        {NAV_GROUPS.filter(g => g.dropdown).map((g) => {
-          if (openDropdown !== g.label || !g.dropdown) return null
-          return (
-            <div
-              key={g.label}
-              className="relative flex justify-center"
-            >
-              <div className="absolute mt-1 w-56 bg-white border border-neutral-200 rounded-2xl shadow-xl p-1.5 z-50">
-                {g.dropdown.map((d) => {
-                  const dActive = pathname === d.href
-                  const DIcon = d.icon
-                  return (
-                    <a key={d.href} href={d.href} onClick={() => setOpenDropdown(null)}
-                      className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm ${dActive ? 'text-[#cd2653] bg-[#cd2653]/5 font-medium' : 'text-neutral-700 hover:bg-neutral-50'}`}>
-                      <DIcon className="w-4 h-4" />{d.label}
-                    </a>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })}
       </div>
     </div>
   )
