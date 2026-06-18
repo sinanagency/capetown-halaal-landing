@@ -54,18 +54,18 @@ async function deliverOne(admin: BotAdmin, args: NotifyArgs) {
   const text = `🛎️ ${args.event.replace(/_/g, ' ')}\n\n${args.body}${replyHint}`
   try {
     let res
+    const logBody = inWindow
+      ? text
+      : `${args.event.replace(/_/g, ' ').toUpperCase()} - ${args.body.replace(/\s*\n\s*/g, ' · ')}`
     if (inWindow) {
       res = await sendText(e164, text)
     } else {
-      // festival_announcement {{1}}=name, {{2}}=body. Template strips newlines
-      // in substitutions, so flatten the body for the WA channel only.
-      const flat = `${args.event.replace(/_/g, ' ').toUpperCase()} - ${args.body.replace(/\s*\n\s*/g, ' · ')}`
-      res = await sendTemplate(e164, 'festival_announcement', [firstName, flat], { category: 'marketing' })
+      res = await sendTemplate(e164, 'festival_announcement', [firstName, logBody], { category: 'marketing' })
     }
     await db.from('wa_messages').insert({
       direction: 'out',
       wa_phone: e164,
-      body: inWindow ? text : `[festival_announcement] ${args.body}`,
+      body: logBody,
       status: res.skipped ? 'failed' : 'sent',
       provider_message_id: res.messageId || null,
       error: res.skipped || null,

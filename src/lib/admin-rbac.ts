@@ -56,6 +56,42 @@ export async function assertRole(
 }
 
 /**
+ * Verifies the current request has an active session AND is in admin_users.
+ * This is the two-layer gate every admin API route must use.
+ * Throws if unauthorized; returns the userId if authenticated+authorized.
+ * The thrown message is intentionally generic (no user enumeration).
+ */
+export async function requireAdmin(): Promise<string> {
+  const { createClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+  const { data: adminUser } = await admin
+    .from('admin_users')
+    .select('id')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (!adminUser) throw new Error('Forbidden')
+
+  return user.id
+}
+
+/**
+ * For server components that need to gate on admin_users existence.
+ * Returns the user ID or null (no redirect, caller decides).
+ */
+export async function requireAdminSafe(): Promise<{ userId: string | null; role: AdminRole | null }> {
+  const { createClient } = await import('@/lib/supabase/server')
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { userId: null, role: null }
+  const role = await getRole(user.id)
+  return { userId: user.id, role }
+}
+
+/**
  * Convenience: who can do what. Keep mutation-permissions centralised
  * so callers do not duplicate the matrix.
  */
