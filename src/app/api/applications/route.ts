@@ -91,15 +91,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Too many submissions. Please wait a few minutes and try again.' }, { status: 429 })
     }
 
-    // Check for duplicate email submission
+    // Duplicate-email SOFT block (multi-apply, 2026-06-20). One person may run
+    // several stalls, so they can submit multiple applications. We only block a
+    // new submission while an existing one is still IN THE PIPELINE
+    // (pending / info_requested) — that would just be a confusing double-submit.
+    // Once prior applications are resolved (approved or rejected) a fresh
+    // application is allowed and gets soft-linked by email at query time.
     const { data: existingApps } = await supabase
       .from('vendor_applications')
       .select('id, status')
       .eq('email', validated.email)
 
-    if (existingApps && existingApps.length > 0) {
+    const inPipeline = (existingApps || []).find(
+      (a) => a.status === 'pending' || a.status === 'info_requested'
+    )
+    if (inPipeline) {
       return NextResponse.json(
-        { error: 'You have already submitted an application with this email address. Please contact support@youngatheart.co.za if you need to update your application.' },
+        { error: 'You already have an application under review with this email address. We will be in touch. If you need to change it, reply to our email or contact support@youngatheart.co.za.' },
         { status: 409 }
       )
     }

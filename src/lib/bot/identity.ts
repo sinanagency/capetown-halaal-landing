@@ -26,6 +26,7 @@ export interface ResolvedIdentity {
     stall: string | null         // allocation code from ⟦STALL:..⟧ marker, if any
     payment_status: string       // 'none' | 'pending' | 'paid' | etc.
     tier_label: string | null
+    applicationCount?: number    // how many applications this person has (multi-apply)
   }
   // Ticket-buyer role (schema = email, name, phone, ticket_count, total_spent,
   // last_purchase_at — no first/last name split, no order column).
@@ -58,11 +59,14 @@ export async function resolveIdentity(e164: string): Promise<ResolvedIdentity> {
   // rows may be plain digits. Try both surfaces. This Supabase schema doesn't
   // have a wa_phone column on vendor_applications; phone is the source of truth.
   const e164NoPlus = e164.replace(/^\+/, '')
+  // Multi-apply: a person can have several applications. Take the most recent
+  // as the active identity and surface applicationCount so callers can offer an
+  // app picker. (Was .limit(1), which silently ignored the others.)
   const { data: vendors } = await db
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, status, admin_notes, preferred_booth_tier')
+    .select('id, business_name, contact_name, email, status, admin_notes, preferred_booth_tier, created_at')
     .or(`phone.eq.${e164},phone.eq.${e164NoPlus}`)
-    .limit(1)
+    .order('created_at', { ascending: false })
   const vendor = (vendors || [])[0] as {
     id: string
     business_name: string
@@ -92,6 +96,7 @@ export async function resolveIdentity(e164: string): Promise<ResolvedIdentity> {
         stall: alloc.stall,
         payment_status: portal.payment?.status || 'none',
         tier_label: vendor.preferred_booth_tier ? tierLabel(vendor.preferred_booth_tier) : null,
+        applicationCount: (vendors || []).length,
       },
     }
   }
