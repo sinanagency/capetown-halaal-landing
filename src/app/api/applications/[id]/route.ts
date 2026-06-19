@@ -111,7 +111,7 @@ export async function PATCH(
         previousReviewedAt = (existing.reviewed_at as string | null) ?? null
         previousApprovedAt = (existing.approved_at as string | null) ?? null
       }
-      if (existing && existing.status === validated.status && existing.reviewed_at) {
+      if (existing && existing.status === validated.status && (existing.reviewed_at || existing.approved_at)) {
         return NextResponse.json({
           success: true,
           application: existing,

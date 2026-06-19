@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, MessageSquare, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
+import { Loader2, MessageSquare, ArrowRight, MapPin, Upload } from 'lucide-react'
 import FloorCommand, { type FloorBooth } from '@/components/floor/FloorCommand'
 
 interface MapStallRaw {
@@ -56,6 +57,26 @@ export default function StandView() {
     return (
       <div className="flex items-center gap-2 text-[#1B1A17]/55 text-sm py-12 justify-center">
         <Loader2 className="w-4 h-4 animate-spin" /> Loading the floor plan…
+      </div>
+    )
+  }
+
+  if (!data.mine) {
+    return (
+      <div className="rounded-2xl border border-[#E5DCC4] bg-white p-8 text-center">
+        <div className="max-w-sm mx-auto">
+          <MapPin className="w-10 h-10 text-[#cd2653]/30 mx-auto mb-4" />
+          <h3 className="font-serif text-lg mb-2">Your stall is being assigned</h3>
+          <p className="text-sm text-neutral-500 mb-4">
+            The organisers are finalising the floor plan. You will receive a WhatsApp
+            notification when your stall is allocated.
+          </p>
+          <Link href="/exhibitor/portal/documents"
+            className="inline-flex items-center gap-2 text-sm text-[#cd2653] font-medium hover:underline">
+            <Upload className="w-4 h-4" />
+            Complete your documents while you wait
+          </Link>
+        </div>
       </div>
     )
   }

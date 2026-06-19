@@ -21,10 +21,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { Z_CLASS } from '@/lib/z'
 
 const RECENT_KEY = 'admin.commandk.recent'
 const RECENT_MAX = 5
 const DEBOUNCE_MS = 300
+
+const ADMIN_PAGES = [
+  { label: 'Dashboard', to: '/admin' },
+  { label: 'Applications', to: '/admin/applications' },
+  { label: 'Allocation', to: '/admin/allocation' },
+  { label: 'Vendors', to: '/admin/vendors' },
+  { label: 'Inbox', to: '/admin/inbox' },
+  { label: 'Support Inbox', to: '/admin/support-inbox' },
+  { label: 'Broadcast', to: '/admin/broadcast' },
+  { label: 'Tickets', to: '/admin/tickets' },
+  { label: 'Analytics', to: '/admin/analytics' },
+  { label: 'Activity Feed', to: '/admin/settings/activity' },
+  { label: 'Comms Health', to: '/admin/settings/comms-health' },
+]
 
 interface VendorHit {
   id: string
@@ -76,6 +91,7 @@ interface FlatRow {
   group: string
   primary: string
   secondary: string
+  status?: string
 }
 
 function flatten(r: SearchResponse): { group: string; rows: FlatRow[] }[] {
@@ -87,7 +103,8 @@ function flatten(r: SearchResponse): { group: string; rows: FlatRow[] }[] {
         link: v.link,
         group: 'Vendors',
         primary: v.business_name || v.contact_name || 'Unnamed vendor',
-        secondary: [v.contact_name, v.status, v.phone].filter(Boolean).join(' . '),
+        secondary: [v.contact_name, v.phone].filter(Boolean).join(' . '),
+        status: v.status || undefined,
       })),
     },
     {
@@ -212,7 +229,7 @@ export function CommandK() {
   useEffect(() => {
     if (!open) return
     const q = query.trim()
-    if (q.length < 2) {
+    if (q.length < 2 || q.startsWith('/')) {
       setResults(null)
       setLoading(false)
       return
@@ -272,20 +289,27 @@ export function CommandK() {
     }
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      if (flatRows.length === 0) return
-      setActiveIdx((i) => (i + 1) % flatRows.length)
+      const total = isPageNav ? totalPageResults : flatRows.length
+      if (total === 0) return
+      setActiveIdx((i) => (i + 1) % total)
       return
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault()
-      if (flatRows.length === 0) return
-      setActiveIdx((i) => (i - 1 + flatRows.length) % flatRows.length)
+      const total = isPageNav ? totalPageResults : flatRows.length
+      if (total === 0) return
+      setActiveIdx((i) => (i - 1 + total) % total)
       return
     }
     if (e.key === 'Enter') {
       e.preventDefault()
-      const row = flatRows[activeIdx]
-      if (row) navigateAndClose(row.link)
+      if (isPageNav) {
+        const page = filteredPages[activeIdx]
+        if (page) navigateAndClose(page.to)
+      } else {
+        const row = flatRows[activeIdx]
+        if (row) navigateAndClose(row.link)
+      }
     }
   }
 
@@ -293,11 +317,18 @@ export function CommandK() {
 
   const q = query.trim()
   const showRecents = q.length < 2
+  const isPageNav = q.startsWith('/')
   const totalHits = flatRows.length
+
+  const pageFilter = q.slice(1).toLowerCase()
+  const filteredPages = isPageNav
+    ? ADMIN_PAGES.filter((p) => p.label.toLowerCase().includes(pageFilter))
+    : []
+  const totalPageResults = filteredPages.length
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh]"
+      className={`fixed inset-0 ${Z_CLASS.commandPalette} flex items-start justify-center pt-[12vh]`}
       role="dialog"
       aria-modal="true"
       aria-label="Global search"
@@ -323,22 +354,31 @@ export function CommandK() {
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto">
-          {showRecents && (
+          {isPageNav && (
+            <PageNavBlock
+              pages={filteredPages}
+              activeIdx={activeIdx}
+              onPick={navigateAndClose}
+              onHoverIdx={(i) => setActiveIdx(i)}
+            />
+          )}
+
+          {!isPageNav && showRecents && (
             <RecentsBlock
               recents={recents}
               onPick={(r) => setQuery(r)}
             />
           )}
 
-          {!showRecents && loading && <SkeletonRows />}
+          {!isPageNav && !showRecents && loading && <SkeletonRows />}
 
-          {!showRecents && !loading && results && totalHits === 0 && (
+          {!isPageNav && !showRecents && !loading && results && totalHits === 0 && (
             <div className="px-4 py-8 text-center text-sm text-neutral-500">
               Nothing matches &quot;{q}&quot;. Try a phone number or business name.
             </div>
           )}
 
-          {!showRecents && !loading && totalHits > 0 && (
+          {!isPageNav && !showRecents && !loading && totalHits > 0 && (
             <ResultsBlock
               groups={groups}
               activeIdx={activeIdx}
@@ -441,7 +481,19 @@ function ResultsBlock({
                       : 'text-neutral-800 hover:bg-neutral-50',
                   ].join(' ')}
                 >
-                  <span className="truncate">{row.primary}</span>
+                  <span className="truncate flex items-center gap-2">
+                    {row.primary}
+                    {row.status && (
+                      <span className={[
+                        'inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium',
+                        row.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                        row.status === 'pending' ? 'bg-amber-50 text-amber-700' :
+                        'bg-rose-50 text-rose-700',
+                      ].join(' ')}>
+                        {row.status}
+                      </span>
+                    )}
+                  </span>
                   <span
                     className={[
                       'truncate text-xs',
@@ -456,6 +508,55 @@ function ResultsBlock({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function PageNavBlock({
+  pages,
+  activeIdx,
+  onPick,
+  onHoverIdx,
+}: {
+  pages: { label: string; to: string }[]
+  activeIdx: number
+  onPick: (href: string) => void
+  onHoverIdx: (i: number) => void
+}) {
+  return (
+    <div className="py-2">
+      <div className="px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-neutral-400">
+        Admin Pages
+      </div>
+      {pages.length === 0 ? (
+        <div className="px-4 py-4 text-center text-sm text-neutral-500">
+          No matching pages
+        </div>
+      ) : (
+        pages.map((p, idx) => {
+          const active = idx === activeIdx
+          return (
+            <Link
+              key={p.to}
+              href={p.to}
+              prefetch={false}
+              onClick={(e) => {
+                e.preventDefault()
+                onPick(p.to)
+              }}
+              onMouseEnter={() => onHoverIdx(idx)}
+              className={[
+                'flex items-center justify-between gap-3 px-4 py-2 text-sm',
+                active
+                  ? 'bg-neutral-900 text-white'
+                  : 'text-neutral-800 hover:bg-neutral-50',
+              ].join(' ')}
+            >
+              <span className="truncate">{p.label}</span>
+            </Link>
+          )
+        })
+      )}
     </div>
   )
 }

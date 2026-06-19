@@ -204,6 +204,18 @@ export async function POST(request: NextRequest) {
       console.error('[applications] WA ack failed:', (e as Error).message)
     }
 
+    // Create a vendor ticket for the new application
+    try {
+      const { createAdminClient } = await import('@/lib/supabase/admin')
+      const ticketAdmin = createAdminClient()
+      await ticketAdmin.from('vendor_tickets').insert({
+        vendor_application_id: data.id,
+        status: 'open',
+      })
+    } catch (ticketError) {
+      console.error('[applications] ticket creation failed:', ticketError)
+    }
+
     return NextResponse.json({ success: true, application: data, emailSent })
   } catch (error) {
     if (error instanceof z.ZodError) {

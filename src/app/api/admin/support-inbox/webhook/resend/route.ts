@@ -217,5 +217,41 @@ export async function POST(req: NextRequest) {
     .update({ last_handled_at: sentAt })
     .eq('id', threadId)
 
-  return NextResponse.json({ ok: true, thread_id: threadId, message_id: messageId })
+  // 4. Auto-link to vendor ticket if thread has no ticket_id yet.
+  try {
+    const { data: thread } = await db
+      .from('support_inbox_threads')
+      .select('ticket_id')
+      .eq('id', threadId)
+      .single()
+    if (thread && !(thread as { ticket_id?: string }).ticket_id) {
+      const { data: app } = await db
+        .from('vendor_applications')
+        .select('id')
+        .ilike('email', peerEmail)
+        .maybeSingle()
+      if (app) {
+        let { data: ticket } = await db
+          .from('vendor_tickets')
+          .select('id')
+          .eq('vendor_application_id', (app as { id: string }).id)
+          .maybeSingle()
+        if (!ticket) {
+          const { data: newTicket } = await db
+            .from('vendor_tickets')
+            .insert({ vendor_application_id: (app as { id: string }).id, status: 'open' })
+            .select('id')
+            .single()
+          ticket = newTicket as { id: string } | null
+        }
+        if (ticket) {
+          await db.from('support_inbox_threads').update({ ticket_id: ticket.id }).eq('id', threadId)
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[resend webhook] ticket auto-link error:', (e as Error).message)
+  }
+
+  return NextResponse.json({ ok: true })
 }

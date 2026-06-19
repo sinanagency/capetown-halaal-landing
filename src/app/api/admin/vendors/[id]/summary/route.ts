@@ -58,20 +58,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const db = createAdminClient()
-  const { data: adminUser } = await db.from('admin_users').select('id, role').eq('id', user.id).maybeSingle()
+  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
   if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-  // Summary is read-only but burns Anthropic credits. Allow viewer+, refuse
-  // anything below (no unknown roles). Owner/operator/viewer all OK.
-  const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
-  if (!['owner', 'operator', 'viewer'].includes(role)) {
-    return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
-  }
 
-  const { data: app } = await db
+  const { data: app, error: queryError } = await db
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, phone, status, admin_notes, contract_signed_at, contract_pdf_path, preferred_booth_tier, product_categories, items_description, created_at, reviewed_at, updated_at')
+    .select('*')
     .eq('id', id)
     .maybeSingle()
+  if (queryError) return NextResponse.json({ error: queryError.message }, { status: 500 })
   if (!app) return NextResponse.json({ error: 'not found' }, { status: 404 })
 
   type App = {

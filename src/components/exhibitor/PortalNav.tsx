@@ -3,27 +3,33 @@
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
-  LayoutGrid, MapPin, FileCheck, Users, Megaphone, Inbox,
-  CreditCard, Store, BookOpen, LogOut, ChevronDown,
+  LayoutGrid, MapPin, FileCheck, Users, Megaphone,
+  CreditCard, Store, BookOpen, LogOut, Sparkles,
+  MessageCircle, Settings,
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
-type Item = { href: string; label: string; icon: typeof LayoutGrid }
+interface NavItem {
+  href: string
+  label: string
+  icon: typeof LayoutGrid
+}
 
-// Primary sections live inline, with room to breathe. Secondary/account items
-// live under the avatar menu — no cramped "More" dropdown in the nav itself.
-const MAIN: Item[] = [
+const NAV_GROUPS: NavItem[] = [
   { href: '/exhibitor/portal', label: 'Overview', icon: LayoutGrid },
   { href: '/exhibitor/portal/stand', label: 'My Stand', icon: MapPin },
   { href: '/exhibitor/portal/documents', label: 'Documents', icon: FileCheck },
-  { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
+  { href: '/exhibitor/portal/marketing', label: 'Marketing', icon: Sparkles },
   { href: '/exhibitor/portal/announcements', label: 'Announcements', icon: Megaphone },
-  { href: '/exhibitor/portal/support', label: 'Inbox', icon: Inbox },
+  { href: '/exhibitor/portal/support', label: 'Support', icon: MessageCircle },
 ]
-const ACCOUNT: Item[] = [
+
+const ACCOUNT: NavItem[] = [
   { href: '/exhibitor/portal/payments', label: 'Payments', icon: CreditCard },
   { href: '/exhibitor/portal/profile', label: 'Profile', icon: Store },
   { href: '/exhibitor/portal/resources', label: 'Resources', icon: BookOpen },
+  { href: '/exhibitor/portal/staff', label: 'Staff & Badges', icon: Users },
+  { href: '/exhibitor/portal/settings', label: 'Account Settings', icon: Settings },
 ]
 
 function initials(name: string) {
@@ -31,18 +37,35 @@ function initials(name: string) {
   return (clean[0] || 'Y').toUpperCase()
 }
 
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, cb: () => void) {
+  useEffect(() => {
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) cb()
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [ref, cb])
+}
+
 export default function PortalNav({ businessName, inboxUnread = false }: { businessName: string; inboxUnread?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const cleanName = businessName.replace(/^DEMO\s*·?\s*/i, '')
 
+  useClickOutside(menuRef, () => setMenuOpen(false))
+
   useEffect(() => {
-    function onDoc(e: MouseEvent) { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false) }
-    document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    const lastViewed = localStorage.getItem('announcements-last-viewed')
+    if (lastViewed) {
+      fetch(`/api/exhibitor/announcements/since?since=${lastViewed}`)
+        .then(r => r.json())
+        .then(data => setHasUnreadAnnouncements(data.length > 0))
+        .catch(() => {})
+    }
   }, [])
 
   async function signOut() {
@@ -51,20 +74,20 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
     router.push('/exhibitor/login'); router.refresh()
   }
 
+  function isActive(href: string) {
+    if (href === '/exhibitor/portal') return pathname === href
+    return pathname.startsWith(href)
+  }
+
   return (
-    // masked sticky strip — content scrolls UNDER this, never above the bar
     <div className="sticky top-0 z-50 bg-[#fbfafa]/85 backdrop-blur-md">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3">
-        <div className="flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-3 min-h-[72px] py-2.5">
-          {/* brand: logo + label as a single block with real right padding so
-              the pill strip cannot underlap. h-14 instead of scale() — the
-              transform was visually bleeding the logo over the first pill
-              (the "Overview" clipping). */}
-          <a href="/exhibitor/portal" className="flex items-center gap-3 shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
+        <div className="flex items-center gap-4 lg:gap-6 bg-white border border-neutral-200/80 rounded-2xl shadow-[0_6px_24px_rgba(20,15,17,0.06)] px-4 min-h-[72px] py-2.5">
+          <a href="/exhibitor/portal" className="flex items-center gap-3 min-h-[3.5rem] shrink-0 pr-3 lg:pr-5 border-r border-neutral-100">
             <img
               src="/logo.png"
               alt="Young at Heart"
-              className="h-14 w-auto flex-shrink-0 self-center"
+              className="h-10 w-auto object-contain flex-shrink-0"
             />
             <span className="hidden lg:flex flex-col justify-center leading-tight">
               <span className="block font-bold text-neutral-900 text-sm">Young at Heart</span>
@@ -72,31 +95,32 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
             </span>
           </a>
 
-          {/* main nav — spaced to breathe, scrolls horizontally before clipping */}
-          <nav className="flex items-center gap-2 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {MAIN.map((i) => {
-              const active = pathname === i.href
-              const Icon = i.icon
-              const showDot = inboxUnread && (i.href === '/exhibitor/portal/support' || i.href === '/exhibitor/portal')
+          {/* Nav buttons with horizontal scroll */}
+          <div className="flex items-center gap-2 lg:gap-3 flex-1 justify-center min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {NAV_GROUPS.map((g) => {
+              const active = isActive(g.href)
+              const Icon = g.icon
+              const showDot = (inboxUnread || hasUnreadAnnouncements) && (g.href === '/exhibitor/portal/support' || g.href === '/exhibitor/portal')
+
               return (
-                <a key={i.href} href={i.href}
+                <a key={g.href} href={g.href}
                   className={`relative flex items-center gap-2 rounded-full px-4 lg:px-5 py-2 text-sm font-medium whitespace-nowrap transition-colors ${active ? 'bg-[#cd2653] text-white shadow-sm ring-1 ring-[#cd2653]/40' : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'}`}>
-                  <Icon className="w-4 h-4" />{i.label}
+                  <Icon className="w-4 h-4" />{g.label}
                   {showDot && (
-                    <span aria-label="unread reply" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />
+                    <span aria-label="unread" className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-white ${active ? 'bg-white' : 'bg-[#cd2653]'}`} />
                   )}
                 </a>
               )
             })}
-          </nav>
+          </div>
 
-          {/* avatar menu (account + secondary sections) */}
+          {/* Avatar menu */}
           <div className="relative shrink-0" ref={menuRef}>
             <button onClick={() => setMenuOpen((o) => !o)}
-              className="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 hover:bg-neutral-100 transition-colors">
-              <div className="w-8 h-8 rounded-full bg-[#cd2653] text-white text-sm font-bold flex items-center justify-center">{initials(businessName)}</div>
-              <span className="hidden md:block text-sm font-medium text-neutral-700 max-w-[150px] truncate">{cleanName}</span>
-              <ChevronDown className={`w-4 h-4 text-neutral-400 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+              aria-label="Account menu"
+              aria-expanded={menuOpen}
+              className="w-9 h-9 rounded-full bg-[#cd2653] text-white text-sm font-bold flex items-center justify-center hover:opacity-90 ring-1 ring-transparent hover:ring-[#cd2653]/30 transition-all">
+              {initials(businessName)}
             </button>
             {menuOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-white border border-neutral-200 rounded-2xl shadow-xl p-1.5 z-50">
@@ -105,12 +129,12 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
                   <p className="text-xs text-neutral-400">Exhibitor account</p>
                 </div>
                 {ACCOUNT.map((i) => {
-                  const Icon = i.icon
                   const active = pathname === i.href
+                  const AIcon = i.icon
                   return (
                     <a key={i.href} href={i.href} onClick={() => setMenuOpen(false)}
                       className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm ${active ? 'text-[#cd2653] bg-[#cd2653]/5 font-medium' : 'text-neutral-700 hover:bg-neutral-50'}`}>
-                      <Icon className="w-4 h-4" />{i.label}
+                      <AIcon className="w-4 h-4" />{i.label}
                     </a>
                   )
                 })}

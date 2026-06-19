@@ -6,7 +6,8 @@ import {
   parseAllocation, withAllocation, tierLabel, stallTypeOf,
   type StallType, type StallStatus,
 } from '@/lib/stalls'
-import { parsePortalState } from '@/lib/portal-state'
+import { parsePortalState, syncPortalState } from '@/lib/portal-state'
+import { notifyVendor } from '@/lib/notifications'
 import { computeVendorPricing } from '@/lib/payments/pricing'
 
 async function requireAdmin() {
@@ -165,6 +166,19 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error('[stalls] vendor_stall_allocation WA failed:', (e as Error).message)
       }
+    }
+
+    if (action === 'allocated') {
+      await syncPortalState(applicationId, admin).catch((e) =>
+        console.error('[stalls] syncPortalState failed:', (e as Error).message)
+      )
+      await notifyVendor({
+        event: 'stall_allocated',
+        applicationId,
+        data: { stall: stallCode },
+      }).catch((e) =>
+        console.error('[stalls] notifyVendor failed:', (e as Error).message)
+      )
     }
 
     return NextResponse.json({ ok: true, message: `${stallCode} → ${app.business_name} (${action})` })

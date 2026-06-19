@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
   // operator would never want to look at.
   const { data: apps, error } = await db
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, phone, status, admin_notes')
+    .select('id, business_name, contact_name, email, phone, status, admin_notes, contract_signed_at, contract_pdf_path')
     .order('updated_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -77,6 +77,8 @@ export async function GET(req: NextRequest) {
       phone: string | null
       status: string | null
       admin_notes: string | null
+      contract_signed_at: string | null
+      contract_pdf_path: string | null
     }
     const state = parsePortalState(a.admin_notes)
     const docs = state.docs || []
@@ -94,6 +96,28 @@ export async function GET(req: NextRequest) {
         uploaded_at: d.uploaded_at,
         storage_path: d.path,
         note: d.note ?? null,
+      })
+    }
+
+    // Synthetic row for signed vendor contracts so they surface in the
+    // directory next to compliance docs. The contract storage_path uses the
+    // `contract:` prefix as a sentinel, so DocumentsClient routes the View
+    // button to /api/admin/applications/<id>/contract/pdf instead of the
+    // generic /api/admin/vendor-doc?path= path. No new bucket, no fork.
+    if (a.contract_signed_at) {
+      rows.push({
+        application_id: a.id,
+        business_name: a.business_name,
+        contact_name: a.contact_name,
+        email: a.email,
+        phone: a.phone,
+        application_status: a.status,
+        doc_type: 'vendor_contract',
+        doc_name: 'Vendor Contract 2026',
+        doc_status: 'approved',
+        uploaded_at: a.contract_signed_at,
+        storage_path: `contract:${a.id}`,
+        note: 'Signed via portal',
       })
     }
   }

@@ -59,6 +59,23 @@ export default function StallMap({
 
   // SVG viewBox = pan/zoom state. We keep the user-space coords unchanged
   // and shift+scale the viewBox so strokes stay crisp at any zoom level.
+  // Default zoom = computed fit-to-container so the whole grid is visible
+  // at first paint with no label overlap. Wave 3's hard-coded 1.4 caused the
+  // FS17 FS18 FS19 mash on /admin/allocation, where the container is much
+  // larger than the vendor /stand container. We compute the fit from the
+  // measured container size and re-compute on resize.
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const computeFitZoom = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return 1
+    const w = el.clientWidth || 1
+    const h = el.clientHeight || 1
+    // Treat user-space cell as ~1 px target; +4 cells of padding on each axis.
+    const fitZoom = Math.min(w / (grid.cols + 4), h / (grid.rows + 4))
+    // Clamp to the same min/max envelope the wheel uses, so the controls stay
+    // consistent and labels never accidentally pop on at fit.
+    return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, +fitZoom.toFixed(2)))
+  }, [grid.cols, grid.rows])
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const dragging = useRef<{ active: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({
@@ -69,11 +86,27 @@ export default function StallMap({
     startPanY: 0,
   })
 
-  // Reset pan/zoom when grid changes (e.g. data swap).
+  // Reset pan/zoom when grid changes (e.g. data swap). Snap to computed fit
+  // so the new grid is fully visible without overlapping labels.
   useEffect(() => {
-    setZoom(1)
+    setZoom(computeFitZoom())
     setPan({ x: 0, y: 0 })
-  }, [grid.cols, grid.rows])
+  }, [grid.cols, grid.rows, computeFitZoom])
+
+  // Re-fit on container resize. ResizeObserver fires once on mount too, which
+  // gives us the correct fit zoom after the container has measured.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      // Only snap to fit while the user is at (or below) fit. Once the
+      // operator has zoomed in to read codes, don't yank them back.
+      const fz = computeFitZoom()
+      setZoom((z) => (z <= fz + 0.01 ? fz : z))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [computeFitZoom])
 
   // Normalised search match set, in lower-case for prefix/substring compare.
   const searchMatches = useMemo<Set<string>>(() => {
@@ -223,7 +256,7 @@ export default function StallMap({
   )
 
   function resetView() {
-    setZoom(1)
+    setZoom(computeFitZoom())
     setPan({ x: 0, y: 0 })
   }
 
@@ -239,12 +272,13 @@ export default function StallMap({
     setPan((p) => clampPan(p, nz))
   }
 
-  // When a search match exists, center the viewBox on the first match.
+  // When a search match exists, center the viewBox on the first match AND
+  // ensure we're at >= 2.0x so labels render (the gate is zoom >= 2.0).
   useEffect(() => {
     if (!hasActiveSearch) return
     const first = stalls.find((s) => searchMatches.has(s.code))
     if (!first) return
-    const targetZoom = Math.max(zoom, 1.4)
+    const targetZoom = Math.max(zoom, 2.0)
     const vbW = grid.cols / targetZoom
     const vbH = grid.rows / targetZoom
     const cx = first.col + first.w / 2
@@ -262,7 +296,7 @@ export default function StallMap({
   const labelSize = Math.max(0.9, Math.min(1.6, 1.4 / Math.sqrt(zoom)))
 
   return (
-    <div className="relative w-full h-full" style={{ background: '#F6F2E8', borderRadius: 8 }}>
+    <div ref={containerRef} className="relative w-full h-full" style={{ background: '#FAF8F2', borderRadius: 8 }}>
       {/* Zoom controls */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 bg-white/95 border border-neutral-200 rounded-lg shadow-sm">
         <button
@@ -309,7 +343,7 @@ export default function StallMap({
           minWidth: 1200,
           minHeight: 700,
           cursor: dragging.current.active ? 'grabbing' : 'grab',
-          background: '#F6F2E8',
+          background: '#FAF8F2',
           borderRadius: 8,
         }}
         preserveAspectRatio="xMidYMid meet"
@@ -388,7 +422,7 @@ export default function StallMap({
                   {s.occupant?.business_name ? ` · ${s.occupant.business_name}` : s.status ? ` · ${s.status}` : ''}
                 </title>
               </rect>
-              {labelFits && (
+              {labelFits && zoom >= 2.0 && (
                 <text
                   x={s.col + s.w / 2}
                   y={s.row + s.h / 2}

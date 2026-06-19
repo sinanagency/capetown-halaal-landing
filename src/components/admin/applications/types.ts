@@ -16,6 +16,11 @@ export interface WorkbenchApplication extends VendorApplication {
   approved_at?: string | null
   paid_at?: string | null
   docs_complete_at?: string | null
+  payment_status?: string | null
+  docCount?: number | null
+  docs_rejected?: boolean | null
+  contract_signed?: boolean | null
+  stall_code?: string | null
 }
 
 export interface SectorSuggestion {

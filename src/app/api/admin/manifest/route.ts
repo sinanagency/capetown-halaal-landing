@@ -31,13 +31,13 @@ export async function GET(request: NextRequest) {
     .order('business_name')
 
   const esc = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const rows = [['Business', 'Stall', 'Staff name', 'Phone', 'Vehicle reg', 'Application status'].map(esc).join(',')]
+  const rows = [['Business', 'Stall', 'Staff name', 'Vehicle reg', 'Application status'].map(esc).join(',')]
 
   for (const a of apps || []) {
     const { stall } = parseAllocation(a.admin_notes as string)
     const state = parsePortalState(a.admin_notes as string)
     for (const m of state.staff || []) {
-      rows.push([a.business_name, stall || '', m.name, m.phone || m.id_number || '', m.vehicle_reg, a.status].map(esc).join(','))
+      rows.push([a.business_name, stall || '', m.name, m.vehicle_reg || '', a.status].map(esc).join(','))
     }
   }
 

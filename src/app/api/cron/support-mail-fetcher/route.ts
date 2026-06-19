@@ -165,14 +165,35 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
       // bloated the DB once we crossed a few thousand support threads.
       // Falls back to a sliced raw on parse error so we never lose the row.
       let body = ''
+      let bodyHtml: string | null = null
       if (msg.source instanceof Buffer) {
         try {
           const parsed = await simpleParser(msg.source)
           const txt = (parsed.text || '').trim()
           body = txt.slice(0, 4000)
+          // Capture HTML alternative so the support-inbox renderer can
+          // sanitize+display rich formatting instead of leaking raw markup
+          // into whitespace-pre-wrap. Capped at 32KB so DB doesn't bloat.
+          const html = typeof parsed.html === 'string' ? parsed.html.trim() : ''
+          if (html) bodyHtml = html.slice(0, 32_000)
+          // Fallback when the sender shipped HTML-only (no text alternative)
+          // OR mailparser returned empty text: strip the headers off the raw
+          // source instead of dumping RFC822 to the operator. The body starts
+          // after the first blank line in MIME format.
+          if (!body) {
+            const raw = msg.source.toString('utf8')
+            const splitIdx = raw.search(/\r?\n\r?\n/)
+            const tail = splitIdx >= 0 ? raw.slice(splitIdx + 2).trim() : raw.trim()
+            body = tail.slice(0, 4000)
+          }
         } catch (e) {
           errors.push(`mailparser ${messageId}: ${(e as Error).message}`)
-          body = msg.source.toString('utf8').slice(0, 4000)
+          // Same header-strip path on parser failure so we never persist
+          // the raw RFC822 envelope as the visible body.
+          const raw = msg.source.toString('utf8')
+          const splitIdx = raw.search(/\r?\n\r?\n/)
+          const tail = splitIdx >= 0 ? raw.slice(splitIdx + 2).trim() : raw.trim()
+          body = tail.slice(0, 4000)
         }
       }
 
@@ -244,6 +265,7 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
             to_address: toAddress,
             subject,
             body_text: body,
+            body_html: bodyHtml,
             message_id: messageId,
             in_reply_to: inReplyTo,
             provider: 'imap',

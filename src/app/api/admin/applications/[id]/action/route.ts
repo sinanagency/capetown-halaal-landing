@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { capJsonbSize } from '@/lib/audit/cap'
+import { syncPortalState } from '@/lib/portal-state'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -142,6 +143,11 @@ export async function POST(
     if (updErr || !after) {
       return NextResponse.json({ error: updErr?.message || 'Update failed' }, { status: 500 })
     }
+
+    // Sync portal state after status mutation
+    await syncPortalState(id, admin).catch((e) =>
+      console.error('[action] syncPortalState failed:', (e as Error).message)
+    )
 
     // Audit row.
     await writeEvent(admin, {

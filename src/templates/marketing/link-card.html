@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Find Us Card</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 630px; }
+  body {
+    background: #cd2653;
+    color: #F8F5EE;
+    font-family: 'Inter', -apple-system, Arial, sans-serif;
+    overflow: hidden;
+  }
+  .canvas {
+    width: 1200px;
+    height: 630px;
+    padding: 64px 72px;
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 56px;
+    align-items: center;
+    position: relative;
+  }
+  .top-rule {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 8px;
+    background: #1A1A1A;
+  }
+  .left { display: flex; flex-direction: column; gap: 24px; }
+  .kicker {
+    color: rgba(248, 245, 238, 0.78);
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+  }
+  .find {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 38px;
+    font-weight: 500;
+    color: rgba(248, 245, 238, 0.92);
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+  .business {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 80px;
+    line-height: 0.98;
+    font-weight: 700;
+    color: #F8F5EE;
+    letter-spacing: -0.02em;
+  }
+  .meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 12px 24px;
+    margin-top: 12px;
+    font-size: 22px;
+    line-height: 1.35;
+  }
+  .meta dt {
+    color: rgba(248, 245, 238, 0.62);
+    font-size: 14px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding-top: 6px;
+  }
+  .meta dd { color: #F8F5EE; font-weight: 500; }
+  .meta dd strong { font-weight: 700; }
+  .url {
+    margin-top: 8px;
+    font-size: 18px;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #F8F5EE;
+    border-top: 1px solid rgba(248, 245, 238, 0.25);
+    padding-top: 20px;
+  }
+  .right {
+    width: 360px;
+    height: 360px;
+    background: #F8F5EE;
+    border-radius: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .right img { max-width: 78%; max-height: 78%; object-fit: contain; }
+  .stall-badge {
+    position: absolute;
+    top: 56px;
+    right: 56px;
+    background: #1A1A1A;
+    color: #F8F5EE;
+    border-radius: 18px;
+    padding: 16px 22px 14px;
+    text-align: center;
+    z-index: 2;
+    min-width: 140px;
+  }
+  .stall-badge .lbl {
+    font-size: 11px;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: rgba(248, 245, 238, 0.6);
+    font-weight: 700;
+  }
+  .stall-badge .code {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 42px;
+    line-height: 1.0;
+    font-weight: 700;
+    color: #F8F5EE;
+    margin-top: 4px;
+    letter-spacing: 0.02em;
+  }
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="top-rule"></div>
+    <div class="left">
+      <div class="kicker">Cape Town Halaal 2026</div>
+      <div class="find">Find us at</div>
+      <div class="business">{{business_name}}</div>
+      <dl class="meta">
+        <dt>Where</dt><dd><strong>Demo Halal Kitchen</strong><br/>Youngsfield Military Base, Cape Town</dd>
+        <dt>When</dt><dd><strong>11 to 13 December 2026</strong></dd>
+      </dl>
+      <div class="url">cthalaal.co.za</div>
+    </div>
+    <div class="right"><img src="{{logo_url}}" alt=""/></div>
+    <div class="stall-badge">
+      <div class="lbl">Stall</div>
+      <div class="code">{{stall_code}}</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -44,6 +44,7 @@ export interface FloorCommandProps {
   onAllocate?: (boothCode: string, vendorName: string, status: 'allocated' | 'reserved') => Promise<void> | void
   onRelease?: (boothCode: string) => Promise<void> | void
   onToggleBlock?: (boothCode: string, nextBlocked: boolean) => Promise<void> | void
+  onStallClick?: (boothCode: string) => void
 }
 
 // ---------------- palette (white + brand-red only) ----------------
@@ -116,6 +117,7 @@ export default function FloorCommand({
   onAllocate,
   onRelease,
   onToggleBlock,
+  onStallClick,
 }: FloorCommandProps) {
   const [mode, setMode] = useState<'admin' | 'vendor'>(initialMode)
   const [selected, setSelected] = useState<string | null>(null)
@@ -205,7 +207,8 @@ export default function FloorCommand({
     if (b.type === 'facility') return
     setSelected(b.code)
     setVendorInput('')
-  }, [])
+    onStallClick?.(b.code)
+  }, [onStallClick])
 
   const closeDrawer = useCallback(() => {
     setSelected(null)
@@ -387,6 +390,7 @@ export default function FloorCommand({
       {/* MAIN */}
       <main style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div
+          data-testid="floor-map"
           style={{
             flex: 1, overflow: 'auto', padding: 24,
             background: `radial-gradient(900px 360px at 70% -5%, #fef7f5 0%, transparent 60%), ${C.ink}`,
@@ -597,7 +601,7 @@ export default function FloorCommand({
       </div>
 
       <style jsx>{`
-        @media (max-width: 760px) {
+        @media (max-width: 768px) {
           .floor-drawer {
             position: fixed !important;
             inset: auto 0 0 0 !important;

@@ -30,7 +30,10 @@ export async function GET(req: NextRequest) {
     .from('support_inbox_threads')
     .select('id, peer_email, peer_name, subject, status, snoozed_until, assignee_id, tag, vendor_application_id, ticket_buyer_id, last_inbound_at, last_handled_at, unread_count, created_at, updated_at')
     .order('last_inbound_at', { ascending: false, nullsFirst: false })
-    .limit(200)
+    // Bumped from 200 to 1000 so openSentAsThread can find older threads when
+    // an operator clicks a Sent row whose thread is no longer in the recent
+    // window. Threads payload is small (~16 cols, no body), 1000 rows is fine.
+    .limit(1000)
 
   if (status !== 'all') q = q.eq('status', status)
   if (tag) q = q.eq('tag', tag)

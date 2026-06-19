@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { updatePortalState } from '@/lib/portal-state'
+import { updatePortalState, syncPortalState } from '@/lib/portal-state'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -61,6 +61,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   } catch (e) {
     console.warn('mark-paid: event log insert failed:', (e as Error).message)
   }
+
+  await syncPortalState(id, db).catch((e) =>
+    console.error('[mark-paid] syncPortalState failed:', (e as Error).message)
+  )
 
   return NextResponse.json({ ok: true, payment: before.payment })
 }

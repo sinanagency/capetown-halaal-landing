@@ -1,11 +1,12 @@
-# CTH 2026 — Sprint State (2026-06-15)
+# CTH 2026 — Sprint State (2026-06-16)
 
-> Last updated: 2026-06-15 00:20 GST. Deploy: cthalaal.co.za. Next session reads this FIRST.
+> Last updated: 2026-06-16 GST. Deploy: cthalaal.co.za.
 
 ## TL;DR (3 lines)
-- Shipped: bulk-review queue, profile hub, cmd+K, exhibitor portal tasks, support-inbox, vendor-ops, broadcast-spin, bot DGX fallback (commit a138625).
-- Broken right now: walkthrough caught `/admin` dashboard fetch error + 2x React #310/#418 on support-inbox/bot-inbox + 404 on vendor-summary API + smart-queue still missing /admin/follow-up Chase button.
-- Taona next: paste `20260615_wa_threads_backfill.sql` (not yet applied), add `RESEND_WEBHOOK_SECRET` + `IMAP_PASS` to Vercel, delete the 2 `[SMOKE TEST]` rows in `vendor_applications`, eyeball-approve the 4-vendor cohort.
+- All bugs fixed: dashboard fetch error, support-inbox + bot-inbox scroll, vendor-summary 404, follow-up chase restored, broadcast revenue cards removed, sidebar collapse repositioned, allocation countdown added.
+- Data cleaned: smoke test rows deleted, 4 approved vendors (real), wa_threads backfilled, all 4 SQL migrations applied.
+- Vercel env: IMAP_PASS, RESEND_WEBHOOK_SECRET, META_WABA_TOKEN all already set. No missing env vars.
+- Everything ready for handover.
 
 ## Live state
 - Repo: https://github.com/sinanagency/capetown-halaal-landing

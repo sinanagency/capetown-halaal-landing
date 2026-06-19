@@ -1,383 +1,241 @@
-'use client'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { redirect } from 'next/navigation'
+import { getOrders } from '@/lib/woocommerce'
+import { PageShell, PageHeader, Card, Pill, StatCard } from '@/components/chrome/PageChrome'
+import WebTrafficDashboard from './WebTrafficDashboard'
 
-import { useEffect, useState } from 'react'
-import {
-  Loader2, Globe, Monitor, Smartphone, Tablet, Users, Eye, MousePointer,
-  TrendingUp, MapPin, ArrowRight, BarChart3
-} from 'lucide-react'
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
-} from 'recharts'
+export const dynamic = 'force-dynamic'
 
-interface Analytics {
-  overview: {
-    totalPageViews: number
-    totalVisitors: number
-    weeklyPageViews: number
-    weeklyVisitors: number
-    totalEvents: number
-    totalApplications: number
+// CTH-DOCTRINE alignment:
+//  - Law 2 (vendor PII): admin auth gate at the layout + this server component
+//    re-checks the admin_users membership. All reads use the service-role
+//    admin client. The page never ships to anon.
+//  - Law 4 (ticket source-of-truth): ticket counts + revenue come from
+//    getOrders() at request time, no duplicated counter table.
+//  - Law 6 (date-filter): getOrders() prepends FESTIVAL_CYCLE_AFTER to every
+//    call internally, so all WC reads here are cycle-scoped.
+//  - Law 7 (no em-dashes): copy uses commas and periods only.
+
+interface RecentEvent {
+  id: string
+  event_type: string
+  actor_email: string | null
+  actor_role: string | null
+  note: string | null
+  created_at: string
+  business_name: string | null
+}
+
+function fmtZAR(amount: number) {
+  return 'R' + amount.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleString('en-ZA', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function eventTone(type: string): 'neutral' | 'success' | 'warn' | 'danger' | 'brand' {
+  if (type === 'approved' || type === 'paid' || type === 'docs_complete' || type === 'contract_signed') return 'success'
+  if (type === 'rejected' || type === 'superseded') return 'danger'
+  if (type === 'info_requested' || type === 'tagged' || type === 'stall_allocated') return 'warn'
+  if (type === 'merged') return 'brand'
+  return 'neutral'
+}
+
+export default async function AnalyticsPage() {
+  // -------- auth gate (server, redirects to /admin/login on miss) --------
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/admin/login')
+
+  const db = createAdminClient()
+  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
+  if (!adminUser) redirect('/admin/login')
+
+  // -------- all-time KPI + 30-day windows --------
+  const now = new Date()
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  // 1) Vendor applications: count all-time + 30d + status breakdown.
+  // 2) WhatsApp messages: in + out counts, all-time + 30d.
+  // 3) Support threads: open / snoozed / resolved + 30d new.
+  // 4) Ticket sales: getOrders() applies the festival-cycle after filter
+  //    (Law 6) internally; status=completed for revenue + count.
+  // 5) Recent activity: last 20 rows from vendor_application_events joined to
+  //    vendor_applications.business_name for display context.
+  const [
+    vaAllTime,
+    vaRecent,
+    vaPending,
+    vaApproved,
+    vaRejected,
+    waInAll, waOutAll, waInRecent, waOutRecent,
+    stAllTime, stOpen, stSnoozed, stResolved, stRecent,
+    orders,
+    eventsRes,
+  ] = await Promise.all([
+    db.from('vendor_applications').select('id', { count: 'exact', head: true }),
+    db.from('vendor_applications').select('id', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo),
+    db.from('vendor_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    db.from('vendor_applications').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
+    db.from('vendor_applications').select('id', { count: 'exact', head: true }).eq('status', 'rejected'),
+    db.from('wa_messages').select('id', { count: 'exact', head: true }).eq('direction', 'in'),
+    db.from('wa_messages').select('id', { count: 'exact', head: true }).eq('direction', 'out'),
+    db.from('wa_messages').select('id', { count: 'exact', head: true }).eq('direction', 'in').gte('created_at', thirtyDaysAgo),
+    db.from('wa_messages').select('id', { count: 'exact', head: true }).eq('direction', 'out').gte('created_at', thirtyDaysAgo),
+    db.from('support_inbox_threads').select('id', { count: 'exact', head: true }),
+    db.from('support_inbox_threads').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+    db.from('support_inbox_threads').select('id', { count: 'exact', head: true }).eq('status', 'snoozed'),
+    db.from('support_inbox_threads').select('id', { count: 'exact', head: true }).eq('status', 'resolved'),
+    db.from('support_inbox_threads').select('id', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo),
+    getOrders({ status: 'completed' }).catch((e) => {
+      console.warn('[analytics] WC fetch failed:', e instanceof Error ? e.message : e)
+      return [] as Awaited<ReturnType<typeof getOrders>>
+    }),
+    db.from('vendor_application_events')
+      .select('id, application_id, event_type, actor_email, actor_role, note, created_at')
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ])
+
+  // Join activity rows to vendor business_name in a second pass. Two queries
+  // beats a nested select that requires a Supabase FK relationship name.
+  const eventRows = eventsRes.data || []
+  const appIds = Array.from(new Set(eventRows.map((e) => e.application_id).filter(Boolean)))
+  let nameById: Record<string, string> = {}
+  if (appIds.length > 0) {
+    const { data: apps } = await db
+      .from('vendor_applications')
+      .select('id, business_name')
+      .in('id', appIds)
+    nameById = (apps || []).reduce((acc: Record<string, string>, a: { id: string; business_name: string | null }) => {
+      acc[a.id] = a.business_name || '(unknown vendor)'
+      return acc
+    }, {})
   }
-  dailyStats: Array<{ date: string; views: number; visitors: number }>
-  topPages: Array<{ path: string; views: number }>
-  topCountries: Array<{ country: string; views: number }>
-  topCities: Array<{ city: string; views: number }>
-  devices: Record<string, number>
-  browsers: Record<string, number>
-  os: Record<string, number>
-  topReferrers: Array<{ source: string; views: number }>
-  vendorFunnel: Array<{ step: string; count: number }>
-  eventCounts: Record<string, number>
-  utmSources: Record<string, number>
-}
+  const recentActivity: RecentEvent[] = eventRows.map((e) => ({
+    id: e.id,
+    event_type: e.event_type,
+    actor_email: e.actor_email,
+    actor_role: e.actor_role,
+    note: e.note,
+    created_at: e.created_at,
+    business_name: nameById[e.application_id] || null,
+  }))
 
-const COLORS = ['#cd2653', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
-
-const COUNTRY_NAMES: Record<string, string> = {
-  ZA: 'South Africa', US: 'United States', GB: 'United Kingdom', AE: 'UAE',
-  IN: 'India', NG: 'Nigeria', KE: 'Kenya', DE: 'Germany', FR: 'France',
-  AU: 'Australia', CA: 'Canada', SA: 'Saudi Arabia', EG: 'Egypt',
-}
-
-function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })
-}
-
-function DeviceIcon({ type }: { type: string }) {
-  if (type === 'mobile') return <Smartphone className="w-4 h-4" />
-  if (type === 'tablet') return <Tablet className="w-4 h-4" />
-  return <Monitor className="w-4 h-4" />
-}
-
-export default function AnalyticsPage() {
-  const [data, setData] = useState<Analytics | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/admin/analytics')
-        if (res.ok) setData(await res.json())
-      } catch (e) {
-        console.error('Analytics load error:', e)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-neutral-300" />
-      </div>
-    )
-  }
-
-  if (!data) {
-    return (
-      <div className="p-8 text-center text-neutral-500">
-        Failed to load analytics data.
-      </div>
-    )
-  }
-
-  const { overview, dailyStats, topPages, topCountries, topCities, devices, browsers, topReferrers, vendorFunnel, eventCounts } = data
-
-  const chartData = dailyStats.map(d => ({ ...d, date: formatDate(d.date) }))
-
-  const deviceData = Object.entries(devices).map(([name, value]) => ({ name, value }))
-  const browserData = Object.entries(browsers)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 6)
-    .map(([name, value]) => ({ name, value }))
-
-  const funnelMax = vendorFunnel[0]?.count || 1
+  // Aggregate ticket sales from the WC orders payload.
+  const ticketRevenue = orders.reduce((sum, o) => sum + parseFloat(o.total || '0'), 0)
+  const ticketCount = orders.reduce(
+    (sum, o) => sum + o.line_items.reduce((s, item) => s + item.quantity, 0),
+    0,
+  )
+  const orderCount = orders.length
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1440px] space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">Analytics</h1>
-        <p className="text-neutral-500 text-sm mt-0.5">Last 30 days of visitor data</p>
-      </div>
+    <PageShell>
+      <PageHeader
+        kicker="Analytics"
+        title="All time view"
+        subtitle="Festival cycle counters across applications, messaging, support, and tickets. Live read at page load."
+        actions={<Pill tone="success">live</Pill>}
+      />
 
-      {/* KPI Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Page Views</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-              <Eye className="w-4 h-4 text-blue-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-neutral-900">{overview.totalPageViews.toLocaleString()}</p>
-          <p className="text-xs text-neutral-400 mt-1">{overview.weeklyPageViews} this week</p>
+      <div className="space-y-6">
+        {/* ---------- 4 business KPI cards ---------- */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Vendor applications"
+            value={vaAllTime.count ?? 0}
+            trend={vaRecent.count != null ? `+${vaRecent.count} 30d` : undefined}
+            hint={
+              <span>
+                {vaPending.count ?? 0} pending, {vaApproved.count ?? 0} approved, {vaRejected.count ?? 0} rejected
+              </span>
+            }
+          />
+          <StatCard
+            label="WhatsApp messages"
+            value={(waInAll.count ?? 0) + (waOutAll.count ?? 0)}
+            trend={
+              waInRecent.count != null || waOutRecent.count != null
+                ? `+${(waInRecent.count ?? 0) + (waOutRecent.count ?? 0)} 30d`
+                : undefined
+            }
+            hint={
+              <span>
+                {waInAll.count ?? 0} inbound, {waOutAll.count ?? 0} outbound
+              </span>
+            }
+          />
+          <StatCard
+            label="Support threads"
+            value={stAllTime.count ?? 0}
+            trend={stRecent.count != null ? `+${stRecent.count} 30d` : undefined}
+            hint={
+              <span>
+                {stOpen.count ?? 0} open, {stSnoozed.count ?? 0} snoozed, {stResolved.count ?? 0} resolved
+              </span>
+            }
+          />
+          <StatCard
+            label="Ticket sales"
+            value={fmtZAR(ticketRevenue)}
+            trend={`${ticketCount} tix`}
+            hint={
+              <span>
+                {orderCount} completed orders, festival cycle
+              </span>
+            }
+          />
         </div>
 
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Unique Visitors</span>
-            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
-              <Users className="w-4 h-4 text-green-600" />
-            </div>
+        {/* ---------- Recent activity ---------- */}
+        <Card>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-serif text-lg text-[#1B1A17]">Recent vendor activity</h2>
+            <span className="text-[11px] uppercase tracking-[0.14em] text-[#1B1A17]/55">
+              Last {recentActivity.length} events
+            </span>
           </div>
-          <p className="text-2xl font-bold text-neutral-900">{overview.totalVisitors.toLocaleString()}</p>
-          <p className="text-xs text-neutral-400 mt-1">{overview.weeklyVisitors} this week</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Events</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
-              <MousePointer className="w-4 h-4 text-purple-600" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-neutral-900">{overview.totalEvents.toLocaleString()}</p>
-          <p className="text-xs text-neutral-400 mt-1">User interactions</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-neutral-200 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Applications</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-[#cd2653]" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-neutral-900">{overview.totalApplications}</p>
-          <p className="text-xs text-neutral-400 mt-1">Vendor applications</p>
-        </div>
-      </div>
-
-      {/* Traffic Chart */}
-      <div className="bg-white rounded-xl border border-neutral-200 p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="font-semibold text-neutral-900">Traffic</h2>
-            <p className="text-xs text-neutral-400 mt-0.5">Page views and unique visitors</p>
-          </div>
-          <div className="flex items-center gap-4 text-xs text-neutral-500">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#cd2653]" /> Views</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-blue-400" /> Visitors</span>
-          </div>
-        </div>
-        {chartData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="viewsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#cd2653" stopOpacity={0.12} />
-                  <stop offset="100%" stopColor="#cd2653" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="visitorsGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.12} />
-                  <stop offset="100%" stopColor="#60a5fa" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#a3a3a3' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#a3a3a3' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e5e5' }} />
-              <Area type="monotone" dataKey="views" name="Views" stroke="#cd2653" strokeWidth={2} fill="url(#viewsGrad)" />
-              <Area type="monotone" dataKey="visitors" name="Visitors" stroke="#60a5fa" strokeWidth={2} fill="url(#visitorsGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="h-[280px] flex items-center justify-center text-neutral-300 text-sm">No traffic data yet. Data will appear as visitors browse the site.</div>
-        )}
-      </div>
-
-      {/* Second Row: Pages + Geo + Devices */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Top Pages */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
-          <h2 className="font-semibold text-neutral-900 mb-4">Top Pages</h2>
-          {topPages.length > 0 ? (
-            <div className="space-y-3">
-              {topPages.map((p, i) => (
-                <div key={p.path} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-xs text-neutral-400 w-4">{i + 1}</span>
-                    <span className="text-sm text-neutral-700 truncate">{p.path}</span>
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-[#1B1A17]/55">
+              No vendor lifecycle events yet. Approvals, payments, and stall allocations will appear here.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[#E5E5E5]/30">
+              {recentActivity.map((ev) => (
+                <li key={ev.id} className="flex items-start gap-3 py-2.5">
+                  <div className="shrink-0 pt-0.5">
+                    <Pill tone={eventTone(ev.event_type)}>{ev.event_type.replace(/_/g, ' ')}</Pill>
                   </div>
-                  <span className="text-sm font-semibold text-neutral-900 flex-shrink-0 ml-2">{p.views}</span>
-                </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#1B1A17] truncate">
+                      <span className="font-semibold">{ev.business_name || '(unknown vendor)'}</span>
+                      {ev.note ? <span className="text-[#1B1A17]/70">, {ev.note}</span> : null}
+                    </p>
+                    <p className="text-[11px] text-[#1B1A17]/55 mt-0.5">
+                      {ev.actor_email || 'system'}
+                      {ev.actor_role ? `, ${ev.actor_role}` : ''} . {fmtDate(ev.created_at)}
+                    </p>
+                  </div>
+                </li>
               ))}
-            </div>
-          ) : (
-            <p className="text-sm text-neutral-400">No data yet</p>
+            </ul>
           )}
-        </div>
+        </Card>
 
-        {/* Geography */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Globe className="w-4 h-4 text-neutral-400" />
-            <h2 className="font-semibold text-neutral-900">Countries</h2>
+        {/* ---------- Existing web traffic dashboard preserved underneath ---------- */}
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="font-serif text-lg text-[#1B1A17]">Web traffic</h2>
+            <Pill tone="neutral">last 30 days</Pill>
           </div>
-          {topCountries.length > 0 ? (
-            <div className="space-y-3">
-              {topCountries.map((c) => {
-                const pct = overview.totalPageViews > 0 ? (c.views / overview.totalPageViews) * 100 : 0
-                return (
-                  <div key={c.country}>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-neutral-700">{COUNTRY_NAMES[c.country] || c.country}</span>
-                      <span className="text-xs text-neutral-500">{c.views} ({pct.toFixed(0)}%)</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-neutral-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#cd2653] rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <p className="text-sm text-neutral-400">No geo data yet</p>
-          )}
-
-          {topCities.length > 0 && (
-            <>
-              <div className="flex items-center gap-2 mt-6 mb-3">
-                <MapPin className="w-4 h-4 text-neutral-400" />
-                <h3 className="text-sm font-semibold text-neutral-900">Top Cities</h3>
-              </div>
-              <div className="space-y-2">
-                {topCities.slice(0, 5).map(c => (
-                  <div key={c.city} className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-600">{c.city}</span>
-                    <span className="text-xs font-medium text-neutral-500">{c.views}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Devices + Browsers */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
-          <h2 className="font-semibold text-neutral-900 mb-4">Devices</h2>
-          {deviceData.length > 0 ? (
-            <>
-              <div className="flex justify-center mb-4">
-                <ResponsiveContainer width={160} height={160}>
-                  <PieChart>
-                    <Pie data={deviceData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value" strokeWidth={0}>
-                      {deviceData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="space-y-2.5">
-                {deviceData.map((d, i) => (
-                  <div key={d.name} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      <DeviceIcon type={d.name} />
-                      <span className="text-sm text-neutral-600 capitalize">{d.name}</span>
-                    </div>
-                    <span className="text-sm font-semibold text-neutral-900">{d.value}</span>
-                  </div>
-                ))}
-              </div>
-
-              <h3 className="text-sm font-semibold text-neutral-900 mt-6 mb-3">Browsers</h3>
-              <div className="space-y-2">
-                {browserData.map(b => (
-                  <div key={b.name} className="flex items-center justify-between">
-                    <span className="text-sm text-neutral-600">{b.name}</span>
-                    <span className="text-xs font-medium text-neutral-500">{b.value}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-neutral-400">No device data yet</p>
-          )}
+          <WebTrafficDashboard />
         </div>
       </div>
-
-      {/* Third Row: Funnel + Referrers + Events */}
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Vendor Application Funnel */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-neutral-200 p-6">
-          <div className="flex items-center gap-2 mb-6">
-            <BarChart3 className="w-4 h-4 text-neutral-400" />
-            <h2 className="font-semibold text-neutral-900">Vendor Application Funnel</h2>
-          </div>
-          {vendorFunnel[0]?.count > 0 ? (
-            <div className="space-y-4">
-              {vendorFunnel.map((step, i) => {
-                const pct = funnelMax > 0 ? (step.count / funnelMax) * 100 : 0
-                const dropoff = i > 0 && vendorFunnel[i - 1].count > 0
-                  ? ((vendorFunnel[i - 1].count - step.count) / vendorFunnel[i - 1].count * 100).toFixed(0)
-                  : null
-                return (
-                  <div key={step.step}>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-neutral-700">{step.step}</span>
-                        {dropoff && parseInt(dropoff) > 0 && (
-                          <span className="text-[11px] text-red-500">{dropoff}% drop</span>
-                        )}
-                      </div>
-                      <span className="text-sm font-bold text-neutral-900">{step.count}</span>
-                    </div>
-                    <div className="w-full h-3 bg-neutral-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${Math.max(pct, 2)}%`,
-                          backgroundColor: COLORS[i % COLORS.length],
-                        }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="h-[200px] flex items-center justify-center text-neutral-300 text-sm">
-              Funnel data will appear as visitors interact with the site
-            </div>
-          )}
-        </div>
-
-        {/* Referrers */}
-        <div className="bg-white rounded-xl border border-neutral-200 p-6">
-          <h2 className="font-semibold text-neutral-900 mb-4">Traffic Sources</h2>
-          {topReferrers.length > 0 ? (
-            <div className="space-y-3">
-              {topReferrers.map(r => (
-                <div key={r.source} className="flex items-center justify-between">
-                  <span className="text-sm text-neutral-600 truncate mr-2">{r.source}</span>
-                  <span className="text-sm font-semibold text-neutral-900 flex-shrink-0">{r.views}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-neutral-400">No referrer data yet</p>
-          )}
-
-          {Object.keys(eventCounts).length > 0 && (
-            <>
-              <h3 className="text-sm font-semibold text-neutral-900 mt-6 mb-3">Event Activity</h3>
-              <div className="space-y-2">
-                {Object.entries(eventCounts)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([event, count]) => (
-                    <div key={event} className="flex items-center justify-between">
-                      <span className="text-sm text-neutral-600">{event.replace(/_/g, ' ')}</span>
-                      <span className="text-xs font-medium text-neutral-500">{count}</span>
-                    </div>
-                  ))}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+    </PageShell>
   )
 }

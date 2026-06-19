@@ -275,7 +275,7 @@ export default function DashboardPage() {
                   <Separator className="bg-white/10" />
                   <div>
                     <p className="text-sm text-gray-400">Organizer</p>
-                    <p className="font-semibold text-white">Samreen Kumandan</p>
+                    <p className="font-semibold text-white">Support Team</p>
                   </div>
                 </CardContent>
               </Card>

@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { FileCheck, Upload, Loader2, ExternalLink, CheckCircle2, Clock, XCircle } from 'lucide-react'
+import { FileCheck, Upload, Loader2, ExternalLink, CheckCircle2, Clock, XCircle, AlertTriangle } from 'lucide-react'
 
 export interface DocView {
   type: string
@@ -65,6 +65,21 @@ export default function DocumentsManager({ docs }: { docs: DocView[] }) {
         const st = doc ? STATUS[doc.status] : null
         return (
           <div key={r.type} className="bg-white border border-neutral-200 rounded-2xl p-5 flex items-start gap-4">
+            {doc?.status === 'rejected' && doc?.note && (
+              <div className="mb-3 p-4 rounded-xl border border-red-200 bg-red-50">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-800 text-sm">{doc.type} — Rejected</p>
+                    <p className="text-red-700 text-xs mt-1">{doc.note}</p>
+                    <button onClick={() => { inputs.current[r.type]?.click() }}
+                      className="mt-2 text-xs font-medium text-red-700 underline hover:text-red-800">
+                      Upload replacement
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="w-10 h-10 rounded-lg bg-[#cd2653]/10 text-[#cd2653] flex items-center justify-center shrink-0"><FileCheck className="w-5 h-5" /></div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

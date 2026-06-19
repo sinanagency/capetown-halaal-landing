@@ -1,0 +1,31 @@
+{
+  "discoveredRows": [
+    "/admin/applications/502b36e5-5121-403d-a55a-2fc039d5f171"
+  ],
+  "detailProbes": [
+    {
+      "href": "/admin/applications/502b36e5-5121-403d-a55a-2fc039d5f171",
+      "probe": {
+        "foundHeading": true,
+        "headingText": "Requirements & Details",
+        "sectionSnippet": "Requirements & Details\n\nTraded Before\n\nNo\n\nSocial Media\n\nInstagram\n\nStall Type\n\nFood Truck/Space (MAX 4.5m)\n\nStall Price\n\nR6,500\n\nElectrical Appliances\n\n1x None (R0)\n\nAppliance Details\n\n1 Double Fryer 1 Fridge 1 Freezer\n\nUses Gas\n\nYes\n\nTotal Estimate\n\nR6,500",
+        "isRawJsonLooking": false,
+        "labelMatches": 4
+      },
+      "screenshot": "/Users/milaaj/Code/capetown-halaal-landing/screenshots/admin-walkthrough-2026-06-15/09b-detail-1.png"
+    }
+  ],
+  "inboxScroll": {
+    "scrollableInnerCount": 0,
+    "scrollableSamples": [],
+    "docScrollable": true,
+    "bodyScrollable": true,
+    "docHeight": 1705,
+    "winHeight": 900
+  },
+  "listPreviewSpecialReq": {
+    "hasSpecialReq": true,
+    "sectionText": "Young at Heart\n\nAdmin Portal\n\nDashboard\n\nOPERATIONS\n\nApplications\n457\nVerifier\nPeople\nDocuments\nVendors\nAllocation\n\nCOMMUNICATIONS\n\nInbox\nSupport Inbox\n92\nBroadcast\n\nMONEY\n\nTicket Sales\nFollow Up\n\nINSIGHTS\n\nAnalytics\n\nSETTINGS\n\nActivity Feed\nOperators\nAudit Log\nComms Health\n\nEXTERNAL\n\nTicket Store\nMain Website\nView Live Site\n\nSIGNED IN\n\ndev@cthalaal.co.za\n\nOwner\nSign Out\n200\nto go\n(457 pending total)\nDedupe\nback to dashboard\nSTATUS\nOpen\nPending\nInfo requested\nApproved\nRejected\nAll\nSECTOR\nAll\nBeauty & Wellness\nBusiness & Trade\nFashion & Modest Wear\nFood & Beverage\nHealth & Pharmacy\nHome & Living\nOther\nTravel & Tourism\nSCORE\nAll\nHigh (80+)\nMid (40 to 79)\nLow (under 40)\nTIER\nAll\nMarquee Table 2×2m\nMarquee Full 3×3m\nMarquee Double Table 4×2m\nMarquee Full Double 6×3m\nOutdoor Bedouin 2×3m\nFood G",
+    "isRawJsonLooking": false
+  }
+}

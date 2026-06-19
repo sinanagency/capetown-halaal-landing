@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ExternalLink, Loader2, Search } from 'lucide-react'
+import { Eye, Loader2, Search } from 'lucide-react'
 import {
   PageShell, PageHeader, Card, Pill, Tabs,
 } from '@/components/chrome/PageChrome'
 import { DOC_LABEL } from '@/lib/exhibitor/required-docs'
+import { DocViewerDrawer } from '@/components/admin/documents/DocViewerDrawer'
 
 type TabKey = 'vendors' | 'tickets'
 
@@ -66,6 +67,27 @@ function docStatusTone(s: VendorDocRow['doc_status']): 'success' | 'warn' | 'dan
   return 'warn'
 }
 
+// Resolve the URL the inline viewer should load for a vendor doc row.
+// `contract:<application_id>` is the sentinel emitted by the synthetic
+// contract row in /api/admin/documents/vendors and points the viewer at
+// the admin-gated contract PDF route. Everything else flows through the
+// existing vendor-doc signed-URL endpoint.
+function vendorDocUrl(row: VendorDocRow): string {
+  if (row.storage_path.startsWith('contract:')) {
+    return `/api/admin/applications/${row.application_id}/contract/pdf`
+  }
+  return `/api/admin/vendor-doc?path=${encodeURIComponent(row.storage_path)}`
+}
+
+interface ViewerState {
+  open: boolean
+  url: string | null
+  label: string
+  holder: string | null
+}
+
+const VIEWER_CLOSED: ViewerState = { open: false, url: null, label: '', holder: null }
+
 export function DocumentsClient() {
   const [tab, setTab] = useState<TabKey>('vendors')
   const [search, setSearch] = useState('')
@@ -78,6 +100,10 @@ export function DocumentsClient() {
   const [ticketRows, setTicketRows] = useState<TicketRow[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Inline viewer state. Shared by both tabs; we only ever surface one
+  // PDF at a time so a single state slot is enough.
+  const [viewer, setViewer] = useState<ViewerState>(VIEWER_CLOSED)
 
   // Debounce search so we are not firing on every keystroke.
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -155,7 +181,7 @@ export function DocumentsClient() {
       <PageHeader
         kicker="Operations"
         title="Documents"
-        subtitle="Every vendor document and ticket PDF in one place. Click View to open the file in a new tab."
+        subtitle="Every vendor document and ticket PDF in one place. Click View to preview the file inline."
       />
 
       <div className="space-y-4">
@@ -286,14 +312,18 @@ export function DocumentsClient() {
                         <span className="text-sm text-[#1B1A17]/70">{formatDateTime(r.uploaded_at)}</span>
                       </td>
                       <td className="p-3 text-right">
-                        <a
-                          href={`/api/admin/vendor-doc?path=${encodeURIComponent(r.storage_path)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => setViewer({
+                            open: true,
+                            url: vendorDocUrl(r),
+                            label: `${docTypeLabel(r.doc_type)} · ${r.doc_name}`,
+                            holder: r.business_name,
+                          })}
                           className="inline-flex items-center gap-1 text-sm font-semibold text-[#cd2653] hover:text-[#bf3026]"
                         >
-                          View <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
+                          <Eye className="w-3.5 h-3.5" /> View
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -359,14 +389,22 @@ export function DocumentsClient() {
                         </td>
                         <td className="p-3 text-right">
                           {r.pdf_url ? (
-                            <a
-                              href={r.pdf_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              type="button"
+                              onClick={() => setViewer({
+                                open: true,
+                                // Route through our same-origin proxy so the
+                                // drawer iframe can render the FooEvents PDF
+                                // inline (cross-origin direct embed is blocked
+                                // by tickets.youngatheart.co.za).
+                                url: `/api/admin/documents/tickets/proxy?url=${encodeURIComponent(r.pdf_url ?? '')}`,
+                                label: r.ticket_type ? `Ticket · ${r.ticket_type}` : 'Ticket',
+                                holder,
+                              })}
                               className="inline-flex items-center gap-1 text-sm font-semibold text-[#cd2653] hover:text-[#bf3026]"
                             >
-                              View <ExternalLink className="w-3.5 h-3.5" />
-                            </a>
+                              <Eye className="w-3.5 h-3.5" /> View
+                            </button>
                           ) : (
                             <span className="text-xs text-[#1B1A17]/40">No PDF</span>
                           )}
@@ -380,6 +418,14 @@ export function DocumentsClient() {
           </Card>
         )}
       </div>
+
+      <DocViewerDrawer
+        open={viewer.open}
+        url={viewer.url}
+        label={viewer.label}
+        holder={viewer.holder}
+        onClose={() => setViewer(VIEWER_CLOSED)}
+      />
     </PageShell>
   )
 }

@@ -23,6 +23,7 @@ import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
 import { handleAdminMessage } from '@/lib/bot/admin-chat'
 import { isMaintenanceEnabled } from '@/lib/maintenance'
 import { guardReply, logGuardRedaction } from '@/lib/bot/reply-guard'
+import { shouldProcess } from '@/lib/brain-core/index.js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -126,8 +127,12 @@ async function handleInbound(msg: {
 }) {
   const e164 = toE164(msg.from)
 
-  // Dedup: Meta retries webhooks. Skip if we've already stored this message id.
-  if (await alreadySeen(msg.messageId)) return
+  // Brain-core webhook guard: dedup (wamid + 2s sender lock) + media-pending buffer.
+  const guard = await shouldProcess("cth", e164, msg.messageId, msg.text, {
+    seenByWamid: async (id) => alreadySeen(id),
+    logToChat: async (_sender, _text) => {},
+  })
+  if (guard.action !== "process") return
   await logMessage({ direction: 'in', wa_phone: e164, body: msg.text, status: 'received', providerMessageId: msg.messageId })
 
   // 1) STOP — hard opt-out, confirm once, then go silent.
@@ -382,11 +387,12 @@ async function touchThread(
   // Read first so we can compute unread_count without race-prone increments.
   const { data: existing } = await db
     .from('wa_threads')
-    .select('wa_phone,unread_count')
+    .select('wa_phone,unread_count,ticket_id')
     .eq('wa_phone', waPhone)
     .maybeSingle()
 
-  const prevUnread = (existing as { unread_count?: number } | null)?.unread_count ?? 0
+  const prevUnread = (existing as { unread_count?: number; ticket_id?: string } | null)?.unread_count ?? 0
+  const existingTicketId = (existing as { ticket_id?: string } | null)?.ticket_id
   const row: Record<string, unknown> = { wa_phone: waPhone }
   if (direction === 'in') {
     row.last_inbound_at = now
@@ -396,6 +402,50 @@ async function touchThread(
     row.unread_count = 0
   }
   await db.from('wa_threads').upsert(row, { onConflict: 'wa_phone' })
+
+  // Auto-link ticket if thread has no ticket_id yet
+  if (!existingTicketId) {
+    try {
+      await autoLinkWaTicket(db, waPhone)
+    } catch (e) {
+      console.error('[wa-ticket] auto-link error:', (e as Error).message)
+    }
+  }
+}
+
+// Auto-link a WA thread to a vendor ticket by matching phone (last 9 digits).
+async function autoLinkWaTicket(db: ReturnType<typeof createAdminClient>, waPhone: string) {
+  const digits = waPhone.replace(/[^0-9]/g, '')
+  const last9 = digits.slice(-9)
+  if (last9.length < 6) return
+
+  const { data: app } = await db
+    .from('vendor_applications')
+    .select('id')
+    .filter('phone', 'like', `%${last9}`)
+    .maybeSingle()
+
+  if (!app) return
+
+  // Find or create ticket
+  let { data: ticket } = await db
+    .from('vendor_tickets')
+    .select('id')
+    .eq('vendor_application_id', app.id)
+    .maybeSingle()
+
+  if (!ticket) {
+    const { data: newTicket } = await db
+      .from('vendor_tickets')
+      .insert({ vendor_application_id: app.id, status: 'open' })
+      .select('id')
+      .single()
+    ticket = newTicket as { id: string } | null
+  }
+
+  if (ticket) {
+    await db.from('wa_threads').update({ ticket_id: ticket.id }).eq('wa_phone', waPhone)
+  }
 }
 
 async function logStatuses(statuses: Array<{ messageId: string; status: string; recipient: string; errorMessage?: string }>) {

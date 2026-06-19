@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Send, Sparkles, Loader2, MessageCircle, Crown, Star, ArrowRight, Clock, UserCheck, CheckCircle2, RotateCcw, Search, Tag, Link2 } from 'lucide-react'
 import type { BotAdmin } from '@/lib/bot/admins'
-import { PageShell, PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
+import { PageHeader, Card, Pill } from '@/components/chrome/PageChrome'
 
 interface MsgRow {
   id: string
@@ -155,15 +155,31 @@ export function BotInboxClient({
   // Search across vendor/guest threads. Matches against display label, raw
   // phone, and the latest preview body.
   const [search, setSearch] = useState('')
+  // Source filter: cut noise by limiting threads to vendors, ticket buyers,
+  // unknowns, or all. Default 'all' keeps prior behavior.
+  type SourceFilter = 'all' | 'vendor' | 'ticket_buyer' | 'unknown'
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const filteredGuests = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return guestThreads
-    return guestThreads.filter((t) =>
-      t.label.toLowerCase().includes(q) ||
-      t.phone.toLowerCase().includes(q) ||
-      t.latestPreview.toLowerCase().includes(q)
-    )
-  }, [search, guestThreads])
+    return guestThreads.filter((t) => {
+      if (sourceFilter !== 'all' && t.badge !== sourceFilter) return false
+      if (!q) return true
+      return (
+        t.label.toLowerCase().includes(q) ||
+        t.phone.toLowerCase().includes(q) ||
+        t.latestPreview.toLowerCase().includes(q)
+      )
+    })
+  }, [search, sourceFilter, guestThreads])
+  const sourceCounts = useMemo(() => {
+    const c = { all: guestThreads.length, vendor: 0, ticket_buyer: 0, unknown: 0 }
+    for (const t of guestThreads) {
+      if (t.badge === 'vendor') c.vendor++
+      else if (t.badge === 'ticket_buyer') c.ticket_buyer++
+      else c.unknown++
+    }
+    return c
+  }, [guestThreads])
   const filteredMail = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return mailThreads
@@ -175,18 +191,19 @@ export function BotInboxClient({
   }, [search, mailThreads])
 
   return (
-    <PageShell>
-      <PageHeader
-        kicker="WhatsApp"
-        title="Bot Inbox"
-        subtitle="Every conversation with the YAH WhatsApp bot, in one place. Click a thread to read it, see the AI summary, pick a suggested reply or type your own."
-      />
+    <div className="h-full flex flex-col bg-[#FFFFFF] text-[#1B1A17] overflow-hidden px-6 sm:px-8 lg:px-10 py-6">
+      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0 overflow-hidden">
+        <PageHeader
+          kicker="WhatsApp"
+          title="Bot Inbox"
+          subtitle="Every conversation with the YAH WhatsApp bot, in one place. Click a thread to read it, see the AI summary, pick a suggested reply or type your own."
+        />
 
-      <div className="grid lg:grid-cols-[340px_1fr] gap-5">
-        {/* LEFT: thread list */}
-        <div className="space-y-5">
+        <div className="grid lg:grid-cols-[340px_1fr] gap-5 grid-rows-[minmax(0,1fr)] flex-1 min-h-0">
+          {/* LEFT: thread list (independent scroll) */}
+          <div className="flex flex-col min-h-0 overflow-y-auto space-y-5 pr-1">
           <Card padded={false}>
-            <div className="p-3">
+            <div className="p-3 space-y-2">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
                 <input
@@ -195,6 +212,32 @@ export function BotInboxClient({
                   placeholder="Search threads."
                   className="w-full rounded-lg bg-white border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:border-[#cd2653]"
                 />
+              </div>
+              {/* Source filter: cut noise. Counts come from the unfiltered set
+                  so an operator can see how many of each kind exist. */}
+              <div className="flex flex-wrap gap-1">
+                {([
+                  { k: 'all',          label: 'All',        n: sourceCounts.all },
+                  { k: 'vendor',       label: 'Vendors',    n: sourceCounts.vendor },
+                  { k: 'ticket_buyer', label: 'Attendees',  n: sourceCounts.ticket_buyer },
+                  { k: 'unknown',      label: 'Unknown',    n: sourceCounts.unknown },
+                ] as { k: SourceFilter; label: string; n: number }[]).map((opt) => {
+                  const on = sourceFilter === opt.k
+                  return (
+                    <button
+                      key={opt.k}
+                      type="button"
+                      onClick={() => setSourceFilter(opt.k)}
+                      className={`text-[11px] font-medium px-2 py-1 rounded-full border transition-colors ${
+                        on
+                          ? 'bg-[#cd2653] text-white border-[#cd2653]'
+                          : 'bg-white text-neutral-600 border-neutral-200 hover:border-[#cd2653]/40'
+                      }`}
+                    >
+                      {opt.label} <span className={on ? 'text-white/80' : 'text-neutral-400'}>· {opt.n}</span>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </Card>
@@ -294,8 +337,9 @@ export function BotInboxClient({
           )}
         </div>
 
-        {/* RIGHT: active thread */}
-        <div>
+        {/* RIGHT: active thread — bounded so the conversation scrolls inside
+            this column instead of pushing the page down. */}
+        <div className="flex flex-col min-h-0 overflow-y-auto pr-1">
           {active ? (
             <ActiveThread key={active.phone} active={active} />
           ) : (
@@ -305,7 +349,8 @@ export function BotInboxClient({
           )}
         </div>
       </div>
-    </PageShell>
+      </div>
+    </div>
   )
 }
 

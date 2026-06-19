@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Send, Loader2 } from 'lucide-react'
 import type { SupportMessage } from '@/lib/portal-state'
 
@@ -9,6 +9,26 @@ export default function SupportThread({ initial }: { initial: SupportMessage[] }
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [alsoEmail, setAlsoEmail] = useState(true)
+  const [prevCount, setPrevCount] = useState(initial.length)
+  const [newMsgBanner, setNewMsgBanner] = useState(false)
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/exhibitor/support')
+        const j = await res.json()
+        if (res.ok && j.messages) {
+          if (j.messages.length > prevCount && prevCount > 0) {
+            setNewMsgBanner(true)
+            setTimeout(() => setNewMsgBanner(false), 5000)
+          }
+          setPrevCount(j.messages.length)
+          setMessages(j.messages)
+        }
+      } catch {}
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [prevCount])
 
   async function send(e: React.FormEvent) {
     e.preventDefault()
@@ -28,6 +48,11 @@ export default function SupportThread({ initial }: { initial: SupportMessage[] }
   return (
     <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden">
       <div className="p-5 space-y-3 max-h-[50vh] overflow-y-auto">
+        {newMsgBanner && (
+          <div className="text-center py-2 text-xs text-emerald-600 bg-emerald-50 rounded-lg animate-pulse">
+            New messages received
+          </div>
+        )}
         {messages.length === 0 ? (
           <p className="text-sm text-neutral-500 text-center py-8">No messages yet. Ask us anything about your booking, payments, load-in or the festival.</p>
         ) : messages.map((m) => (

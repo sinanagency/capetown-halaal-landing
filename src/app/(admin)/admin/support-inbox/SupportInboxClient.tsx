@@ -4,9 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
   Loader2, Send, Search, Tag, UserCheck, Clock, CheckCircle2, RotateCcw,
-  Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck,
+  Link2, Sparkles, Mail, AlertCircle, Inbox as InboxIcon, MailCheck, PanelRightClose, Users,
 } from 'lucide-react'
-import { PageShell, PageHeader, Card, Pill, ButtonPrimary, Empty } from '@/components/chrome/PageChrome'
+import { PageHeader, Card, Pill, ButtonPrimary, Empty } from '@/components/chrome/PageChrome'
 import { sanitizeEmailHtml } from '@/lib/sanitize'
 
 // XSS proof for sanitizeEmailHtml — confirm the allowlist strips dangerous
@@ -76,6 +76,40 @@ interface TicketHit { email: string; name: string | null; phone: string | null }
 
 const ALL_TAGS: Tag[] = ['payment', 'load-in', 'badges', 'contract', 'refund', 'general']
 
+const EMAIL_SIGNATURE = `\n\n--\nYoung at Heart Festival 2026\nCape Town Halaal\nsupport@youngatheart.co.za | cthalaal.co.za`
+
+// Some legacy inbound rows have the FULL RFC822 source in body_text instead
+// of the parsed body (mailparser fallback path before the cron started
+// stripping headers). Detect that shape and drop everything up to the first
+// blank line so the operator sees the actual message, not "Return-Path:".
+// Modern rows are unaffected.
+function stripRfc822Headers(body: string | null): string {
+  if (!body) return ''
+  const head = body.slice(0, 400)
+  const looksLikeRfc822 = /^(Return-Path|Received|From|To|Subject|Message-ID|X-[A-Za-z-]+):/m.test(head)
+  if (!looksLikeRfc822) return body
+  const splitIdx = body.search(/\r?\n\r?\n/)
+  if (splitIdx < 0) return body
+  const tail = body.slice(splitIdx + 2).trim()
+  if (!tail) return ''
+
+  // Some HTML-only emails (Content-Transfer-Encoding: base64, no text/plain
+  // alternative) leave the raw base64 blob in the tail. Detect by checking
+  // if the tail looks like base64 (alphanumeric + / + + + =) and decode it.
+  if (tail.length > 20) {
+    const sample = tail.replace(/\s/g, '').slice(0, 200)
+    if (/^[A-Za-z0-9+/=]+$/.test(sample)) {
+      try {
+        const decoded = atob(tail.replace(/\s/g, ''))
+        // Strip HTML tags since this was originally text/html
+        return decoded.replace(/<[^>]*>/g, '').trim().slice(0, 4000) || decoded.slice(0, 4000)
+      } catch { /* not valid base64, fall through */ }
+    }
+  }
+
+  return tail
+}
+
 function fmt(ts: string | null): string {
   if (!ts) return ''
   const d = new Date(ts)
@@ -106,6 +140,8 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('open')
   const [tagFilter, setTagFilter] = useState<Tag | null>(null)
   const [search, setSearch] = useState('')
+  const [threadsCollapsed, setThreadsCollapsed] = useState(false)
+  const [identityFilter, setIdentityFilter] = useState<'all' | 'vendor' | 'ticket' | 'unknown'>('all')
   const [activeId, setActiveId] = useState<string | null>(null)
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
@@ -132,6 +168,37 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
       toast.error(`Load failed, ${e instanceof Error ? e.message : 'error'}`)
     } finally { setLoading(false) }
   }, [tab, statusFilter, tagFilter])
+
+  // Open a Sent row as a full thread. Switches to All tab so the thread is in
+  // the list regardless of open/snoozed/resolved status, refetches threads
+  // with status=all, then selects the target thread. The Inbox thread renderer
+  // (which already right-aligns outbound mail in brand red and left-aligns
+  // inbound) takes over the visual so the operator sees full continuity.
+  const openSentAsThread = useCallback(async (threadId: string | null) => {
+    if (!threadId) {
+      toast.error('This send has no thread link.')
+      return
+    }
+    setTab('all')
+    setStatusFilter('all')
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ status: 'all' })
+      const res = await fetch(`/api/admin/support-inbox/threads?${params.toString()}`)
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      const fetched: SupportThread[] = j.threads || []
+      setThreads(fetched)
+      const hit = fetched.find((t) => t.id === threadId)
+      if (hit) {
+        setActiveId(threadId)
+      } else {
+        toast.error('Thread not found in the 200-row window.')
+      }
+    } catch (e) {
+      toast.error(`Open thread failed, ${e instanceof Error ? e.message : 'error'}`)
+    } finally { setLoading(false) }
+  }, [])
 
   const loadSent = useCallback(async () => {
     setSentLoading(true)
@@ -166,15 +233,24 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
 
   const active = useMemo(() => threads.find((t) => t.id === activeId) || null, [threads, activeId])
   const filtered = useMemo(() => {
+    let result = threads
+    // Identity filter
+    if (identityFilter !== 'all') {
+      result = result.filter((t) => {
+        if (identityFilter === 'vendor') return !!t.vendor_application_id
+        if (identityFilter === 'ticket') return !!t.ticket_buyer_id
+        return !t.vendor_application_id && !t.ticket_buyer_id
+      })
+    }
     const q = search.trim().toLowerCase()
-    if (!q) return threads
-    return threads.filter((t) =>
+    if (!q) return result
+    return result.filter((t) =>
       t.peer_email.toLowerCase().includes(q) ||
       (t.peer_name || '').toLowerCase().includes(q) ||
       (t.subject || '').toLowerCase().includes(q) ||
       t.messages.some((m) => (m.body_text || '').toLowerCase().includes(q))
     )
-  }, [threads, search])
+  }, [threads, search, identityFilter])
 
   const totalUnread = threads.reduce((s, t) => s + (t.unread_count || 0), 0)
 
@@ -182,10 +258,11 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
     if (!active || !reply.trim()) return
     setSending(true)
     try {
+      const bodyWithSig = reply + EMAIL_SIGNATURE
       const res = await fetch(`/api/admin/support-inbox/${active.id}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: reply }),
+        body: JSON.stringify({ body: bodyWithSig }),
       })
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
@@ -236,8 +313,9 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
   }
 
   return (
-    <PageShell>
-      <PageHeader
+    <div className="h-full flex flex-col bg-[#FFFFFF] text-[#1B1A17] overflow-hidden px-6 sm:px-8 lg:px-10 py-6">
+      <div className="max-w-7xl w-full mx-auto flex-1 flex flex-col min-h-0 overflow-hidden">
+        <PageHeader
         kicker="Festival Email"
         title="Support Inbox"
         subtitle="Mail to support@youngatheart.co.za. Tag it, assign it, snooze it, or reply."
@@ -320,14 +398,33 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
             ))}
           </div>
         )}
+
+        {tab !== 'sent' && (
+          <div className="flex gap-1 items-center">
+            <Users className="w-3.5 h-3.5 text-neutral-400" />
+            {(['all', 'vendor', 'ticket', 'unknown'] as const).map((id) => (
+              <button
+                key={id}
+                onClick={() => setIdentityFilter(id === identityFilter ? 'all' : id)}
+                className={`text-[11px] font-medium px-2 py-1 rounded-full border ${
+                  identityFilter === id
+                    ? 'bg-neutral-900 text-white border-neutral-900'
+                    : 'bg-white border-neutral-200 text-neutral-600 hover:border-neutral-400'
+                }`}
+              >
+                {id === 'vendor' ? 'Vendors' : id === 'ticket' ? 'Ticket buyers' : id === 'unknown' ? 'Unknown' : 'All'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {tab === 'sent' ? (
-        <Card padded={false} className="overflow-hidden">
-          {/* Bounded height + overflow-hidden keeps scroll INSIDE the card, not
-              on the whole page. Without this, a long list doom-scrolls the
-              parent <main overflow-auto>. */}
-          <div className="h-[calc(100dvh-15rem)] flex flex-col">
+        <Card padded={false} className="flex-1 overflow-hidden flex flex-col min-h-0">
+          {/* Flex-1 + min-h-0 keeps scroll INSIDE the card, not on the whole
+              page. Without this, a long list doom-scrolls the parent <main
+              overflow-auto>. */}
+          <div className="flex-1 min-h-0 flex flex-col">
             <div className="px-4 py-3 border-b border-neutral-200 flex items-center justify-between">
               <p className="text-xs text-neutral-500">
                 Outbound mail from support@youngatheart.co.za, newest first. Limit 100.
@@ -339,7 +436,16 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                 <p className="p-6 text-sm text-neutral-400 text-center">No sent mail yet.</p>
               ) : (
                 sent.map((s) => (
-                  <div key={s.id} className="p-4 hover:bg-neutral-50">
+                  // Click row to open full thread for this recipient.
+                  // openSentAsThread switches to All tab, refetches threads
+                  // status=all, then selects this row's thread_id. The Inbox
+                  // thread renderer (which already right-aligns outbound mail
+                  // in brand red and left-aligns inbound) handles the visual.
+                  <button
+                    key={s.id}
+                    onClick={() => openSentAsThread(s.thread_id)}
+                    className="w-full text-left p-4 hover:bg-neutral-50 focus:bg-neutral-50 outline-none transition-colors"
+                  >
                     <div className="flex items-start justify-between gap-3 mb-1">
                       <p className="text-sm font-semibold text-neutral-900 truncate">
                         To: {s.peer_name || s.to_address}
@@ -365,8 +471,11 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                           via {s.provider}
                         </span>
                       )}
+                      <span className="ml-auto text-[10px] text-[#cd2653] font-semibold">
+                        Open thread
+                      </span>
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -379,13 +488,21 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
       ) : threads.length === 0 ? (
         <Empty title="No mail matching this filter." hint="Try changing the status or tag filter above." />
       ) : (
-        <Card padded={false} className="overflow-hidden">
-          {/* Hard-bounded viewport height + overflow-hidden so chrome (header,
-              tabs, filter row, composer) pins and only the thread list +
-              message body scroll. */}
-          <div className="grid lg:grid-cols-[360px_1fr] h-[calc(100dvh-15rem)] min-h-[420px]">
-            {/* Thread list */}
-            <div className="border-r border-neutral-200 flex flex-col">
+        <Card padded={false} className="flex-1 overflow-hidden flex flex-col min-h-0">
+          {/* Flex-1 + min-h-0 so the grid fills whatever space remains after
+              the header + tab strip, without overflowing the admin main area.
+              Inner panes scroll independently via overflow-y-auto. */}
+          <div className={`grid ${threadsCollapsed ? 'lg:grid-cols-[0px_1fr]' : 'lg:grid-cols-[360px_1fr]'} grid-rows-[minmax(0,1fr)] flex-1 min-h-0`}>
+            {/* Thread list — collapsible via threadsCollapsed state */}
+            <div className={`relative border-r border-neutral-200 flex flex-col min-h-0 overflow-hidden transition-all duration-200 ${threadsCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
+              {/* Collapse tab at left edge of thread list */}
+              <button
+                onClick={() => setThreadsCollapsed(true)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white border border-neutral-200 rounded-l-md px-1 py-3 shadow-sm text-neutral-400 hover:text-[#cd2653] hover:border-[#cd2653]/30 transition-colors"
+                title="Hide thread list"
+              >
+                <PanelRightClose className="w-4 h-4" />
+              </button>
               <div className="p-3 border-b border-neutral-200">
                 <div className="relative">
                   <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-2.5" />
@@ -432,7 +549,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
             </div>
 
             {/* Thread view */}
-            <div className="flex flex-col min-h-0 h-full">
+            <div className="flex flex-col min-h-0 h-full relative">
               {!active ? (
                 <div className="flex-1 flex items-center justify-center text-sm text-neutral-400">
                   Select a thread on the left.
@@ -457,14 +574,13 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                       </div>
                     </div>
 
-                    {/* Tool row */}
-                    <div className="flex flex-wrap gap-2 items-center">
-                      {/* Assign */}
+                    {/* Tool row — single 48px bar */}
+                    <div className="flex items-center gap-1.5 min-h-[48px]">
                       <select
                         value={active.assignee_id || ''}
                         onChange={(e) => act('assign', { assigneeId: e.target.value || null })}
                         disabled={actionBusy === 'assign'}
-                        className="text-xs rounded-full border border-neutral-200 bg-white px-3 py-1.5 outline-none focus:border-[#cd2653]"
+                        className="h-8 text-xs rounded-md border border-neutral-200 bg-white px-2 outline-none focus:border-[#cd2653]"
                       >
                         <option value="">Unassigned</option>
                         {operators.map((op) => (
@@ -474,79 +590,66 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                         ))}
                       </select>
 
-                      {/* Tag */}
                       <select
                         value={active.tag || ''}
                         onChange={(e) => act('tag', { tag: e.target.value || null })}
                         disabled={actionBusy === 'tag'}
-                        className="text-xs rounded-full border border-neutral-200 bg-white px-3 py-1.5 outline-none focus:border-[#cd2653]"
+                        className="h-8 text-xs rounded-md border border-neutral-200 bg-white px-2 outline-none focus:border-[#cd2653]"
                       >
-                        <option value="">No tag</option>
+                        <option value="">Tag</option>
                         {ALL_TAGS.map((t) => <option key={t} value={t}>{t}</option>)}
                       </select>
 
-                      {/* Snooze */}
                       <div className="flex items-center gap-0.5">
                         <button
                           onClick={() => act('snooze', { snoozeHours: 4 })}
-                          disabled={actionBusy === 'snooze'}
-                          className="text-xs font-medium px-3 py-1.5 rounded-l-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                          className="h-7 text-[11px] font-medium px-2 rounded-l-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
                         >
-                          {actionBusy === 'snooze' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />} 4h
+                          <Clock className="w-3 h-3" /> 4h
                         </button>
                         <button
                           onClick={() => act('snooze', { snoozeHours: 24 })}
-                          className="text-xs font-medium px-2.5 py-1.5 border-y border-neutral-200 bg-white hover:border-[#cd2653]/40"
+                          className="h-7 text-[11px] font-medium px-1.5 border-y border-neutral-200 bg-white hover:border-[#cd2653]/40"
                         >1d</button>
                         <button
                           onClick={() => act('snooze', { snoozeHours: 0 })}
-                          className="text-xs font-medium px-2.5 py-1.5 rounded-r-full border border-neutral-200 bg-white hover:border-[#cd2653]/40"
+                          className="h-7 text-[11px] font-medium px-1.5 rounded-r-md border border-neutral-200 bg-white hover:border-[#cd2653]/40"
                         >AM</button>
                       </div>
 
-                      {/* Resolve / reopen */}
                       {active.status !== 'resolved' ? (
                         <button
                           onClick={() => act('resolve')}
-                          disabled={actionBusy === 'resolve'}
-                          className="text-xs font-medium px-3 py-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-400 flex items-center gap-1"
+                          className="h-7 text-[11px] font-medium px-2.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:border-emerald-400 flex items-center gap-1"
                         >
-                          {actionBusy === 'resolve' ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                          <CheckCircle2 className="w-3 h-3" />
                           Resolve
                         </button>
                       ) : (
                         <button
                           onClick={() => act('reopen')}
-                          disabled={actionBusy === 'reopen'}
-                          className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                          className="h-7 text-[11px] font-medium px-2.5 rounded-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
                         >
-                          {actionBusy === 'reopen' ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                          <RotateCcw className="w-3 h-3" />
                           Reopen
                         </button>
                       )}
 
-                      {/* Assign to me shortcut */}
-                      <button
-                        onClick={() => act('assign', { assigneeId: currentUserId })}
-                        disabled={actionBusy === 'assign' || active.assignee_id === currentUserId}
-                        className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 disabled:opacity-50 flex items-center gap-1"
-                      >
-                        <UserCheck className="w-3 h-3" /> Assign to me
-                      </button>
-
-                      {/* Link to vendor / ticket */}
                       <button
                         onClick={() => { setLinkPicker('vendor'); setLinkQuery('') }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                        className="h-7 text-[11px] font-medium px-2.5 rounded-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
                       >
-                        <Link2 className="w-3 h-3" /> {active.vendor_application_id ? 'Linked vendor' : 'Link vendor'}
+                        <Link2 className="w-3 h-3" /> {active.vendor_application_id ? 'Vendor' : 'Link'}
                       </button>
-                      <button
-                        onClick={() => { setLinkPicker('ticket'); setLinkQuery('') }}
-                        className="text-xs font-medium px-3 py-1.5 rounded-full border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
-                      >
-                        <Link2 className="w-3 h-3" /> {active.ticket_buyer_id ? 'Linked ticket' : 'Link ticket'}
-                      </button>
+
+                      <div className="relative ml-auto">
+                        <button
+                          onClick={() => setThreadsCollapsed((c) => !c)}
+                          className="h-7 text-[11px] font-medium px-2 rounded-md border border-neutral-200 bg-white hover:border-[#cd2653]/40 flex items-center gap-1"
+                        >
+                          <PanelRightClose className={`w-3 h-3 transition-transform ${threadsCollapsed ? 'rotate-180' : ''}`} />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Link picker (inline) */}
@@ -634,7 +737,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                                 dangerouslySetInnerHTML={{ __html: sanitizeEmailHtml(m.body_html || '') }}
                               />
                             ) : (
-                              <p className="whitespace-pre-wrap break-words">{m.body_text}</p>
+                              <p className="whitespace-pre-wrap break-words">{stripRfc822Headers(m.body_text)}</p>
                             )}
                             <p className={`text-[10px] mt-1 ${m.direction === 'out' ? 'text-white/70' : 'text-neutral-400'}`}>
                               {m.direction === 'out' ? 'You' : (m.from_name || m.from_address)} · {new Date(m.received_at).toLocaleString('en-ZA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -687,7 +790,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
                       </ButtonPrimary>
                     </form>
                     <p className="px-4 pb-3 text-[11px] text-neutral-500 flex items-center gap-1.5">
-                      <AlertCircle className="w-3 h-3" /> Sends from support@youngatheart.co.za via Resend. Lands in their inbox.
+                      <AlertCircle className="w-3 h-3" /> Sends from support@youngatheart.co.za via Resend with festival signature. Lands in their inbox.
                     </p>
                   </div>
                 </>
@@ -696,6 +799,7 @@ export function SupportInboxClient({ currentUserId }: { currentUserId: string })
           </div>
         </Card>
       )}
-    </PageShell>
+      </div>
+    </div>
   )
 }

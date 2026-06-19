@@ -280,3 +280,14 @@ export function Empty({
     </Card>
   )
 }
+
+// ---------------- Design System Foundation (Agent 1) ----------------
+export { KpiStrip } from './KpiStrip'
+export { Kpi } from './Kpi'
+export { DenseTable } from './DenseTable'
+export { StatusPill } from './StatusPill'
+export { FilterPillRow } from './FilterPillRow'
+export { FilterPill } from './FilterPill'
+export { ActionChipGrid } from './ActionChipGrid'
+export { ActionChip } from './ActionChip'
+export { RightDrawer } from './RightDrawer'

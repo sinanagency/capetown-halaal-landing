@@ -3,15 +3,31 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePortalState } from '@/lib/portal-state'
 import { parseAllocation } from '@/lib/stalls'
-import { VendorHub } from './VendorHub'
+import { Vendor360 } from './Vendor360'
 
 export const dynamic = 'force-dynamic'
 
-// Vendor Profile Hub. One long scroll, no tabs. Each section is independent:
-// hero, AI summary, contract, payments, documents, booth + neighbours, comms
-// timeline, blockers checklist, audit log. Data is pre-loaded server-side
-// where possible; everything mutable goes through admin API routes.
-export default async function VendorProfilePage(props: { params: Promise<{ id: string }> }) {
+interface CommItem {
+  id: string
+  channel: 'whatsapp' | 'email'
+  direction: 'in' | 'out'
+  body: string
+  at: string
+  from: string
+  to?: string
+  subject?: string
+  template?: string | null
+}
+
+interface AuditEvent {
+  id: string
+  event_type: string
+  note: string | null
+  created_at: string
+  actor_email: string | null
+}
+
+export default async function Vendor360Page(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -28,49 +44,110 @@ export default async function VendorProfilePage(props: { params: Promise<{ id: s
   if (!app) notFound()
 
   const a = app as Record<string, unknown>
-  const e164Digits = String(a.phone || '').replace(/[^\d]/g, '').replace(/^0/, '27')
   const portal = parsePortalState((a.admin_notes as string) || '')
   const { stall } = parseAllocation((a.admin_notes as string) || '')
 
-  // Zone prefix for neighbours: ⟦STALL:FT-12⟧ -> "FT-1" (first 4 chars of code)
-  let neighbours: Array<{ id: string; business_name: string; stall: string }> = []
-  if (stall) {
-    const prefix = stall.slice(0, Math.max(2, stall.indexOf('-') >= 0 ? stall.indexOf('-') : 2))
-    const { data: zoneRows } = await admin
-      .from('vendor_applications')
-      .select('id, business_name, admin_notes')
-      .neq('id', id)
-      .eq('status', 'approved')
-      .ilike('admin_notes', `%⟦STALL:${prefix}%`)
-      .limit(20)
-    for (const r of (zoneRows || []) as Array<{ id: string; business_name: string | null; admin_notes: string | null }>) {
-      const { stall: rs } = parseAllocation(r.admin_notes || '')
-      if (rs) neighbours.push({ id: r.id, business_name: r.business_name || 'Vendor', stall: rs })
-    }
+  const phoneRaw = ((a.phone as string) || '').trim()
+  const emailRaw = ((a.email as string) || '').trim().toLowerCase()
+  const digits = phoneRaw.replace(/[^0-9]/g, '')
+  const last9 = digits.slice(-9)
+
+  const [waRes, threadsRes, eventsRes] = await Promise.all([
+    last9.length >= 9
+      ? admin.from('wa_messages').select('id, direction, body, created_at, wa_phone, template_name, status').filter('wa_phone', 'like', `%${last9}`).order('created_at', { ascending: false }).limit(200)
+      : Promise.resolve({ data: [] }),
+    emailRaw
+      ? admin.from('support_inbox_threads').select('id, peer_email, peer_name, subject').ilike('peer_email', emailRaw).limit(20)
+      : Promise.resolve({ data: [] }),
+    (async () => {
+      try {
+        return await admin.from('vendor_application_events').select('id, event_type, note, created_at, actor_email').eq('application_id', id).order('created_at', { ascending: false }).limit(100)
+      } catch {
+        return { data: [] }
+      }
+    })(),
+  ])
+
+  const threadIds = ((threadsRes.data || []) as Array<{ id: string }>).map((t) => t.id)
+  let supportMessages: unknown[] = []
+  if (threadIds.length) {
+    const { data: msgs } = await admin
+      .from('support_inbox_messages')
+      .select('id, thread_id, direction, from_address, to_address, subject, body_text, received_at')
+      .in('thread_id', threadIds)
+      .order('received_at', { ascending: false })
+      .limit(500)
+    supportMessages = msgs || []
   }
 
-  // Last 50 audit events (best-effort, table may be missing on stale envs).
-  let events: Array<{ id: string; event_type: string; note: string | null; created_at: string; actor_email: string | null }> = []
-  try {
-    const { data: ev } = await admin
-      .from('vendor_application_events')
-      .select('id, event_type, note, created_at, actor_email')
-      .eq('application_id', id)
-      .order('created_at', { ascending: false })
-      .limit(50)
-    events = (ev || []) as typeof events
-  } catch {
-    // table may not exist; ignore.
+  const communications: CommItem[] = []
+
+  for (const m of (waRes.data || []) as Array<{
+    id: string; direction: string; body: string | null; created_at: string
+    wa_phone: string; template_name: string | null
+  }>) {
+    const body = m.body || (m.template_name ? `[template: ${m.template_name}]` : '')
+    if (!body) continue
+    communications.push({
+      id: `wa:${m.id}`,
+      channel: 'whatsapp',
+      direction: m.direction === 'in' ? 'in' : 'out',
+      body,
+      at: m.created_at,
+      from: m.direction === 'in' ? `+${m.wa_phone}` : 'Admin',
+      template: m.template_name,
+    })
+  }
+
+  const threadMap = new Map<string, { peer_email: string; subject: string | null }>()
+  for (const t of (threadsRes.data || []) as Array<{ id: string; peer_email: string; subject: string | null }>) {
+    threadMap.set(t.id, { peer_email: t.peer_email, subject: t.subject })
+  }
+  for (const m of (supportMessages || []) as Array<{
+    id: string; thread_id: string; direction: string; from_address: string
+    to_address: string; subject: string | null; body_text: string | null; received_at: string
+  }>) {
+    const thread = threadMap.get(m.thread_id)
+    const body = m.body_text || m.subject || ''
+    if (!body) continue
+    communications.push({
+      id: `mail:${m.id}`,
+      channel: 'email',
+      direction: m.direction === 'in' ? 'in' : 'out',
+      body,
+      at: m.received_at,
+      from: m.direction === 'in' ? m.from_address : (thread?.peer_email || 'Admin'),
+      to: m.direction === 'out' ? m.to_address : undefined,
+      subject: m.subject || thread?.subject || undefined,
+    })
+  }
+
+  communications.sort((a, b) => +new Date(b.at) - +new Date(a.at))
+
+  const events = (eventsRes.data || []) as AuditEvent[]
+
+  const approvedAt = a.approved_at as string | null | undefined
+  const daysSinceApproval = approvedAt
+    ? Math.floor((Date.now() - new Date(approvedAt).getTime()) / (1000 * 60 * 60 * 24))
+    : null
+
+  const stats = {
+    days_since_approval: daysSinceApproval,
+    document_count: (portal.docs || []).length,
+    staff_count: (portal.staff || []).length,
+    approved_count: (portal.docs || []).filter((d) => d.status === 'approved').length,
   }
 
   return (
-    <VendorHub
-      app={a}
-      e164={e164Digits}
-      portal={portal}
-      stall={stall}
-      neighbours={neighbours}
-      events={events}
+    <Vendor360
+      initialData={{
+        vendor: a,
+        stall,
+        portal,
+        communications,
+        events,
+        stats,
+      }}
     />
   )
 }

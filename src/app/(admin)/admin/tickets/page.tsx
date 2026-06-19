@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, ArrowUpRight, Calendar, Mail, Phone, X } from 'lucide-react'
+import { Loader2, ArrowUpRight, Calendar, Mail, Phone, X, TrendingUp, ExternalLink } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid
 } from 'recharts'
+import { AdminPage } from '@/components/admin/AdminPage'
 import {
-  PageShell, PageHeader, Card, StatCard, Tabs, ButtonPrimary,
+  Card, StatCard, Tabs, ButtonPrimary,
 } from '@/components/chrome/PageChrome'
 
 interface Order {
@@ -70,30 +71,43 @@ export default function TicketsPage() {
   const [error, setError] = useState('')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('completed')
+  const [revenueData, setRevenueData] = useState<{
+    tickets_total: number; tickets_30d: number;
+    vendors_total: number; vendors_30d: number;
+    total_in: number; total_30d: number;
+  } | null>(null)
 
   const load = async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/admin/tickets')
-      if (res.status === 401) {
+      const [ticketRes, revenueRes] = await Promise.all([
+        fetch('/api/admin/tickets'),
+        fetch('/api/admin/broadcast/revenue'),
+      ])
+      if (ticketRes.status === 401) {
         window.location.href = '/admin/login'
         return
       }
-      if (res.status === 403) {
+      if (ticketRes.status === 403) {
         window.location.href = '/admin/login?error=not_admin'
         return
       }
-      if (res.status === 502) {
-        const body = await res.json().catch(() => ({}))
+      if (ticketRes.status === 502) {
+        const body = await ticketRes.json().catch(() => ({}))
         setError(body.error || 'Ticket store unavailable. The WooCommerce API may be down.')
         return
       }
-      if (!res.ok) {
-        setError(`Server returned ${res.status}`)
+      if (!ticketRes.ok) {
+        setError(`Server returned ${ticketRes.status}`)
         return
       }
-      setData(await res.json())
+      setData(await ticketRes.json())
+
+      if (revenueRes.ok) {
+        const r = await revenueRes.json()
+        if (r?.vendors_total !== undefined) setRevenueData(r)
+      }
     } catch (e) {
       console.error('Failed to load tickets:', e)
       setError('Network error. Try refreshing.')
@@ -106,22 +120,18 @@ export default function TicketsPage() {
 
   if (loading) {
     return (
-      <PageShell>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-[#E5E5E5]/60" />
-        </div>
-      </PageShell>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-neutral-300" />
+      </div>
     )
   }
 
   if (!data) {
     return (
-      <PageShell>
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-          <p className="text-[#1B1A17]/55">{error || 'Failed to load ticket data.'}</p>
-          <ButtonPrimary onClick={load}>Retry</ButtonPrimary>
-        </div>
-      </PageShell>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-neutral-500">{error || 'Failed to load ticket data.'}</p>
+        <ButtonPrimary onClick={load}>Retry</ButtonPrimary>
+      </div>
     )
   }
 
@@ -147,23 +157,19 @@ export default function TicketsPage() {
     activeTab === 'failed' ? (data.failedOrders || []) :
     (data.pendingOrders || [])
 
+  const wcAction = (
+    <a
+      href="https://tickets.youngatheart.co.za/wp-admin/edit.php?post_type=shop_order"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 bg-white border border-neutral-200 hover:border-[#cd2653]/50 text-neutral-900 font-semibold rounded-lg px-4 py-2 text-sm transition-colors"
+    >
+      WooCommerce <ExternalLink className="w-3.5 h-3.5" />
+    </a>
+  )
+
   return (
-    <PageShell>
-      <PageHeader
-        kicker="Tickets"
-        title="Ticket Sales"
-        subtitle="Live from tickets.youngatheart.co.za"
-        actions={
-          <a
-            href="https://tickets.youngatheart.co.za/wp-admin/edit.php?post_type=shop_order"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-[#FFFFFF] border border-[#E5E5E5]/40 hover:border-[#cd2653]/50 text-[#1B1A17] font-semibold rounded-full px-5 py-2.5 text-sm transition-colors"
-          >
-            WooCommerce <ArrowUpRight className="w-3.5 h-3.5" />
-          </a>
-        }
-      />
+    <AdminPage title="Ticket Sales" caption="Tickets" subtitle="Live from tickets.youngatheart.co.za" actions={wcAction}>
 
       <div className="space-y-6">
         {/* Stats row */}
@@ -176,6 +182,15 @@ export default function TicketsPage() {
             value={data.totalOrders > 0 ? formatCurrency(data.totalRevenue / data.totalOrders) : 'R0'}
           />
         </div>
+
+        {/* Money In breakdown — from tickets + vendor payments */}
+        {revenueData && (
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard label="Tickets Revenue" value={formatCurrency(revenueData.tickets_total)} hint={`${formatCurrency(revenueData.tickets_30d)} last 30d`} />
+            <StatCard label="Vendor Revenue" value={formatCurrency(revenueData.vendors_total)} hint={`${formatCurrency(revenueData.vendors_30d)} last 30d`} />
+            <StatCard label="Total In" value={formatCurrency(revenueData.total_in)} hint={`${formatCurrency(revenueData.total_30d)} last 30d`} />
+          </div>
+        )}
 
         {/* Charts */}
         <div className="grid lg:grid-cols-3 gap-6">
@@ -336,6 +351,6 @@ export default function TicketsPage() {
           </div>
         </div>
       )}
-    </PageShell>
+    </AdminPage>
   )
 }

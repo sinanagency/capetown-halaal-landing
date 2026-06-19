@@ -12,12 +12,26 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { Mail, Phone, Building2, Tag, AlertTriangle, ExternalLink } from 'lucide-react'
+import {
+  Mail,
+  Phone,
+  Building2,
+  Tag,
+  AlertTriangle,
+  ExternalLink,
+  CheckCircle2,
+  HelpCircle,
+  XCircle,
+  Loader2,
+  RotateCcw,
+} from 'lucide-react'
 import type {
   WorkbenchApplication,
   SuggestResponse,
   AuditEvent,
 } from './types'
+
+export type PreviewAction = 'approve' | 'reject' | 'request_info'
 
 function daysAgo(iso: string): number {
   const t = new Date(iso).getTime()
@@ -43,25 +57,41 @@ function CompletenessBadge({ score }: { score: number | null | undefined }) {
   )
 }
 
+export interface PreviewPaneProps {
+  row: WorkbenchApplication | null
+  duplicateSiblings: WorkbenchApplication[]
+  onApprove: (id: string) => void | Promise<unknown>
+  onReject: (id: string) => void | Promise<unknown>
+  onRequestInfo: (id: string) => void | Promise<unknown>
+  onReopen?: (id: string) => void | Promise<unknown>
+}
+
 export function PreviewPane({
   row,
   duplicateSiblings,
-}: {
-  row: WorkbenchApplication | null
-  duplicateSiblings: WorkbenchApplication[]
-}) {
+  onApprove,
+  onReject,
+  onRequestInfo,
+  onReopen,
+}: PreviewPaneProps) {
   const [suggest, setSuggest] = useState<SuggestResponse | null>(null)
   const [suggestErr, setSuggestErr] = useState(false)
   const [events, setEvents] = useState<AuditEvent[]>([])
   // Activity list is gated: 460 rows x j/k = 460 events calls is wasteful.
   // Operator opts in per row by clicking "Show activity".
   const [showEvents, setShowEvents] = useState(false)
+  // Tracks which mouse-driven action is currently in flight so we can
+  // disable the toolbar + show a spinner. Keyed by action, not by row id,
+  // because only one row is focused at a time.
+  const [pendingAction, setPendingAction] = useState<PreviewAction | null>(null)
 
   // Reset event-pane state whenever the focused row changes so the previous
-  // row's events don't ghost into the next one.
+  // row's events don't ghost into the next one. Also clear stale pending
+  // state so the toolbar isn't disabled when we land on the new row.
   useEffect(() => {
     setEvents([])
     setShowEvents(false)
+    setPendingAction(null)
   }, [row?.id])
 
   // Pull suggestions whenever the focused row changes. Best-effort.
@@ -143,10 +173,10 @@ export function PreviewPane({
               <p className="text-sm text-neutral-500 truncate">{row.contact_name}</p>
             </div>
             <Link
-              href={`/admin/applications/${row.id}`}
+              href={`/admin/vendors/${row.id}`}
               className="shrink-0 inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded border border-neutral-200 hover:border-neutral-400 text-neutral-700"
             >
-              Open full <ExternalLink className="w-3 h-3" />
+              Open full profile <ExternalLink className="w-3 h-3" />
             </Link>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -160,6 +190,46 @@ export function PreviewPane({
                 <AlertTriangle className="w-3 h-3" /> possible duplicate
               </span>
             )}
+          </div>
+        </div>
+
+        {/* Mouse-only action toolbar.
+            Sits BELOW the status pill / score / age line and ABOVE contact.
+            Mirrors the keyboard layer (a / r / i) so admin can clear the
+            queue without learning the shortcuts. Already-decided rows
+            collapse this row down to a status pill (and optional Reopen),
+            so we never re-fire approve/reject on a terminal row. */}
+        <PreviewActionToolbar
+          row={row}
+          pendingAction={pendingAction}
+          onApprove={async () => {
+            setPendingAction('approve')
+            try { await onApprove(row.id) } finally { setPendingAction(null) }
+          }}
+          onRequestInfo={async () => {
+            setPendingAction('request_info')
+            try { await onRequestInfo(row.id) } finally { setPendingAction(null) }
+          }}
+          onReject={async () => {
+            setPendingAction('reject')
+            try { await onReject(row.id) } finally { setPendingAction(null) }
+          }}
+          onReopen={onReopen ? () => onReopen(row.id) : undefined}
+        />
+
+        {/* Payment & Allocation Status */}
+        <div className="px-5 py-3 bg-neutral-50 border-t border-neutral-100 -mx-5">
+          <div className="flex items-center gap-4 text-xs">
+            <span className="flex items-center gap-1">
+              <span className={`w-2 h-2 rounded-full ${
+                row.payment_status === 'paid' ? 'bg-emerald-500' :
+                row.payment_status === 'pending' ? 'bg-amber-500' : 'bg-neutral-300'
+              }`} />
+              Payment: {row.payment_status || 'none'}
+            </span>
+            <span>Docs: {row.docCount ?? 0}/3</span>
+            <span>Contract: {row.contract_signed ? 'Signed' : 'Pending'}</span>
+            <span>Stall: {row.stall_code || 'Unallocated'}</span>
           </div>
         </div>
 
@@ -305,6 +375,113 @@ export function PreviewPane({
           )}
         </section>
       </div>
+    </div>
+  )
+}
+
+function PreviewActionToolbar({
+  row,
+  pendingAction,
+  onApprove,
+  onRequestInfo,
+  onReject,
+  onReopen,
+}: {
+  row: WorkbenchApplication
+  pendingAction: PreviewAction | null
+  onApprove: () => void
+  onRequestInfo: () => void
+  onReject: () => void
+  onReopen?: () => void
+}) {
+  const status = row.status
+  // Terminal rows: show a status pill instead of action buttons so we
+  // can't accidentally re-approve or re-reject. Reopen is offered when
+  // the parent wired a handler.
+  if (status === 'approved' || status === 'rejected') {
+    const when = row.approved_at
+      ? new Date(row.approved_at).toLocaleString('en-ZA', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null
+    const verb = status === 'approved' ? 'approved' : 'rejected'
+    const label = when ? `Already ${verb} on ${when}` : `Already ${verb}`
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium',
+            status === 'approved'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+          )}
+        >
+          {status === 'approved' ? (
+            <CheckCircle2 className="w-4 h-4" />
+          ) : (
+            <XCircle className="w-4 h-4" />
+          )}
+          {label}
+        </span>
+        {onReopen && (
+          <button
+            type="button"
+            onClick={onReopen}
+            className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+          >
+            <RotateCcw className="w-4 h-4" /> Reopen
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const anyPending = pendingAction !== null
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={onApprove}
+        disabled={anyPending}
+        className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 bg-[#cd2653] text-white hover:bg-[#b01f45] disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {pendingAction === 'approve' ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <CheckCircle2 className="w-4 h-4" />
+        )}
+        Approve
+      </button>
+      <button
+        type="button"
+        onClick={onRequestInfo}
+        disabled={anyPending}
+        className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 border border-neutral-200 text-neutral-700 hover:bg-neutral-50 disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {pendingAction === 'request_info' ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <HelpCircle className="w-4 h-4" />
+        )}
+        Request info
+      </button>
+      <button
+        type="button"
+        onClick={onReject}
+        disabled={anyPending}
+        className="px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {pendingAction === 'reject' ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <XCircle className="w-4 h-4" />
+        )}
+        Reject
+      </button>
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { Calendar, MapPin, Mail, FileCheck, Users, CreditCard, Download, ArrowRight, Megaphone } from 'lucide-react'
+import { Calendar, MapPin, Mail, FileCheck, Users, CreditCard, Download, ArrowRight, Megaphone, FileText } from 'lucide-react'
 import {
   PageShell, PageHeader, Card
 } from '@/components/chrome/PageChrome'
@@ -26,7 +26,42 @@ export default function ResourcesPage() {
           <div className="flex items-start gap-3"><Calendar className="w-4 h-4 text-[#cd2653] mt-0.5" /><div><p className="font-medium text-[#1B1A17]">11 – 13 December 2026</p><p className="text-[#1B1A17]/55 text-xs">Three-day festival</p></div></div>
           <div className="flex items-start gap-3"><MapPin className="w-4 h-4 text-[#cd2653] mt-0.5" /><div><p className="font-medium text-[#1B1A17]">Youngsfield Military Base</p><p className="text-[#1B1A17]/55 text-xs">Wetton Road, Cape Town</p></div></div>
           <div className="flex items-start gap-3"><Mail className="w-4 h-4 text-[#cd2653] mt-0.5" /><div><p className="font-medium text-[#1B1A17]">support@youngatheart.co.za</p><p className="text-[#1B1A17]/55 text-xs">Organiser support</p></div></div>
-          <div className="flex items-start gap-3"><Megaphone className="w-4 h-4 text-[#cd2653] mt-0.5" /><div><p className="font-medium text-[#1B1A17]">Load-in times & manual</p><p className="text-[#1B1A17]/55 text-xs">Posted in Announcements closer to the date</p></div></div>
+          <div className="flex items-start gap-3"><Megaphone className="w-4 h-4 text-[#cd2653] mt-0.5" /><div><p className="font-medium text-[#1B1A17]">Load-in: Thursday 10 Dec</p><p className="text-[#1B1A17]/55 text-xs">4pm – 9pm setup only</p></div></div>
+        </Card>
+
+        {/* Load-in Schedule */}
+        <Card>
+          <p className="font-semibold text-[#1B1A17] mb-4 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-[#cd2653]" />
+            Load-in Schedule
+          </p>
+          <div className="space-y-4 text-sm">
+            <div className="p-4 bg-[#cd2653]/5 border border-[#cd2653]/20 rounded-lg">
+              <p className="font-medium text-[#1B1A17] mb-2">Thursday 10 December — Setup Day</p>
+              <ul className="space-y-1.5 text-[#1B1A17]/70">
+                <li className="flex items-start gap-2">
+                  <span className="text-[#cd2653] font-bold">•</span>
+                  <span><strong>4pm – 9pm:</strong> All vendors must set up during this window only</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#cd2653] font-bold">•</span>
+                  <span><strong>Food trucks:</strong> Must come and park directly in your allocated space</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#cd2653] font-bold">•</span>
+                  <span><strong>No offloading on Friday</strong> — everything must be completed on Thursday</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#cd2653] font-bold">•</span>
+                  <span>Bring all equipment, stock, and signage on Thursday</span>
+                </li>
+              </ul>
+            </div>
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="font-medium text-amber-900 mb-1">Important</p>
+              <p className="text-amber-800 text-xs">If you cannot make the Thursday setup window, contact support@youngatheart.co.za immediately. No exceptions for Friday setup.</p>
+            </div>
+          </div>
         </Card>
 
         {/* quick actions */}
@@ -41,6 +76,47 @@ export default function ResourcesPage() {
             ))}
           </div>
         </Card>
+
+        {/* downloads */}
+        <section>
+          <h2 className="font-serif text-xl mb-4">Downloads</h2>
+          <div className="grid gap-3">
+            {[
+              { label: 'Vendor Manual', file: 'vendor-manual.pdf' },
+              { label: 'Load-in Schedule', file: 'load-in-schedule.pdf' },
+              { label: 'Setup Checklist', file: 'setup-checklist.pdf' },
+              { label: 'Site Map', file: 'site-map.pdf' },
+            ].map(item => (
+              <a key={item.file} href={`/api/exhibitor/resources/${item.file}`}
+                className="flex items-center gap-3 p-4 rounded-xl border border-[#E5DCC4] bg-white hover:border-[#cd2653] transition-colors">
+                <FileText className="w-5 h-5 text-neutral-400" />
+                <span className="text-sm font-medium">{item.label}</span>
+                <Download className="w-4 h-4 ml-auto text-neutral-300" />
+              </a>
+            ))}
+          </div>
+        </section>
+
+        {/* contacts */}
+        <section>
+          <h2 className="font-serif text-xl mb-4">Important Contacts</h2>
+          <Card>
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Operations</dt>
+                <dd className="font-medium">Taona — +27 76 000 0000</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Support</dt>
+                <dd className="font-medium">support@youngatheart.co.za</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Emergency (show-day)</dt>
+                <dd className="font-medium">+27 76 000 0000</dd>
+              </div>
+            </dl>
+          </Card>
+        </section>
 
         {/* brand assets */}
         <Card>

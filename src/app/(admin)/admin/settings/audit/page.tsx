@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -49,10 +49,9 @@ export default async function SettingsAuditPage() {
     <div className="p-6 md:p-8 max-w-6xl mx-auto">
       <Link
         href="/admin/settings"
-        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-900 mb-3"
+        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700 mb-4"
       >
-        <ChevronLeft className="w-3.5 h-3.5" />
-        Settings
+        <ArrowLeft className="w-3 h-3" /> Back to Settings
       </Link>
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-neutral-900">Audit Log</h1>
@@ -71,6 +70,7 @@ export default async function SettingsAuditPage() {
             No events recorded yet.
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-neutral-50 border-b border-neutral-200">
               <tr className="text-left text-[11px] uppercase tracking-wider text-neutral-500">
@@ -103,6 +103,7 @@ export default async function SettingsAuditPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

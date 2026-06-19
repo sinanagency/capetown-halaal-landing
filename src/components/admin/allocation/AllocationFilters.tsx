@@ -53,20 +53,35 @@ export default function AllocationFilters({
   // - If a tier filter is set, the denominator is the inventory of that tier's
   //   suggested zone (FT/FS/TS/BS). If no tier filter, denominator is the whole
   //   floor.
+  // - If a sector filter is set, both numerator and denominator are scoped to
+  //   stalls occupied by an application whose categories include that sector.
   // - Numerator is stalls whose status matches the chosen status filter, scoped
-  //   to the same zone if a tier is selected.
+  //   to the same zone (and sector) if those filters are set.
   const count = useMemo(() => {
     const zone: StallType | null = tier ? TIER_META[tier]?.suggestZone ?? null : null
+    const sectorStallCodes: Set<string> | null = sector
+      ? new Set(
+          applications
+            .filter((a) => (a.categories || []).includes(sector) && a.stall)
+            .map((a) => a.stall as string)
+        )
+      : null
     const inZone = (s: MapStall) => (zone ? s.type === zone : true)
+    const inSector = (s: MapStall) => (sectorStallCodes ? sectorStallCodes.has(s.code) : true)
     const matchesStatus = (s: MapStall) => {
       const st = s.status || 'available'
       if (status === 'all') return true
       return st === status
     }
-    const total = zone ? (capacity[zone] || 0) : stalls.length
-    const numerator = stalls.filter((s) => inZone(s) && matchesStatus(s)).length
+    const inUniverse = (s: MapStall) => inZone(s) && inSector(s)
+    const total = sectorStallCodes
+      ? stalls.filter(inUniverse).length
+      : zone
+      ? capacity[zone] || 0
+      : stalls.length
+    const numerator = stalls.filter((s) => inUniverse(s) && matchesStatus(s)).length
     return { numerator, total, zone }
-  }, [stalls, capacity, tier, status])
+  }, [stalls, capacity, tier, status, sector, applications])
 
   const countdownLabel = useMemo(() => {
     if (status === 'available') return 'available'
@@ -80,37 +95,60 @@ export default function AllocationFilters({
   if (tier) activeChips.push({ key: `tier:${tier}`, label: `Tier: ${TIER_META[tier]?.label || tier}`, clear: () => setTier(null) })
   if (status !== 'all') activeChips.push({ key: `st:${status}`, label: `Status: ${status}`, clear: () => setStatus('all') })
 
+  const selectCls = 'h-8 rounded-md border border-neutral-200 bg-white px-2 pr-7 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-[#cd2653]/30 focus:border-[#cd2653] appearance-none bg-no-repeat'
+  const selectChevron: React.CSSProperties = {
+    backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23737373' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E")`,
+    backgroundPosition: 'right 0.5rem center',
+    backgroundSize: '10px 6px',
+  }
+
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl p-4 mb-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span
-            className="text-3xl font-bold tabular-nums"
-            style={{ color: count.numerator === 0 ? '#cd2653' : '#047857' }}
-            aria-live="polite"
-          >
+    <div className="bg-white border border-neutral-200 rounded-xl p-3 mb-4 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-neutral-400 pr-1">Filter</span>
+
+        <select className={selectCls} style={selectChevron} value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
+          <option value="all">All statuses</option>
+          <option value="available">Available</option>
+          <option value="held">Held</option>
+          <option value="allocated">Allocated</option>
+        </select>
+
+        <select className={selectCls} style={selectChevron} value={sector ?? ''} onChange={(e) => setSector(e.target.value === '' ? null : e.target.value)}>
+          <option value="">All sectors</option>
+          {sectors.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <select className={selectCls} style={selectChevron} value={tier ?? ''} onChange={(e) => setTier(e.target.value === '' ? null : e.target.value)}>
+          <option value="">All tiers</option>
+          {tierKeys.map((t) => <option key={t} value={t}>{TIER_META[t].label}</option>)}
+        </select>
+
+        <span
+          className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-200 text-xs text-neutral-700 tabular-nums"
+          aria-live="polite"
+        >
+          <span className="font-semibold" style={{ color: count.numerator === 0 ? '#cd2653' : '#047857' }}>
             {count.numerator}
           </span>
-          <span className="text-neutral-400 text-2xl">/</span>
-          <span className="text-2xl font-semibold text-neutral-700 tabular-nums">{count.total}</span>
-          <span className="text-sm text-neutral-500">
-            {countdownLabel}
-            {count.zone ? ` in ${TYPE_META[count.zone].label}` : ''}
-          </span>
-        </div>
+          <span className="text-neutral-400">of</span>
+          <span className="font-semibold">{count.total}</span>
+          <span className="text-neutral-500">{countdownLabel}{count.zone ? ` in ${TYPE_META[count.zone].label}` : ''}</span>
+        </span>
+
         {activeChips.length > 0 && (
           <button
             type="button"
             onClick={() => { setSector(null); setTier(null); setStatus('all') }}
             className="text-xs text-neutral-500 hover:text-[#cd2653] underline"
           >
-            Clear all filters
+            Clear all
           </button>
         )}
       </div>
 
       {activeChips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5 pt-1 border-t border-neutral-100">
           {activeChips.map((c) => (
             <button
               key={c.key}
@@ -125,7 +163,8 @@ export default function AllocationFilters({
         </div>
       )}
 
-      <div className="space-y-2 pt-2 border-t border-neutral-100">
+      {/* legacy chip rows hidden — kept rendering paths below for downstream reuse */}
+      <div className="hidden">
         <Row title="Status">
           {(['all', 'available', 'held', 'allocated'] as StatusFilter[]).map((s) => (
             <Chip key={s} on={status === s} onClick={() => setStatus(s)}>

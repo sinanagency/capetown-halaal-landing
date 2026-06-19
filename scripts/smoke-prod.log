@@ -1,0 +1,20 @@
+-> homepage  https://cthalaal.co.za/
+   status=200 final=https://cthalaal.co.za/ console=0 5xx=0 digest=— took=18288ms
+-> admin-login  https://cthalaal.co.za/admin/login
+   status=200 final=https://cthalaal.co.za/admin/login console=0 5xx=0 digest=— took=5177ms
+-> exhibitor-login  https://cthalaal.co.za/exhibitor/login
+   status=200 final=https://cthalaal.co.za/exhibitor/login console=0 5xx=0 digest=— took=4585ms
+-> admin-comms-health  https://cthalaal.co.za/admin/settings/comms-health
+   status=307 final=https://cthalaal.co.za/admin/login console=0 5xx=0 digest=— took=4746ms
+-> exhibitor-portal-documents  https://cthalaal.co.za/exhibitor/portal/documents
+   status=307 final=https://cthalaal.co.za/exhibitor/login console=0 5xx=0 digest=— took=4472ms
+-> exhibitor-portal-stand  https://cthalaal.co.za/exhibitor/portal/stand
+   status=307 final=https://cthalaal.co.za/exhibitor/login console=0 5xx=0 digest=— took=4388ms
+-> admin-allocation  https://cthalaal.co.za/admin/allocation
+   status=307 final=https://cthalaal.co.za/admin/login console=0 5xx=0 digest=— took=5260ms
+-> admin-applications  https://cthalaal.co.za/admin/applications
+   status=307 final=https://cthalaal.co.za/admin/login console=0 5xx=0 digest=— took=4789ms
+-> admin-documents  https://cthalaal.co.za/admin/documents
+   status=307 final=https://cthalaal.co.za/admin/login console=0 5xx=0 digest=— took=4943ms
+
+REPORT: /Users/milaaj/Code/capetown-halaal-landing/screenshots/smoke-2026-06-15/REPORT.md

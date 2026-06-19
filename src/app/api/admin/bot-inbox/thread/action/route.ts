@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireAdmin } from '@/lib/admin-rbac'
 
 // Multi-tool inbox actions: snooze · assign-to-me · mark-done · reopen.
 // Touches wa_threads (the unified inbox spine from migration v11).
@@ -19,9 +19,10 @@ interface ActionBody {
 const ALLOWED_TAGS = new Set(['payment', 'load-in', 'badges', 'contract', 'refund', 'general'])
 
 export async function POST(req: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
+  let userId: string
+  try {
+    userId = await requireAdmin()
+  } catch {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
       break
     }
     case 'assign_me':
-      update.assignee_id = user.id
+      update.assignee_id = userId
       break
     case 'unassign':
       update.assignee_id = null
@@ -99,9 +100,11 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  try {
+    await requireAdmin()
+  } catch {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  }
 
   const url = new URL(req.url)
   const channel = url.searchParams.get('channel') || 'wa'

@@ -3,10 +3,12 @@ import { getExhibitorContext } from '@/lib/exhibitor'
 import { parsePortalState } from '@/lib/portal-state'
 import { parseAllocation, tierLabel, TYPE_META, STALL_LIST, type StallType } from '@/lib/stalls'
 import { listAnnouncements } from '@/lib/announcements'
+import Link from 'next/link'
 import {
   Calendar, MapPin, FileCheck, Users, CreditCard, Store, CheckCircle2, Circle,
-  ArrowRight, Megaphone, type LucideIcon,
+  ArrowRight, Megaphone, Upload, Share2, type LucideIcon,
 } from 'lucide-react'
+import { vendorSlug } from '@/lib/slugify'
 import { Gauge } from '@/components/exhibitor/Gauge'
 import { PageShell, PageHeader, Card } from '@/components/chrome/PageChrome'
 import { requirePaid } from '@/lib/exhibitor-paygate'
@@ -20,6 +22,15 @@ const STAGES = ['approved', 'invoiced', 'paid', 'docs', 'show_ready'] as const
 const STAGE_LABEL: Record<string, string> = { approved: 'Approved', invoiced: 'Invoiced', paid: 'Paid', docs: 'Documents', show_ready: 'Show-ready' }
 
 function daysUntil(d: string) { return Math.max(0, Math.ceil((new Date(d).getTime() - Date.now()) / 86400000)) }
+
+function ActionCard({ href, label, icon: Icon, disabled, external }: {
+  href: string; label: string; icon: any; disabled?: boolean; external?: boolean
+}) {
+  const classes = "flex flex-col items-center justify-center gap-2 rounded-2xl border border-[#E5DCC4] bg-white p-4 text-sm font-medium text-neutral-700 hover:border-[#cd2653] hover:text-[#cd2653] transition-colors"
+  if (disabled) return <div className={`${classes} opacity-40 cursor-not-allowed`}>{Icon && <Icon className="w-5 h-5" />}{label}</div>
+  if (external) return <a href={href} target="_blank" rel="noopener" className={classes}>{Icon && <Icon className="w-5 h-5" />}{label}</a>
+  return <Link href={href} className={classes}>{Icon && <Icon className="w-5 h-5" />}{label}</Link>
+}
 
 function StatTile({ icon: Icon, value, label, href, accent }: { icon: LucideIcon; value: string; label: string; href: string; accent?: boolean }) {
   return (
@@ -68,9 +79,11 @@ export default async function Overview() {
   const paymentDue = (app?.payment_due_date as string) || '1 Sep 2026'
 
   const termsAccepted = !!state.terms_accepted_at
+  const contractSigned = !!app?.contract_signed_at
   const steps = [
     { done: true, label: 'Application approved', sub: 'Welcome to the festival', href: '/exhibitor/portal' },
     { done: termsAccepted, label: 'Accept terms & conditions', sub: termsAccepted ? 'Recorded against your account' : 'Required before payment', href: '/exhibitor/portal/terms' },
+    { done: contractSigned, label: 'Sign vendor contract', sub: contractSigned ? 'Vendor Contract 2026 signed' : 'Locks your stall fee and your spot.', href: '/exhibitor/portal/contract' },
     { done: isPaid, label: 'Pay your stall fee', sub: isPaid ? 'Received, thank you' : `Due ${paymentDue}`, href: '/exhibitor/portal/payments' },
     { done: !!stall, label: 'Stall allocated', sub: stall ? `${stall} · ${stallZone}` : 'Organisers will place you', href: '/exhibitor/portal/stand' },
     {
@@ -83,6 +96,21 @@ export default async function Overview() {
   ]
   const doneCount = steps.filter((s) => s.done).length
   const readiness = Math.round((doneCount / steps.length) * 100)
+
+  const SECTOR_TO_SLUG: Record<string, string> = {
+    'Food & Beverage': 'food-beverage',
+    'Fashion & Modest Wear': 'fashion-modest-wear',
+    'Beauty & Wellness': 'beauty-wellness',
+    'Health & Pharmacy': 'health-pharmacy',
+    'Travel & Tourism': 'travel-tourism',
+    'Home & Living': 'home-living',
+    'Finance & Services': 'finance-services',
+    'Business & Trade': 'business-trade',
+  }
+  const sectorSlug = productCategories.find(c => SECTOR_TO_SLUG[c]) || null
+  const publicProfileUrl = profileLive && sectorSlug
+    ? `https://cthalaal.co.za/sectors/${sectorSlug}/${vendorSlug(business)}`
+    : null
 
   // stage for the pipeline
   const stage = (state.stage as string) || (isPaid ? 'paid' : (app?.payment_status === 'deferred' ? 'invoiced' : 'approved'))
@@ -127,6 +155,18 @@ export default async function Overview() {
             <StatTile icon={CreditCard} value={isPaid ? 'Paid' : 'Due'} label={isPaid ? 'stall fee' : paymentDue} href="/exhibitor/portal/payments" />
             <StatTile icon={Store} value={profileLive ? 'Live' : 'Set up'} label="public profile" href="/exhibitor/portal/profile" />
           </div>
+        </div>
+
+        {/* Quick actions */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <ActionCard href="/exhibitor/portal/payments" label="Pay Now"
+            icon={CreditCard} disabled={isPaid} />
+          <ActionCard href="/exhibitor/portal/documents" label="Upload Docs"
+            icon={Upload} />
+          <ActionCard href="/exhibitor/portal/stand" label="View My Stand"
+            icon={MapPin} />
+          <ActionCard href={publicProfileUrl || '#'} label="Share My Profile"
+            icon={Share2} external />
         </div>
 
         {/* status pipeline */}

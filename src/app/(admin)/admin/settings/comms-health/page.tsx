@@ -12,7 +12,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ChevronLeft, MessageCircle, Mail, Cpu, RefreshCw } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Mail, Cpu, RefreshCw } from 'lucide-react'
 
 type ProbeStatus = 'green' | 'amber' | 'red' | 'unknown'
 
@@ -232,10 +232,9 @@ export default function SettingsCommsHealthPage() {
     <div className="p-6 md:p-8 max-w-5xl mx-auto">
       <Link
         href="/admin/settings"
-        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-900 mb-3"
+        className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700 mb-4"
       >
-        <ChevronLeft className="w-3.5 h-3.5" />
-        Settings
+        <ArrowLeft className="w-3 h-3" /> Back to Settings
       </Link>
       <header className="mb-6 flex items-start justify-between gap-4">
         <div>
