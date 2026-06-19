@@ -85,6 +85,14 @@ export interface PortalState {
     attempts?: number
     /** Number of attempts the webhook marked failed. */
     failed_attempts?: number
+    /** How the payment was taken. 'manual' = operator captured an outside /
+     *  non-marquee vendor's payment (EFT, cash, etc.) — see /admin/finance. */
+    method?: 'yoco' | 'fnb' | 'manual'
+    /** Venue zone (venue-zones.ts key) for non-marquee vendors that are
+     *  payment-tracked + acknowledged but NOT allocated on the floor plan. */
+    zone?: string
+    /** Free-text note the operator added when capturing a manual payment. */
+    capture_note?: string
   }
   docs?: DocRecord[]
   staff?: StaffMember[]

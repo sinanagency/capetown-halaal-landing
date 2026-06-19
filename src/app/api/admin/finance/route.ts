@@ -14,10 +14,6 @@ interface PaymentRow {
   email: string | null
   phone: string | null
   status: string | null
-  payment_status: string | null
-  payment_amount: number | null
-  payment_due_date: string | null
-  paid_at: string | null
   admin_notes: string | null
   preferred_booth_tier: string | null
   created_at: string
@@ -40,27 +36,16 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const paymentFilter = (searchParams.get('payment') || '').trim()
 
-    // Fetch all vendors with payment info
-    let q = admin
+    // IMPORTANT: payment_status / payment_amount / payment_due_date / paid_at do
+    // NOT exist as columns in this Supabase (DDL is blocked, different account,
+    // Law 8). Payment state lives in the ⟦PORTAL:..⟧ marker on admin_notes
+    // (parsePortalState). Selecting the phantom columns 500'd the whole route —
+    // which is why /admin/finance rendered empty. We select only real columns,
+    // read payment from portal_state below, and apply the payment filter in-code.
+    const { data: vendors, error } = await admin
       .from('vendor_applications')
-      .select(
-        'id, business_name, contact_name, email, phone, status, payment_status, payment_amount, payment_due_date, paid_at, admin_notes, preferred_booth_tier, created_at'
-      )
+      .select('id, business_name, contact_name, email, phone, status, admin_notes, preferred_booth_tier, created_at')
       .in('status', ['approved', 'pending', 'info_requested'])
-
-    if (paymentFilter === 'paid') {
-      q = q.eq('payment_status', 'paid')
-    } else if (paymentFilter === 'pending') {
-      q = q.eq('payment_status', 'pending')
-    } else if (paymentFilter === 'overdue') {
-      q = q.not('payment_status', 'eq', 'paid')
-        .not('payment_status', 'eq', 'none')
-        .not('payment_status', 'is', null)
-    } else if (paymentFilter === 'none') {
-      q = q.or('payment_status.is.null,payment_status.eq.none')
-    }
-
-    const { data: vendors, error } = await q
       .order('business_name', { ascending: true })
     if (error) {
       console.error('[admin/finance] query error:', error)
@@ -69,14 +54,15 @@ export async function GET(req: NextRequest) {
 
     const rows = (vendors ?? []) as PaymentRow[]
 
-    // Enrich with portal state
+    // Payment state comes ONLY from portal_state (the phantom columns don't
+    // exist — see the query note above).
     const payments = rows.map((v) => {
       const portal = parsePortalState(v.admin_notes || '')
       const p = portal.payment || {}
-      const paidAt = v.paid_at || p.paid_at || null
-      const amount = v.payment_amount || p.amount || null
-      const dueDate = v.payment_due_date || p.due || null
-      const paymentStatus = v.payment_status || p.status || 'none'
+      const paidAt = p.paid_at || null
+      const amount = p.amount || null
+      const dueDate = p.due || null
+      const paymentStatus = p.status || 'none'
 
       let overdue = false
       if (paymentStatus === 'pending' && dueDate) {
@@ -117,6 +103,12 @@ export async function GET(req: NextRequest) {
       console.warn('[admin/finance] WC fetch failed:', err)
     }
 
+    // Ticket revenue (WC = source of truth, Law 4) + combined money-in so the
+    // page tracks vendor stall fees AND ticket sales together.
+    const ticketRevenue = wcOrders.reduce((s, o) => s + parseFloat(o.total || '0'), 0)
+    const ticketOrders = wcOrders.length
+    const totalMoneyIn = totalRevenue + ticketRevenue
+
     // Match WC orders to vendors by email
     const wcMatched = payments
       .filter(p => p.email)
@@ -150,8 +142,17 @@ export async function GET(req: NextRequest) {
         date: o.date_created,
       }))
 
+    // Apply the payment filter in-code (the DB can't filter a marker).
+    const list = !paymentFilter ? payments : payments.filter((p) => {
+      if (paymentFilter === 'paid') return p.payment_status === 'paid'
+      if (paymentFilter === 'pending') return p.payment_status === 'pending' || p.payment_status === 'deferred'
+      if (paymentFilter === 'overdue') return p.overdue
+      if (paymentFilter === 'none') return p.payment_status === 'none'
+      return true
+    })
+
     return NextResponse.json({
-      payments,
+      payments: list,
       reconciliation: {
         matched: wcMatched.filter(r => r.reconciled).length,
         unmatched: wcMatched.filter(r => !r.reconciled).length,
@@ -164,7 +165,10 @@ export async function GET(req: NextRequest) {
         total_pending: totalPending,
         total_none: totalNone,
         total_overdue: totalOverdue,
-        total_revenue: totalRevenue,
+        total_revenue: totalRevenue,   // vendor stall fees
+        ticket_revenue: ticketRevenue, // WC ticket sales
+        ticket_orders: ticketOrders,
+        total_money_in: totalMoneyIn,  // vendors + tickets combined
       },
     })
   } catch (err) {

@@ -42,6 +42,8 @@ const navGroups: NavGroup[] = [
       { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
       { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
       { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
+      { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
+      { name: 'Contacts', href: '/admin/contacts', icon: BookOpen },
     ],
   },
   {
@@ -49,8 +51,6 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Finance', href: '/admin/finance', icon: Wallet },
       { name: 'Tickets', href: '/admin/tickets', icon: Ticket },
-      { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
-      { name: 'Contacts', href: '/admin/contacts', icon: BookOpen },
     ],
   },
   {

@@ -90,27 +90,25 @@ export function InteractiveTour({ email }: { email?: string | null }) {
     }
   }, [])
 
+  // A step with navigateTo is meant to be shown ON that page. When we enter such
+  // a step and aren't there yet, NAVIGATE to it (this used to call setOpen(false),
+  // which killed the tour the instant you advanced from Welcome to a page-bound
+  // step). Once the route matches, clear the navigating spinner.
   useEffect(() => {
     if (!open) return
     const currentStep = STEPS[step]
     if (currentStep.navigateTo && !pathname.startsWith(currentStep.navigateTo)) {
-      setOpen(false)
+      setNavigating(true)
+      router.push(currentStep.navigateTo)
+    } else {
+      setNavigating(false)
     }
-  }, [pathname, open, step])
+  }, [pathname, open, step, router])
 
   function next() {
-    const s = STEPS[step]
-    if (s.navigateTo) {
-      setNavigating(true)
-      const nextStep = step + 1
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: nextStep, active: true }))
-      setStep(nextStep)
-      router.push(s.navigateTo)
-    } else {
-      const nextStep = Math.min(step + 1, STEPS.length - 1)
-      setStep(nextStep)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: nextStep, active: true }))
-    }
+    const nextStep = Math.min(step + 1, STEPS.length - 1)
+    setStep(nextStep)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: nextStep, active: true }))
   }
 
   function prev() {

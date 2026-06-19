@@ -73,15 +73,20 @@ export function VendorPaymentConfirmation({
   const invoiceNum = reference || providerRef || ''
 
   return (
-    <EmailLayout preview={`Payment confirmed for ${businessName}, Young at Heart Festival 2026`}>
-      <Heading>Payment received. See you in December.</Heading>
+    <EmailLayout preview={`Payment received for ${businessName}, Young at Heart Festival 2026`}>
+      <Heading>Payment received. Your spot is reserved.</Heading>
 
-      <SuccessBadge>Your stall is confirmed</SuccessBadge>
+      <SuccessBadge>Payment received</SuccessBadge>
 
       <Paragraph>Hi {contactName},</Paragraph>
       <Paragraph>
-        Thank you. We&apos;ve received your payment for <strong>{businessName}</strong>. Your trading
-        spot at Young at Heart Festival 2026 is now secured. Welcome to the family.
+        Thank you. We&apos;ve received your payment for <strong>{businessName}</strong>, and your
+        place at Young at Heart Festival 2026 is reserved.
+      </Paragraph>
+      <Paragraph>
+        Your exact stall has not been allocated yet. We assign stall locations closer to the
+        festival, and we will email you your stall as soon as it is confirmed. Please wait for that
+        allocation before making any setup or layout plans. Welcome to the family.
       </Paragraph>
 
       {/* --- INLINE INVOICE --- */}
@@ -182,6 +187,7 @@ export function VendorPaymentConfirmation({
       <Subheading>What happens next</Subheading>
       <Steps
         items={[
+          'Wait for your stall allocation. We assign and confirm stall locations closer to the festival, and you will get an email the moment yours is set. No action needed from you on this.',
           <>
             Log in to your exhibitor portal:{' '}
             <InlineLink href={portalUrl}>{portalUrl}</InlineLink>

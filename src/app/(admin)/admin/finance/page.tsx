@@ -44,6 +44,9 @@ interface Stats {
   total_none: number
   total_overdue: number
   total_revenue: number
+  ticket_revenue?: number
+  ticket_orders?: number
+  total_money_in?: number
 }
 
 interface FinanceResponse {
@@ -77,11 +80,28 @@ function fmtDate(d: string | null | undefined): string {
   }
 }
 
+const CAPTURE_ZONES: Array<{ key: string; label: string }> = [
+  { key: 'bedouin', label: 'Bedouin (20)' },
+  { key: 'food_drink_truck', label: 'Food & Drink Trucks (30)' },
+  { key: 'dessert_truck', label: 'Dessert Trucks (10)' },
+  { key: 'snack_truck', label: 'Snack Trucks (5)' },
+  { key: 'outside', label: 'Outside (other)' },
+]
+
 export default function FinancePage() {
   const [data, setData] = useState<FinanceResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'payments' | 'reconciliation'>('payments')
   const [paymentFilter, setPaymentFilter] = useState<string>('')
+  // Outside-vendor payment capture (non-marquee zones — tracked, not allocated).
+  const [captureOpen, setCaptureOpen] = useState(false)
+  const [capVendor, setCapVendor] = useState('')
+  const [capZone, setCapZone] = useState('bedouin')
+  const [capAmount, setCapAmount] = useState('')
+  const [capRef, setCapRef] = useState('')
+  const [capNote, setCapNote] = useState('')
+  const [capBusy, setCapBusy] = useState(false)
+  const [capMsg, setCapMsg] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -100,6 +120,32 @@ export default function FinancePage() {
   useEffect(() => {
     reload()
   }, [reload])
+
+  const submitCapture = useCallback(async () => {
+    const amount = parseFloat(capAmount)
+    if (!capVendor || !capZone || !amount || amount <= 0) {
+      setCapMsg('Pick a vendor, zone and a valid amount.')
+      return
+    }
+    setCapBusy(true)
+    setCapMsg(null)
+    try {
+      const res = await fetch('/api/admin/finance/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicationId: capVendor, zone: capZone, amount, reference: capRef || undefined, note: capNote || undefined }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setCapMsg(json?.error || 'Capture failed.'); return }
+      setCapMsg(`Captured R${amount.toLocaleString('en-ZA')} for ${json.business_name} (${json.zoneLabel}).`)
+      setCapAmount(''); setCapRef(''); setCapNote(''); setCapVendor('')
+      await reload()
+    } catch {
+      setCapMsg('Capture failed.')
+    } finally {
+      setCapBusy(false)
+    }
+  }, [capVendor, capZone, capAmount, capRef, capNote, reload])
 
   const paymentStatusTone = (status: string): 'success' | 'warn' | 'danger' | 'neutral' | 'info' => {
     switch (status) {
@@ -153,19 +199,62 @@ export default function FinancePage() {
       title="Finance"
       caption="MONEY"
       actions={
-        <button
-          onClick={exportCsv}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
-        >
-          <Download className="w-3.5 h-3.5" />
-          Export CSV
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCaptureOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-[#cd2653]/30 text-[#cd2653] hover:bg-[#cd2653]/5"
+          >
+            <Wallet className="w-3.5 h-3.5" />
+            Capture payment
+          </button>
+          <button
+            onClick={exportCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-neutral-200 text-neutral-700 hover:bg-neutral-50"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export CSV
+          </button>
+        </div>
       }
     >
       {stats && (
+        <>
+        {captureOpen && (
+          <div className="mb-4 rounded-lg border border-[#cd2653]/20 bg-[#cd2653]/[0.03] p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[#cd2653] mb-3">
+              Capture outside / non-marquee payment
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+              <select value={capVendor} onChange={(e) => setCapVendor(e.target.value)}
+                className="px-2 py-1.5 text-sm rounded-md border border-neutral-200 bg-white">
+                <option value="">Select vendor…</option>
+                {payments.map((p) => (
+                  <option key={p.id} value={p.id}>{p.business_name}</option>
+                ))}
+              </select>
+              <select value={capZone} onChange={(e) => setCapZone(e.target.value)}
+                className="px-2 py-1.5 text-sm rounded-md border border-neutral-200 bg-white">
+                {CAPTURE_ZONES.map((z) => <option key={z.key} value={z.key}>{z.label}</option>)}
+              </select>
+              <input value={capAmount} onChange={(e) => setCapAmount(e.target.value)} type="number" placeholder="Amount (R)"
+                className="px-2 py-1.5 text-sm rounded-md border border-neutral-200 bg-white" />
+              <input value={capRef} onChange={(e) => setCapRef(e.target.value)} placeholder="Reference (optional)"
+                className="px-2 py-1.5 text-sm rounded-md border border-neutral-200 bg-white" />
+              <button onClick={submitCapture} disabled={capBusy}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-[#cd2653] text-white hover:bg-[#b31f47] disabled:opacity-50">
+                {capBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Capture'}
+              </button>
+            </div>
+            <input value={capNote} onChange={(e) => setCapNote(e.target.value)} placeholder="Note (optional)"
+              className="mt-2 w-full px-2 py-1.5 text-sm rounded-md border border-neutral-200 bg-white" />
+            {capMsg && <div className="mt-2 text-xs text-neutral-600">{capMsg}</div>}
+          </div>
+        )}
+
         <KpiStrip>
-          <Kpi label="Total Revenue" value={fmtMoney(stats.total_revenue)} />
-          <Kpi label="Paid" value={stats.total_paid} hint={`of ${stats.total_vendors} vendors`} />
+          <Kpi label="Money In (all)" value={fmtMoney(stats.total_money_in ?? stats.total_revenue)} hint="vendors + tickets" />
+          <Kpi label="Vendor fees" value={fmtMoney(stats.total_revenue)} hint={`${stats.total_paid} paid`} />
+          <Kpi label="Ticket sales" value={fmtMoney(stats.ticket_revenue ?? 0)} hint={`${stats.ticket_orders ?? 0} orders`} />
           <Kpi label="Pending" value={stats.total_pending} />
           <Kpi
             label="Overdue"
@@ -174,6 +263,7 @@ export default function FinancePage() {
           />
           <Kpi label="Not invoiced" value={stats.total_none} />
         </KpiStrip>
+        </>
       )}
 
       {/* Tabs */}
