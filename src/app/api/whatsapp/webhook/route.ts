@@ -17,6 +17,7 @@ import {
 import { askFestivalBrain } from '@/lib/festival-brain'
 import { detectHumanIntent, escalateToHuman, isInHandover } from '@/lib/bot/handover'
 import { notifyOwners } from '@/lib/bot/notify'
+import { resolveSwipeReplyTarget } from '@/lib/bot/swipe-reply'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findAdmin } from '@/lib/bot/admins'
 import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
@@ -118,12 +119,25 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true })
 }
 
+// Build a human-readable handover alert: full name, business, status and the
+// actual question — plus a parseable `Phone: +27…` line that the swipe-reply
+// router reads back to know who to forward Samreen's reply to.
+async function buildHandoverAlert(e164: string, text: string, ongoing = false): Promise<string> {
+  const who = await resolveIdentity(e164)
+  const brief = who.vendor
+    ? `${who.name || 'Vendor'} · ${who.vendor.business_name} · ${who.vendor.status}` +
+      `${who.vendor.stall ? ` · stall ${who.vendor.stall}` : ''} · pay:${who.vendor.payment_status}`
+    : who.name || 'Unknown contact'
+  return `${brief}${ongoing ? ' (ongoing)' : ''}\nPhone: ${e164}\nAsks: "${text.slice(0, 240)}"\n\nSwipe-reply to this message to answer them directly.`
+}
+
 async function handleInbound(msg: {
   from: string
   messageId: string
   type: string
   text: string
   name?: string
+  replyToWamid?: string
 }) {
   const e164 = toE164(msg.from)
 
@@ -216,6 +230,45 @@ async function handleInbound(msg: {
   // (no intent matched → fall through to a one-line ack + master forward).
   const admin = findAdmin(e164)
   if (admin) {
+    // 3a-SWIPE) If the admin SWIPE-REPLIED to a handover alert, route their text
+    // straight to that vendor (no "to +27…" command). The alert's wamid arrives
+    // as context.id; we recover the vendor phone from the logged alert body.
+    if (msg.replyToWamid) {
+      const target = await resolveSwipeReplyTarget(msg.replyToWamid)
+      if (target) {
+        const fwd = await sendText(target.vendorE164, msg.text)
+        await logMessage({
+          direction: 'out', wa_phone: target.vendorE164, body: msg.text,
+          status: fwd.skipped ? 'failed' : 'sent', providerMessageId: fwd.messageId,
+        })
+        const who = await resolveIdentity(target.vendorE164)
+        const ackName = who.vendor?.business_name || who.firstName || target.vendorE164
+        const ack = fwd.skipped
+          ? `⚠️ Couldn't deliver to ${ackName}: ${fwd.skipped}`
+          : `✅ Sent to ${ackName}. Swipe-reply again to keep the conversation going.`
+        const ar = await sendText(e164, ack)
+        await logMessage({
+          direction: 'out', wa_phone: e164, body: ack,
+          status: ar.skipped ? 'failed' : 'sent', providerMessageId: ar.messageId,
+        })
+        // Cross-mirror to the OTHER support agent so both see the conversation
+        // and either can pick it up. The relay body carries `Phone: +…` and the
+        // 'vendor support' prefix, so it is itself a swipe-anchor — the other
+        // agent can swipe-reply on it to continue answering the same vendor.
+        if (!fwd.skipped) {
+          try {
+            await notifyOwners({
+              event: 'vendor_support_message',
+              body: `${admin.name} → ${ackName}\nPhone: ${target.vendorE164}\n"${msg.text.slice(0, 240)}"\n\nSwipe-reply to continue.`,
+              audience: 'all',
+              exclude: e164,
+            })
+          } catch (e) { console.error('[swipe] cross-mirror failed:', (e as Error).message) }
+        }
+        return
+      }
+    }
+
     const adminResult = await handleAdminMessage(admin, msg.text)
     const reply = adminResult.reply ||
       (admin.role === 'festival_owner'
@@ -249,7 +302,7 @@ async function handleInbound(msg: {
     try {
       await notifyOwners({
         event: 'vendor_support_message',
-        body: `${e164} asked to talk to a human: ${msg.text.slice(0, 240)}`,
+        body: await buildHandoverAlert(e164, msg.text),
         audience: 'all',
       })
     } catch (e) { console.error('[bot] notifyOwners on handover failed:', (e as Error).message) }
@@ -262,7 +315,7 @@ async function handleInbound(msg: {
     try {
       await notifyOwners({
         event: 'vendor_support_message',
-        body: `[${e164}, ongoing handover] ${msg.text.slice(0, 240)}`,
+        body: await buildHandoverAlert(e164, msg.text, true),
         audience: 'all',
       })
     } catch (e) { console.error('[bot] notifyOwners during handover failed:', (e as Error).message) }

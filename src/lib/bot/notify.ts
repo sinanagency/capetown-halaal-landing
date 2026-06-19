@@ -24,6 +24,9 @@ interface NotifyArgs {
   event: PortalEvent
   body: string // one-line summary, will be wrapped by the template
   audience?: 'all' | 'master' | 'festival_owner'
+  /** E.164 to skip — e.g. the admin who just replied shouldn't be notified of
+   *  their own message (used to mirror a reply to the OTHER support agent). */
+  exclude?: string
 }
 
 // Logs every send to wa_messages so the Bot Inbox surfaces it next to admin
@@ -77,7 +80,9 @@ async function deliverOne(admin: BotAdmin, args: NotifyArgs) {
 
 export async function notifyOwners(args: NotifyArgs): Promise<void> {
   const audience = args.audience || 'all'
+  const excludeNorm = args.exclude ? toE164(args.exclude) : null
   const targets = BOT_ADMINS.filter((a) => {
+    if (excludeNorm && toE164(a.phone) === excludeNorm) return false
     if (audience === 'all') return true
     if (audience === 'master') return a.role === 'master'
     if (audience === 'festival_owner') return a.role === 'festival_owner'

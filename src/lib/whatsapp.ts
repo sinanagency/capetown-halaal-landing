@@ -271,6 +271,8 @@ export interface InboundMessage {
   type: string
   text: string
   name?: string
+  /** wamid of the message this one is a reply to (WhatsApp swipe-reply). */
+  replyToWamid?: string
 }
 
 export function parseInbound(body: unknown): InboundMessage[] {
@@ -288,6 +290,7 @@ export function parseInbound(body: unknown): InboundMessage[] {
           type: msg.type,
           text: msg.text?.body || msg.button?.text || '',
           name: profileName,
+          replyToWamid: (msg as { context?: { id?: string } }).context?.id,
         })
       }
     }
