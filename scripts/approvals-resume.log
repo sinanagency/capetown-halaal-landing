@@ -1,0 +1,105 @@
+=== resume run 2026-06-19 04:01:00 +04 ===
+dry run reports remaining=100
+
+→ SENDING  ·  audience=vendors_pending  ·  https://cthalaal.co.za
+  subject: Your CTH Vendor Application: Approvals Are In Progress
+
+⚠️  Recipient list (276 remaining from offset 0) exceeds the send cap (95). Only 95 will be sent this call. Re-run with offset=95 for the rest.
+
+✓ Sent 72  ·  ✗ Failed 23  ·  of 276 total  ·  offset=0 → nextOffset=95
+First errors: [
+  {
+    email: 'fagmedalakay2@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'farapanday@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'fatima.dirk007@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'fay.fataar@hotmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'firdousapollis17@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'foodhangover.capetown@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'frullatotrading@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'girlslikeusmarche@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'hao.now.cook@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'hcprinting2024@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'imaanshaik@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'info@kgotsospride.co.za',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'info@primalwellnese.co.za',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'info@tcphotobooth.co.za',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'isandlahelp@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'israarahman91@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'jacobsflavors@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'jafthakevin23@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'jeezzkids@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'jihaadsmith13@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'kherekarsconfectioners@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'kleinkinstyle@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  },
+  {
+    email: 'larnieniezaam@gmail.com',
+    error: 'Too many requests. You can only make 2 requests per second. See rate limit response headers for more information. Or contact support to increase rate limit.'
+  }
+]
+
+send complete 04:01:50 +04
