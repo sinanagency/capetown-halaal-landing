@@ -17,6 +17,9 @@ import { sendText } from '@/lib/whatsapp'
 
 const ON_MARKER = '[HUMAN_HANDOVER_ON]'
 const OFF_MARKER = '[HUMAN_HANDOVER_OFF]'
+// Set when an UNKNOWN contact asks for a human and we've asked them for their
+// name + reason; their next message is captured as the handover context.
+const PENDING_MARKER = '[HUMAN_HANDOVER_PENDING]'
 const TTL_MS = 24 * 60 * 60 * 1000
 
 /** Phrases that escalate the conversation to a human handler. */
@@ -38,8 +41,8 @@ export function detectHumanIntent(text: string): boolean {
   return HUMAN_KEYWORDS.some((re) => re.test(text))
 }
 
-/** Persist an ON or OFF marker for a phone. */
-async function writeMarker(waPhone: string, marker: typeof ON_MARKER | typeof OFF_MARKER, note: string): Promise<void> {
+/** Persist a handover marker (ON / OFF / PENDING) for a phone. */
+async function writeMarker(waPhone: string, marker: string, note: string): Promise<void> {
   const db = createAdminClient()
   await db.from('wa_messages').insert({
     direction: 'out',
@@ -58,6 +61,31 @@ export async function escalateToHuman(waPhone: string, reason: string): Promise<
 /** Release the user back to the bot. */
 export async function releaseToBot(waPhone: string, note: string = 'released by admin'): Promise<void> {
   await writeMarker(waPhone, OFF_MARKER, note.slice(0, 200))
+}
+
+/** Mark that we've asked an unknown contact for their name + reason. */
+export async function setPendingHandover(waPhone: string): Promise<void> {
+  await writeMarker(waPhone, PENDING_MARKER, 'awaiting name + reason')
+}
+
+/**
+ * Are we waiting on this phone's name + reason? True if the most recent handover
+ * marker (within TTL) is PENDING — i.e. they asked for a human, we asked who
+ * they are, and they haven't replied yet.
+ */
+export async function isPendingHandover(waPhone: string): Promise<boolean> {
+  const db = createAdminClient()
+  const since = new Date(Date.now() - TTL_MS).toISOString()
+  const { data } = await db
+    .from('wa_messages')
+    .select('body, created_at')
+    .eq('wa_phone', waPhone)
+    .eq('direction', 'out')
+    .gte('created_at', since)
+    .or(`body.ilike.${PENDING_MARKER}%,body.ilike.${ON_MARKER}%,body.ilike.${OFF_MARKER}%`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  return String(data?.[0]?.body || '').startsWith(PENDING_MARKER)
 }
 
 /**

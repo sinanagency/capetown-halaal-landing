@@ -15,7 +15,7 @@ import {
   isStartKeyword,
 } from '@/lib/wa-consent'
 import { askFestivalBrain } from '@/lib/festival-brain'
-import { detectHumanIntent, escalateToHuman, isInHandover } from '@/lib/bot/handover'
+import { detectHumanIntent, escalateToHuman, isInHandover, isPendingHandover, setPendingHandover } from '@/lib/bot/handover'
 import { notifyOwners } from '@/lib/bot/notify'
 import { resolveSwipeReplyTarget } from '@/lib/bot/swipe-reply'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -293,8 +293,33 @@ async function handleInbound(msg: {
     return
   }
 
+  // 3a-PENDING) An unknown contact who asked for a human was asked for their
+  // name + reason; THIS message is their answer. Capture it as the handover
+  // context and escalate now.
+  if (await isPendingHandover(e164)) {
+    await escalateToHuman(e164, msg.text)
+    const ack = "Thank you. I've passed this to our team and someone will WhatsApp you back here shortly."
+    const res = await sendText(e164, ack)
+    await logMessage({ direction: 'out', wa_phone: e164, body: ack, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
+    try {
+      await notifyOwners({ event: 'vendor_support_message', body: await buildHandoverAlert(e164, msg.text), audience: 'all' })
+    } catch (e) { console.error('[bot] notifyOwners on pending handover failed:', (e as Error).message) }
+    return
+  }
+
   // 3b) HUMAN HANDOVER intent — user explicitly wants a person.
   if (detectHumanIntent(msg.text)) {
+    // Unknown contacts (not a known vendor / ticket-buyer) get asked who they
+    // are + what they need FIRST, so Samreen never receives a bare number with
+    // no context. Known vendors/buyers are auto-enriched, so escalate at once.
+    const who = await resolveIdentity(e164)
+    if (who.role === 'unknown') {
+      await setPendingHandover(e164)
+      const ask = "Before I connect you to our team, please tell me your name and what you need help with. For example: \"I'm Aisha from Nature's Table, I need to change my stall.\""
+      const askRes = await sendText(e164, ask)
+      await logMessage({ direction: 'out', wa_phone: e164, body: ask, status: askRes.skipped ? 'failed' : 'sent', providerMessageId: askRes.messageId })
+      return
+    }
     await escalateToHuman(e164, msg.text)
     const ack = "Got it. I've passed your message to our support team. Someone will WhatsApp you back here shortly. While they're looking, keep adding context and I'll forward it through."
     const res = await sendText(e164, ack)
