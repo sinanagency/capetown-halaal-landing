@@ -1,6 +1,7 @@
 import { render } from '@react-email/components'
 import { Resend } from 'resend'
 import type { ReactElement } from 'react'
+import { mirrorOutboundToSupportInbox } from './support-mirror'
 
 // =============================================================================
 // CTH email — RESEND ONLY (2026-06-08).
@@ -24,7 +25,9 @@ import type { ReactElement } from 'react'
 
 export const FROM_EMAIL = 'Young at Heart Festival <support@youngatheart.co.za>'
 export const ADMIN_EMAIL = 'support@youngatheart.co.za'
-const BCC_EMAIL = 'info@sinan.agency'
+// NOTE: outbound mail is no longer BCC'd to info@sinan.agency (2026-06-19). The
+// portal Support Inbox (Sent tab) is the single source of truth for what went
+// out — every send is mirrored there as a threaded message via support-mirror.
 
 // Trim trailing newlines (Vercel env vars often have them).
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim()
@@ -87,7 +90,6 @@ export async function sendEmail({
     const common = {
       from: FROM_EMAIL,
       to,
-      bcc: BCC_EMAIL,
       replyTo: replyTo || 'support@youngatheart.co.za',
       subject,
       headers: mailHeaders,
@@ -95,12 +97,25 @@ export async function sendEmail({
         ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
         : {}),
     }
-    if (html) {
-      await resend.emails.send({ ...common, html })
-    } else {
-      await resend.emails.send({ ...common, text: text || '' })
+    const sendRes = html
+      ? await resend.emails.send({ ...common, html })
+      : await resend.emails.send({ ...common, text: text || '' })
+
+    // Resend's client returns { data, error } rather than throwing on API
+    // errors — surface a real failure instead of falsely reporting ok:true.
+    if (sendRes?.error) {
+      const msg = (sendRes.error as { message?: string }).message || String(sendRes.error)
+      console.error(`Resend send FAILED for ${to} ("${subject}"): ${msg}`)
+      return { ok: false, error: `resend: ${msg}` }
     }
+
+    const providerMessageId = sendRes?.data?.id || undefined
     console.log(`Email sent via Resend to ${to}: ${subject}`)
+
+    // Mirror into the Support Inbox as a threaded message (best-effort, never
+    // blocks the send). Makes the Sent tab a real two-way surface.
+    await mirrorOutboundToSupportInbox({ to, subject, html, text, providerMessageId })
+
     return { ok: true, provider: 'resend' }
   } catch (e) {
     const msg = (e as Error).message

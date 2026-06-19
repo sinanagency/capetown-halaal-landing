@@ -12,7 +12,18 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { capJsonbSize } from '@/lib/audit/cap'
+import {
+  notifyApplicationDecision,
+  APPROVED_NOTIFIED_RE,
+} from '@/lib/applications/decision-notify'
+import { notifyOwners } from '@/lib/bot/notify'
 import { z } from 'zod'
+
+// Cap synchronous vendor-facing sends per bulk call. Keeps us under the Resend
+// daily cap and the Vercel function timeout. Rows beyond the cap are reported
+// as notified:false reason:'deferred' (NOT silently dropped) so the operator
+// knows to drain them via the remediation endpoint.
+const BULK_NOTIFY_CAP = 40
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,6 +63,12 @@ interface Result {
   id: string
   ok: boolean
   error?: string
+  notified?: boolean
+  notifyError?: string
+  waSkipped?: string
+  /** true when the row was approved/rejected but its send was deferred past the
+   *  per-call cap — drain via the remediation endpoint. */
+  deferred?: boolean
 }
 
 export async function POST(request: NextRequest) {
@@ -96,7 +113,7 @@ export async function POST(request: NextRequest) {
     // N times.
     const { data: rows, error: loadErr } = await admin
       .from('vendor_applications')
-      .select('id, status, sector, reviewed_at, approved_at, admin_notes')
+      .select('id, status, sector, reviewed_at, approved_at, admin_notes, email, business_name, contact_name, preferred_booth_tier, phone')
       .in('id', ids)
     if (loadErr) {
       return NextResponse.json({ error: 'Failed to load applications' }, { status: 500 })
@@ -105,6 +122,7 @@ export async function POST(request: NextRequest) {
 
     const nowIso = new Date().toISOString()
     const results: Result[] = []
+    let notifiedCount = 0
     const events: Array<{
       application_id: string
       event_type: string
@@ -180,7 +198,48 @@ export async function POST(request: NextRequest) {
         actor_role: 'operator',
         note,
       })
-      results.push({ id, ok: true })
+
+      // Vendor-facing side-effects on a real transition (same fix as the
+      // single-action route). Capped per call; overflow is reported, not dropped.
+      const b = before as unknown as {
+        status: string | null
+        admin_notes?: string | null
+        email?: string | null
+        business_name?: string | null
+        contact_name?: string | null
+        preferred_booth_tier?: string | null
+        phone?: string | null
+      }
+      const decisionStatus =
+        action === 'approve' ? 'approved' as const :
+        action === 'reject' ? 'rejected' as const :
+        action === 'request_info' ? 'info_requested' as const : null
+      const alreadyNotified =
+        decisionStatus === 'approved' && APPROVED_NOTIFIED_RE.test(b.admin_notes || '')
+
+      if (decisionStatus && b.status !== decisionStatus && !alreadyNotified) {
+        if (notifiedCount >= BULK_NOTIFY_CAP) {
+          results.push({ id, ok: true, notified: false, deferred: true })
+        } else {
+          notifiedCount++
+          const r = await notifyApplicationDecision({
+            admin,
+            id,
+            status: decisionStatus,
+            app: {
+              email: b.email || '',
+              business_name: b.business_name || '',
+              contact_name: b.contact_name || '',
+              preferred_booth_tier: b.preferred_booth_tier,
+              phone: b.phone,
+              admin_notes: b.admin_notes,
+            },
+          })
+          results.push({ id, ok: true, notified: r.emailSent, notifyError: r.emailError, waSkipped: r.waSkipped })
+        }
+      } else {
+        results.push({ id, ok: true, notified: false })
+      }
     }
 
     // Batch-insert events. Audit insert failure should not flip a successful
@@ -191,6 +250,17 @@ export async function POST(request: NextRequest) {
     }
 
     const okCount = results.filter((r) => r.ok).length
+
+    // One owner digest for the batch (Taona + Samreen) instead of per-vendor.
+    const notifiedNow = results.filter((r) => r.notified).length
+    if (notifiedNow > 0) {
+      const deferred = results.filter((r) => r.deferred).length
+      await notifyOwners({
+        event: 'application_approved',
+        body: `Bulk ${action.replace('_', ' ')}: ${notifiedNow} vendor${notifiedNow === 1 ? '' : 's'} notified by email + WhatsApp${deferred ? ` (${deferred} deferred — run remediation)` : ''}.`,
+      }).catch((e) => console.error('[bulk] notifyOwners failed:', (e as Error).message))
+    }
+
     return NextResponse.json({
       success: true,
       action,

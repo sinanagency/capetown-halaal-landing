@@ -1,10 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/admin/applications/send-delay-notice?minDaysOld=5",
-      "schedule": "0 7 * * *"
-    },
-    {
       "path": "/api/cron/mail-fetcher",
       "schedule": "*/2 * * * *"
     },

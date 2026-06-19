@@ -16,6 +16,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { capJsonbSize } from '@/lib/audit/cap'
 import { syncPortalState } from '@/lib/portal-state'
+import {
+  notifyApplicationDecision,
+  APPROVED_NOTIFIED_RE,
+  type DecisionNotifyResult,
+} from '@/lib/applications/decision-notify'
+import { notifyOwners, type PortalEvent } from '@/lib/bot/notify'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -38,6 +44,12 @@ interface AppRow {
   reviewed_at: string | null
   approved_at: string | null
   admin_notes: string | null
+  // Fields the decision side-effects (email + WhatsApp) need.
+  email?: string | null
+  business_name?: string | null
+  contact_name?: string | null
+  preferred_booth_tier?: string | null
+  phone?: string | null
 }
 
 export async function POST(
@@ -68,10 +80,11 @@ export async function POST(
     const parsed = bodySchema.parse(body)
     const { action } = parsed
 
-    // Snapshot before so we can write a meaningful before_value diff.
+    // Snapshot before so we can write a meaningful before_value diff. Also pull
+    // the fields the decision side-effects need (email/contact/phone/etc.).
     const { data: before, error: beforeErr } = await admin
       .from('vendor_applications')
-      .select('id, status, sector, reviewed_at, approved_at, admin_notes')
+      .select('id, status, sector, reviewed_at, approved_at, admin_notes, email, business_name, contact_name, preferred_booth_tier, phone')
       .eq('id', id)
       .single<AppRow>()
     if (beforeErr || !before) {
@@ -160,7 +173,56 @@ export async function POST(
       note,
     })
 
-    return NextResponse.json({ success: true, application: after, action })
+    // Fire the vendor-facing side-effects (account provisioning + approval
+    // email + WhatsApp) on a REAL status transition. The workbench used to skip
+    // these entirely, so vendors were approved silently with no email and no
+    // portal login (2026-06-19 audit). Guard on a genuine transition so
+    // re-tapping 'a' can't reset a password or re-send. The ⟦APPROVED_NOTIFIED⟧
+    // marker is a second guard against re-notifying an already-notified vendor.
+    let notify: DecisionNotifyResult | undefined
+    const decisionStatus =
+      action === 'approve' ? 'approved' as const :
+      action === 'reject' ? 'rejected' as const :
+      action === 'request_info' ? 'info_requested' as const : null
+    const alreadyNotified =
+      decisionStatus === 'approved' && APPROVED_NOTIFIED_RE.test(before.admin_notes || '')
+    if (decisionStatus && before.status !== decisionStatus && !alreadyNotified) {
+      notify = await notifyApplicationDecision({
+        admin,
+        id,
+        status: decisionStatus,
+        app: {
+          email: before.email || '',
+          business_name: before.business_name || '',
+          contact_name: before.contact_name || '',
+          preferred_booth_tier: before.preferred_booth_tier,
+          phone: before.phone,
+          admin_notes: before.admin_notes,
+        },
+      })
+
+      // Mirror to the owners (Taona + Samreen) on WhatsApp so a live approval is
+      // visible to them in real time, not just to the vendor. Per-vendor here
+      // because the workbench is one-at-a-time; batch paths send a digest.
+      const eventMap: Record<typeof decisionStatus, PortalEvent> = {
+        approved: 'application_approved',
+        rejected: 'application_rejected',
+        info_requested: 'application_info_requested',
+      }
+      const waNote = notify.waSent ? ' + WhatsApp' : ''
+      // Awaited (not fire-and-forget): a serverless function kills un-awaited
+      // promises when it returns, so the mirror would silently never send.
+      try {
+        await notifyOwners({
+          event: eventMap[decisionStatus],
+          body: `${before.business_name || 'Vendor'} (${before.contact_name || '—'}) ${decisionStatus.replace('_', ' ')}. Notified by email${waNote}. ${before.email || ''}`,
+        })
+      } catch (e) {
+        console.error('[action] notifyOwners failed:', (e as Error).message)
+      }
+    }
+
+    return NextResponse.json({ success: true, application: after, action, notify })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: 'Validation failed', details: err.issues }, { status: 400 })
