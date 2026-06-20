@@ -90,15 +90,6 @@ export default function VendorOpsPage() {
     return data.applications.find((a) => a.stall === sel) || (selStall?.occupant as AppRow | null) || null
   }, [sel, data, selStall])
 
-  const filteredApps = useMemo(() => {
-    if (!data) return []
-    const q = search.trim().toLowerCase()
-    return data.applications
-      .filter((a) => !a.stall || a.stall === sel) // unplaced, or already on this stall
-      .filter((a) => !q || a.business_name.toLowerCase().includes(q) || (a.tier_label || '').toLowerCase().includes(q))
-      .slice(0, 40)
-  }, [data, search, sel])
-
   function pick(code: string) { setSel(code); setChosenApp(null); setSearch('') }
 
   async function post(body: Record<string, unknown>) {
@@ -233,7 +224,11 @@ export default function VendorOpsPage() {
             grid={data.grid}
             applications={apps}
             onAllocate={async (boothCode, vendorName) => {
-              const matched = apps.find((a) => a.business_name === vendorName)
+              // Multi-stall: prefer an UNPLACED application for this vendor so a
+              // second allocation lands on their free application id rather than
+              // moving a stall they already hold.
+              const matched = apps.find((a) => a.business_name === vendorName && !a.stall)
+                || apps.find((a) => a.business_name === vendorName)
               if (!matched) throw new Error(`Vendor ${vendorName} not in approved list`)
               await post({ stall_code: boothCode, application_id: matched.id, status: 'allocated' })
             }}

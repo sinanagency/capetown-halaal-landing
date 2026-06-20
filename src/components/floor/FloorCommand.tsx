@@ -218,9 +218,14 @@ export default function FloorCommand({
   const matchApplication = useCallback((name: string) => {
     const q = name.trim().toLowerCase()
     if (!q) return null
-    return applications.find((a) =>
+    const matches = (a: { business_name: string }) =>
       a.business_name.toLowerCase() === q || a.business_name.toLowerCase().includes(q)
-    ) || null
+    // Multi-stall: a vendor may have several applications (one per stall). Prefer
+    // an UNPLACED one so a second allocation goes to their free application
+    // instead of moving a stall they already have.
+    return applications.find((a) => matches(a) && !a.stall)
+      || applications.find(matches)
+      || null
   }, [applications])
 
   const doAllocate = useCallback(async (status: 'allocated' | 'reserved') => {
