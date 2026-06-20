@@ -1,15 +1,14 @@
-// Unified inbox list — merges WhatsApp + email into ONE conversation list.
-//
-// A conversation = a CONTACT (person), keyed by phone and/or email. Built at
-// query time with NO dependency on wa_threads (which doesn't exist in this prod
-// DB — DDL blocked, Law 8; the old inbox spine silently errored on it):
-//   - WhatsApp: aggregate wa_messages by wa_phone.
-//   - Email: support_inbox_threads by peer_email.
+// Unified inbox list — merges ALL three legacy inboxes (Customer + Bot +
+// Support) into ONE conversation list. A conversation = a CONTACT (person),
+// keyed by phone and/or email. Built at query time with NO dependency on
+// wa_threads (doesn't exist in this prod DB, DDL blocked, Law 8):
+//   - WhatsApp + Bot: aggregate wa_messages by wa_phone (the bot logs here too).
+//   - Email/Support: support_inbox_threads by peer_email.
 //   - Resolve each phone/email to a vendor_application so a vendor's WhatsApp
 //     and email collapse into ONE row.
-//
-// Returns a contact list the unified inbox renders, plus per-contact phone/email
-// so the thread view + reply can act on either channel.
+// Status / star / assignee come from vendor_tickets + support_inbox_threads
+// (the only rows we can write without DDL). Unread is derived from the latest
+// message direction for WhatsApp and from thread.unread_count for email.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
@@ -28,13 +27,26 @@ interface Contact {
   identity: 'vendor' | 'ticket_buyer' | 'unknown'
   last_message_at: string | null
   last_preview: string | null
-  unread_count: number
+  last_direction: 'in' | 'out' | null
+  unread: boolean
+  starred: boolean
+  tag: string | null         // operational label: payment | load-in | badges | …
+  assignee_id: string | null
   application_id: string | null
-  status: string             // ticket status if any, else 'open'
+  status: string             // open | snoozed | resolved
+  bot_paused: boolean        // WhatsApp: true = human handling, bot is off
 }
 
 const norm = (p: string) => p.replace(/^\+/, '')
-const isMarker = (b: string) => /^\s*\[[A-Z_]+\]/.test(b) || /HUMAN_HANDOVER/.test(b)
+// tag column is pipe-encoded: "starred", "payment", or "starred|payment".
+function parseTag(v: string | null): { starred: boolean; tag: string | null } {
+  const parts = (v || '').split('|').map((s) => s.trim()).filter(Boolean)
+  return { starred: parts.includes('starred'), tag: parts.find((p) => p !== 'starred') || null }
+}
+// Skip bracket markers, handover flags, AND internal owner-notification alerts
+// (the notifyOwners "🛎️ …" system messages) so the customer inbox shows real
+// conversations, not our own internal pings.
+const isMarker = (b: string) => /^\s*\[[A-Z_]+\]/.test(b) || /HUMAN_HANDOVER/.test(b) || /^\s*🛎/u.test(b)
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -59,16 +71,22 @@ export async function GET(req: NextRequest) {
     if (a.email) byEmail.set(a.email.toLowerCase(), { id: a.id, business_name: a.business_name, contact_name: a.contact_name, phone: a.phone })
   }
 
-  // Ticket status by application id (for the status pill).
+  // ---- Conversation state from vendor_tickets (status/star/assignee/unread) ----
   const { data: tickets } = await db
     .from('vendor_tickets')
-    .select('vendor_application_id, ticket_buyer_email, status, unread_count')
-  const ticketStatusByApp = new Map<string, string>()
-  const ticketStatusByEmail = new Map<string, string>()
-  for (const t of (tickets || []) as Array<{ vendor_application_id: string | null; ticket_buyer_email: string | null; status: string }>) {
-    if (t.vendor_application_id) ticketStatusByApp.set(t.vendor_application_id, t.status)
-    if (t.ticket_buyer_email) ticketStatusByEmail.set(t.ticket_buyer_email.toLowerCase(), t.status)
+    .select('vendor_application_id, ticket_buyer_email, status, tag, assigned_to, unread_count')
+  interface TState { status: string; starred: boolean; tag: string | null; assignee: string | null; unread: number }
+  const tByApp = new Map<string, TState>()
+  const tByEmail = new Map<string, TState>()
+  for (const t of (tickets || []) as Array<{ vendor_application_id: string | null; ticket_buyer_email: string | null; status: string | null; tag: string | null; assigned_to: string | null; unread_count: number | null }>) {
+    const pt = parseTag(t.tag)
+    const st: TState = { status: t.status || 'open', starred: pt.starred, tag: pt.tag, assignee: t.assigned_to, unread: t.unread_count || 0 }
+    if (t.vendor_application_id) tByApp.set(t.vendor_application_id, st)
+    if (t.ticket_buyer_email) tByEmail.set(t.ticket_buyer_email.toLowerCase(), st)
   }
+
+  // Bot handover state per normalized phone (true = bot paused, human handling).
+  const handoverPaused = new Map<string, boolean>()
 
   // Contacts keyed by a stable conversation key (vendor id if resolved, else
   // the raw phone/email) so a vendor's WhatsApp + email merge into one.
@@ -76,7 +94,13 @@ export async function GET(req: NextRequest) {
   const keyFor = (vendorId: string | null, phone: string | null, email: string | null) =>
     vendorId ? `vendor:${vendorId}` : phone ? `wa:${norm(phone)}` : `mail:${(email || '').toLowerCase()}`
 
-  function touch(c: Partial<Contact> & { phone?: string | null; email?: string | null }, at: string | null, preview: string, unread: number, channel: 'whatsapp' | 'email') {
+  function touch(
+    c: Partial<Contact> & { phone?: string | null; email?: string | null },
+    at: string | null,
+    preview: string,
+    direction: 'in' | 'out' | null,
+    channel: 'whatsapp' | 'email',
+  ) {
     const phone = c.phone || null
     const email = c.email || null
     const vendorId = c.application_id || null
@@ -92,40 +116,58 @@ export async function GET(req: NextRequest) {
         identity: c.identity || 'unknown',
         last_message_at: at,
         last_preview: preview.slice(0, 120),
-        unread_count: unread,
+        last_direction: direction,
+        unread: false,
+        starred: c.starred || false,
+        tag: c.tag || null,
+        assignee_id: c.assignee_id || null,
         application_id: vendorId,
         status: c.status || 'open',
+        bot_paused: false,
       })
     } else {
       if (!existing.channels.includes(channel)) existing.channels.push(channel)
       if (phone && !existing.phone) existing.phone = phone
       if (email && !existing.email) existing.email = email
       if (c.business_name && !existing.business_name) existing.business_name = c.business_name
+      if (c.starred) existing.starred = true
+      if (c.tag && !existing.tag) existing.tag = c.tag
+      if (c.assignee_id && !existing.assignee_id) existing.assignee_id = c.assignee_id
       if (at && (!existing.last_message_at || new Date(at) > new Date(existing.last_message_at))) {
         existing.last_message_at = at
         existing.last_preview = preview.slice(0, 120)
+        existing.last_direction = direction
       }
-      existing.unread_count += unread
     }
   }
 
-  // ---- WhatsApp: aggregate wa_messages by phone ----
+  // ---- WhatsApp + Bot: aggregate wa_messages by phone ----
   if (channelFilter !== 'email') {
     const { data: wa } = await db
       .from('wa_messages')
       .select('wa_phone, direction, body, created_at')
       .order('created_at', { ascending: false })
-      .limit(2000)
+      .limit(3000)
     const seenPhone = new Set<string>()
+    // Bot handover state: the FIRST [HUMAN_HANDOVER_ON/OFF] marker we see per
+    // phone is the latest (rows are created_at DESC). ON => bot paused, a human
+    // is handling; OFF => bot auto-replying.
+    const handoverSeen = new Set<string>()
     for (const m of (wa || []) as Array<{ wa_phone: string; direction: string; body: string | null; created_at: string }>) {
       const phone = norm(m.wa_phone || '')
       if (!phone) continue
-      const body = (m.body || '').trim()
-      if (isMarker(body)) continue
+      const raw = (m.body || '').trim()
+      if (!handoverSeen.has(phone)) {
+        if (/^\[HUMAN_HANDOVER_ON\]/.test(raw)) { handoverPaused.set(phone, true); handoverSeen.add(phone) }
+        else if (/^\[HUMAN_HANDOVER_OFF\]/.test(raw)) { handoverPaused.set(phone, false); handoverSeen.add(phone) }
+      }
+      if (isMarker(raw)) continue
+      // Strip a leading lowercase template tag (e.g. "[vendor_payment_confirmation] …")
+      // so the preview reads as the actual message, not the tag.
+      const body = (raw.replace(/^\s*\[[a-z0-9_]+\]\s*/, '') || '[no text]')
       const vendor = byPhone.get(phone)
       const appId = vendor?.id || null
-      const status = appId ? (ticketStatusByApp.get(appId) || 'open') : 'open'
-      // Only the FIRST (most recent) message per phone sets the preview/time.
+      const st = appId ? tByApp.get(appId) : undefined
       const isFirst = !seenPhone.has(phone)
       seenPhone.add(phone)
       touch(
@@ -136,29 +178,33 @@ export async function GET(req: NextRequest) {
           contact_name: vendor?.contact_name || null,
           application_id: appId,
           identity: appId ? 'vendor' : 'unknown',
-          status,
+          status: st?.status || 'open',
+          starred: st?.starred || false,
+          tag: st?.tag || null,
+          assignee_id: st?.assignee || null,
         },
         isFirst ? m.created_at : null,
         isFirst ? (body || '[no text]') : '',
-        m.direction === 'in' && isFirst ? 1 : 0,
+        isFirst ? (m.direction === 'in' ? 'in' : 'out') : null,
         'whatsapp',
       )
     }
   }
 
-  // ---- Email: support_inbox_threads by peer_email ----
+  // ---- Email/Support: support_inbox_threads by peer_email ----
   if (channelFilter !== 'whatsapp') {
     const { data: threads } = await db
       .from('support_inbox_threads')
-      .select('peer_email, peer_name, subject, last_handled_at, unread_count, created_at')
+      .select('peer_email, peer_name, subject, status, tag, assignee_id, last_handled_at, last_inbound_at, unread_count, created_at')
       .order('last_handled_at', { ascending: false, nullsFirst: false })
-      .limit(1000)
-    for (const t of (threads || []) as Array<{ peer_email: string; peer_name: string | null; subject: string | null; last_handled_at: string | null; unread_count: number | null; created_at: string }>) {
+      .limit(1500)
+    for (const t of (threads || []) as Array<{ peer_email: string; peer_name: string | null; subject: string | null; status: string | null; tag: string | null; assignee_id: string | null; last_handled_at: string | null; last_inbound_at: string | null; unread_count: number | null; created_at: string }>) {
       const email = (t.peer_email || '').toLowerCase()
       if (!email) continue
       const vendor = byEmail.get(email)
       const appId = vendor?.id || null
-      const status = appId ? (ticketStatusByApp.get(appId) || 'open') : (ticketStatusByEmail.get(email) || 'open')
+      const st = appId ? tByApp.get(appId) : tByEmail.get(email)
+      const at = t.last_handled_at || t.last_inbound_at || t.created_at
       touch(
         {
           email,
@@ -166,26 +212,35 @@ export async function GET(req: NextRequest) {
           business_name: vendor?.business_name || null,
           contact_name: t.peer_name || vendor?.contact_name || null,
           application_id: appId,
-          identity: appId ? 'vendor' : (ticketStatusByEmail.has(email) ? 'ticket_buyer' : 'unknown'),
-          status,
+          identity: appId ? 'vendor' : (tByEmail.has(email) ? 'ticket_buyer' : 'unknown'),
+          status: st?.status || t.status || 'open',
+          starred: st?.starred || parseTag(t.tag).starred,
+          tag: st?.tag || parseTag(t.tag).tag,
+          assignee_id: st?.assignee || t.assignee_id || null,
         },
-        t.last_handled_at || t.created_at,
+        at,
         t.subject || '[email]',
-        t.unread_count || 0,
+        // threads don't carry per-message direction here; treat unread_count as the signal
+        (t.unread_count || 0) > 0 ? 'in' : 'out',
         'email',
       )
     }
   }
 
-  const list = Array.from(contacts.values()).sort(
-    (a, b) => +new Date(b.last_message_at || 0) - +new Date(a.last_message_at || 0),
-  )
+  // Derive unread: WhatsApp-side unread = latest message inbound. Email-side
+  // unread folded in via last_direction='in' set above when unread_count>0.
+  const list = Array.from(contacts.values()).map((c) => ({
+    ...c,
+    unread: c.last_direction === 'in',
+    bot_paused: c.phone ? (handoverPaused.get(norm(c.phone)) ?? false) : false,
+  }))
+  list.sort((a, b) => +new Date(b.last_message_at || 0) - +new Date(a.last_message_at || 0))
 
   const counts = {
     all: list.length,
     whatsapp: list.filter((c) => c.channels.includes('whatsapp')).length,
     email: list.filter((c) => c.channels.includes('email')).length,
-    unread: list.reduce((s, c) => s + (c.unread_count > 0 ? 1 : 0), 0),
+    unread: list.filter((c) => c.unread).length,
   }
 
   return NextResponse.json({ contacts: list.slice(0, 500), counts })

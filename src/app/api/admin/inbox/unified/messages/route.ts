@@ -17,6 +17,7 @@ interface CommItem {
   at: string
   from: string
   subject?: string
+  bot?: boolean
 }
 
 export async function GET(req: NextRequest) {
@@ -32,27 +33,41 @@ export async function GET(req: NextRequest) {
   const email = (url.searchParams.get('email') || '').trim().toLowerCase()
 
   const comms: CommItem[] = []
+  const local = (e?: string | null) => (e ? e.split('@')[0] : null)
+
+  // admin id -> email, to attribute email replies (support_inbox_messages.sent_by is a uuid).
+  const { data: admins } = await db.from('admin_users').select('id, email')
+  const adminEmailById = new Map<string, string>((admins || []).map((a: { id: string; email: string }) => [a.id, a.email]))
 
   // ---- WhatsApp by phone (both +27… and 27… forms) ----
   if (phone) {
     const noPlus = phone.replace(/^\+/, '')
     const { data: msgs } = await db
       .from('wa_messages')
-      .select('id, direction, body, created_at, wa_phone, template_name')
+      .select('id, direction, body, created_at, wa_phone, template_name, metadata')
       .or(`wa_phone.eq.+${noPlus},wa_phone.eq.${noPlus}`)
       .order('created_at', { ascending: true })
       .limit(400)
-    for (const m of (msgs || []) as Array<{ id: string; direction: string; body: string | null; created_at: string; wa_phone: string; template_name: string | null }>) {
-      const body = m.body || (m.template_name ? `[template: ${m.template_name}]` : '')
+    for (const m of (msgs || []) as Array<{ id: string; direction: string; body: string | null; created_at: string; wa_phone: string; template_name: string | null; metadata: { sent_by?: string; via?: string } | null }>) {
+      // Internal owner-notification pings ("🛎️ …") and bracket markers are not
+      // part of the customer conversation. A real inbound with no text is media.
+      const raw = (m.body || '').trim()
+      if (/^\s*\[[A-Z_]+\]/.test(raw) || /HUMAN_HANDOVER/.test(raw) || /^\s*🛎/u.test(raw)) continue
+      let body = raw.replace(/^\s*\[[a-z0-9_]+\]\s*/, '') || (m.template_name ? `[template: ${m.template_name}]` : '')
+      if (!body) body = m.direction === 'in' ? '[media message]' : ''
       if (!body) continue
-      if (/^\s*\[[A-Z_]+\]/.test(body) || /HUMAN_HANDOVER/.test(body)) continue
+      // Outbound attribution: an agent (metadata.sent_by) replied, else it was
+      // the auto-bot (no sender stamp and no human took over historically).
+      const sentBy = local(m.metadata?.sent_by)
+      const out = m.direction !== 'in'
       comms.push({
         id: `wa:${m.id}`,
         channel: 'whatsapp',
-        direction: m.direction === 'in' ? 'in' : 'out',
+        direction: out ? 'out' : 'in',
         body,
         at: m.created_at,
-        from: m.direction === 'in' ? `+${m.wa_phone.replace(/^\+/, '')}` : 'Team',
+        from: !out ? `+${m.wa_phone.replace(/^\+/, '')}` : sentBy || 'Bot',
+        bot: out && !sentBy,
       })
     }
   }
@@ -67,21 +82,22 @@ export async function GET(req: NextRequest) {
       const ids = threads.map((t) => t.id)
       const { data: msgs } = await db
         .from('support_inbox_messages')
-        .select('id, thread_id, direction, from_address, subject, body_text, received_at')
+        .select('id, thread_id, direction, from_address, subject, body_text, received_at, sent_by')
         .in('thread_id', ids)
         .order('received_at', { ascending: true })
         .limit(500)
       const subjById = new Map(threads.map((t) => [t.id, t.subject]))
-      for (const m of (msgs || []) as Array<{ id: string; thread_id: string; direction: string; from_address: string; subject: string | null; body_text: string | null; received_at: string }>) {
+      for (const m of (msgs || []) as Array<{ id: string; thread_id: string; direction: string; from_address: string; subject: string | null; body_text: string | null; received_at: string; sent_by: string | null }>) {
         const body = m.body_text || m.subject || ''
         if (!body) continue
+        const out = m.direction !== 'in'
         comms.push({
           id: `mail:${m.id}`,
           channel: 'email',
-          direction: m.direction === 'in' ? 'in' : 'out',
+          direction: out ? 'out' : 'in',
           body,
           at: m.received_at,
-          from: m.direction === 'in' ? m.from_address : 'Team',
+          from: !out ? m.from_address : (local(m.sent_by ? adminEmailById.get(m.sent_by) : null) || 'Team'),
           subject: m.subject || subjById.get(m.thread_id) || undefined,
         })
       }

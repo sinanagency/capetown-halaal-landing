@@ -104,6 +104,7 @@ export default function AdminDashboard() {
   const [recentApps, setRecentApps] = useState<VendorApplication[]>([])
   const [recentCount, setRecentCount] = useState(0)
   const [estimatedRevenue, setEstimatedRevenue] = useState(0)
+  const [moneyIn, setMoneyIn] = useState<{ total: number; tickets: number; stalls: number } | null>(null)
   const [categoryBreakdown, setCategoryBreakdown] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -114,10 +115,11 @@ export default function AdminDashboard() {
     setLoading(true)
     setError(false)
 
-    const [statsRes, ticketRes, appsRes] = await Promise.all([
+    const [statsRes, ticketRes, appsRes, financeRes] = await Promise.all([
       fetchWithRetry('/api/admin/stats'),
       fetchWithRetry('/api/admin/tickets'),
       fetchWithRetry('/api/applications?status=pending'),
+      fetchWithRetry('/api/admin/finance'),
     ])
 
     const isAuthError =
@@ -159,6 +161,19 @@ export default function AdminDashboard() {
         anyData = true
       } catch (e) {
         console.warn('Failed to parse applications response:', e)
+      }
+    }
+
+    if (financeRes?.ok) {
+      try {
+        const data = await financeRes.json()
+        const s = data.stats || {}
+        // Total money in = vendor stall fees + ticket sales (one figure, matches
+        // the Finance page so the home card and Finance never disagree).
+        setMoneyIn({ total: s.total_money_in || 0, tickets: s.ticket_revenue || 0, stalls: s.total_revenue || 0 })
+        anyData = true
+      } catch (e) {
+        console.warn('Failed to parse finance response:', e)
       }
     }
 
@@ -282,14 +297,14 @@ export default function AdminDashboard() {
 
       {/* Primary KPI Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Link href="/admin/tickets" className="bg-white rounded-xl border border-neutral-200 p-6 hover:border-neutral-300 hover:shadow-sm transition-all group">
+        <Link href="/admin/finance" className="bg-white rounded-xl border border-neutral-200 p-6 hover:border-neutral-300 hover:shadow-sm transition-all group">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Revenue</span>
+            <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">Total Money In</span>
             <div className="w-10 h-10 rounded-lg bg-green-50 flex items-center justify-center">
               <DollarSign className="w-5 h-5 text-green-600" />
             </div>
           </div>
-          <p className="text-3xl font-bold text-neutral-900 tracking-tight">{formatCurrency(ticketStats?.totalRevenue || 0)}</p>
+          <p className="text-3xl font-bold text-neutral-900 tracking-tight">{formatCurrency(moneyIn?.total ?? ticketStats?.totalRevenue ?? 0)}</p>
           {chartData.length > 0 && (
             <div className="mt-3 h-12">
               <ResponsiveContainer width="100%" height="100%">
@@ -305,7 +320,11 @@ export default function AdminDashboard() {
               </ResponsiveContainer>
             </div>
           )}
-          <p className="text-xs text-neutral-400 mt-2">{ticketStats?.totalOrders || 0} orders</p>
+          <p className="text-xs text-neutral-400 mt-2">
+            {moneyIn
+              ? `Tickets ${formatCurrency(moneyIn.tickets)} · Stalls ${formatCurrency(moneyIn.stalls)}`
+              : `${ticketStats?.totalOrders || 0} orders`}
+          </p>
         </Link>
 
         <Link href="/admin/applications?status=pending" className="bg-white rounded-xl border border-amber-200 p-6 hover:border-amber-300 hover:shadow-sm transition-all group">

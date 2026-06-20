@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Inbox, Megaphone, Users, Mail, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen, Wallet, MessageCircle } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Megaphone, Users, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen, Wallet, MessageCircle } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -39,8 +39,6 @@ const navGroups: NavGroup[] = [
     label: 'COMMUNICATIONS',
     items: [
       { name: 'Inbox', href: '/admin/customer-inbox', icon: MessageCircle },
-      { name: 'Bot Inbox', href: '/admin/bot-inbox', icon: Inbox },
-      { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
       { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
       { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
       { name: 'Contacts', href: '/admin/contacts', icon: BookOpen },
@@ -108,20 +106,18 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
     setMobileOpen(false)
   }, [pathname])
 
-  // Poll support inbox unread count for the sidebar badge. Cheap query (open
-  // threads only), fires every 60s when the tab is visible. Best-effort —
-  // sidebar still works if the call fails.
+  // Poll the unified inbox unread count for the sidebar badge. Fires every 60s
+  // when the tab is visible. Best-effort, sidebar still works if it fails.
   useEffect(() => {
     let cancelled = false
     const tick = async () => {
       if (document.hidden) return
       try {
-        const res = await fetch('/api/admin/support-inbox/threads?status=open')
+        const res = await fetch('/api/admin/inbox/unified?channel=all')
         if (!res.ok) return
         const j = await res.json()
         if (cancelled) return
-        const total = (j.threads || []).reduce((s: number, t: { unread_count?: number }) => s + (t.unread_count || 0), 0)
-        setSupportUnread(total)
+        setSupportUnread(j.counts?.unread || 0)
       } catch { /* swallow */ }
     }
     tick()
@@ -243,7 +239,7 @@ export function AdminSidebar({ role, email }: AdminSidebarProps) {
             )}
             {group.items.map((item) => {
               const isActive = isItemActive(item.href)
-              const badgeNum = item.href === '/admin/support-inbox' ? supportUnread
+              const badgeNum = item.href === '/admin/customer-inbox' ? supportUnread
                 : item.href === '/admin/applications' ? pendingApps
                 : null
               return (

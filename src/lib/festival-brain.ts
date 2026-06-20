@@ -69,6 +69,16 @@ export interface BrainResult {
 const HOLDING_MESSAGE =
   "Let me get Samreen on this, she will reply within a few hours."
 
+// Vendor-operational FAQ keys that must NOT serve on the PUBLIC surface, at
+// EITHER layer: not as a canonical short-circuit answer, and not as LLM
+// grounding. These carry stall prices / operational portal detail that belongs
+// only inside the exhibitor portal (Taona's scope rule + PUBLIC_VENDOR_SCOPE).
+// 'vendor_apply' is deliberately NOT here: telling people HOW to apply is
+// allowed publicly. (KT #323 — a public-vs-vendor wall must hold at the
+// grounding layer too, not just the short-circuit; loosening Step 2 exposed
+// that the grounding still leaked stall_sizes prices through the LLM.)
+const VENDOR_ONLY_FAQ = new Set<string>(['halaal_cert', 'stall_sizes', 'electricity'])
+
 const client = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null
 
 /**
@@ -220,7 +230,6 @@ export async function askFestivalBrain(
   // the exhibitor portal. Drop the hit so we fall through to the LLM step, which
   // carries the PUBLIC_VENDOR_SCOPE deflection. ('vendor_apply' stays: telling
   // people HOW to apply is allowed on the public site.)
-  const VENDOR_ONLY_FAQ = new Set<string>(['halaal_cert', 'stall_sizes', 'electricity'])
   if (faqHit && context.surface !== 'vendor' && VENDOR_ONLY_FAQ.has(faqHit.key)) {
     faqHit = null
   }
@@ -246,13 +255,23 @@ export async function askFestivalBrain(
     }
   }
 
-  // Step 2: low confidence => escalate.
-  if (intent.confidence < 0.6) {
+  // Step 2: only escalate pre-LLM when there is genuinely NO usable input.
+  //
+  // The old gate escalated every `intent.confidence < 0.6` message to a human
+  // before the LLM ever ran. Given the classifier math (a single-pattern hit
+  // scores 0.55, and ANY unmatched question defaults to general_inquiry @ 0.30),
+  // that bounced the overwhelming majority of real questions to Samreen instead
+  // of answering them. Now that the LLM is grounded with HARD FACTS + a hard
+  // wall that defers to support@ for anything it does not know, low confidence
+  // is a signal for WHICH grounding to attach, not a reason to refuse to answer.
+  // Explicit human_request (Step 0b) and spam (Step 0c) still escalate above.
+  // (KT #322)
+  if (!message.trim()) {
     await escalateToHuman({
       waId: context.waId,
       message,
       intent,
-      reason: `confidence ${intent.confidence.toFixed(2)} below 0.6`,
+      reason: 'empty inbound message, nothing to answer',
     })
     return {
       message: postProcess(HOLDING_MESSAGE),
@@ -285,7 +304,15 @@ export async function askFestivalBrain(
     }
   }
 
-  const grounding = buildGroundingContext(intentFaqKeys(intent.intent))
+  // Grounding keys must obey the same public/vendor wall as the FAQ
+  // short-circuit: on the public surface, strip vendor-operational keys
+  // (stall prices, electricity, halaal-cert detail) so their facts never reach
+  // the LLM and get echoed past PUBLIC_VENDOR_SCOPE. (KT #323)
+  let groundingKeys = intentFaqKeys(intent.intent)
+  if (context.surface !== 'vendor') {
+    groundingKeys = groundingKeys.filter((k) => !VENDOR_ONLY_FAQ.has(k))
+  }
+  const grounding = buildGroundingContext(groundingKeys)
   let system = buildSystemPrompt(intent.intent, grounding, context.surface)
   if (context.extraSystem && context.extraSystem.trim()) {
     system = `${system}\n\n=== ABOUT THE SENDER ===\n${context.extraSystem.trim()}`

@@ -64,6 +64,7 @@ export async function sendEmail({
   text,
   attachments,
   replyTo,
+  extraHeaders,
 }: {
   to: string
   subject: string
@@ -73,6 +74,9 @@ export async function sendEmail({
   attachments?: Array<{ filename: string; content: string | Buffer; contentType?: string }>
   /** Optional per-send Reply-To override. Defaults to support@youngatheart.co.za. */
   replyTo?: string
+  /** Optional extra headers (e.g. In-Reply-To / References) so a reply threads
+   *  into the recipient's existing conversation instead of starting a new one. */
+  extraHeaders?: Record<string, string>
 }): Promise<SendResult> {
   let html: string | undefined
   if (react) {
@@ -92,7 +96,7 @@ export async function sendEmail({
       to,
       replyTo: replyTo || 'support@youngatheart.co.za',
       subject,
-      headers: mailHeaders,
+      headers: { ...mailHeaders, ...(extraHeaders || {}) },
       ...(attachments && attachments.length
         ? { attachments: attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType })) }
         : {}),
