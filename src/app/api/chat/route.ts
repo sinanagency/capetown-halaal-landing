@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { askFestivalBrain } from '@/lib/festival-brain'
+import { getExhibitorContext } from '@/lib/exhibitor'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import {
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
     }
 
     const adminBranch = context === 'admin'
+    const vendorBranch = context === 'vendor'
 
     // Admin branch: gate the LLM call behind a real admin session. Public
     // callers asking for context=admin (e.g. trying to coax vendor-data
@@ -116,6 +118,37 @@ export async function POST(req: NextRequest) {
       if (!(await isAdmin())) {
         return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
       }
+    } else if (vendorBranch) {
+      // Vendor branch: ONLY a signed-in exhibitor gets vendor-platform answers.
+      // A public caller POSTing context='vendor' has no exhibitor session, so
+      // they're rejected — vendor answers never leak off the portal.
+      const exhibitor = await getExhibitorContext()
+      if (!exhibitor) {
+        return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+      }
+      const last = messages[messages.length - 1]
+      const history = messages
+        .slice(0, -1)
+        .slice(-8)
+        .map((m: { role: string; content: string }) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }))
+      const assistantHasSpoken = messages.some((m: { role: string }) => m.role === 'assistant')
+      const appRow = (exhibitor.application || {}) as Record<string, unknown>
+      const brief = [
+        appRow.business_name ? `Vendor business: ${appRow.business_name}` : null,
+        appRow.contact_name ? `Contact: ${appRow.contact_name}` : null,
+        appRow.status ? `Application status: ${appRow.status}` : null,
+      ].filter(Boolean).join('. ')
+
+      const result = await askFestivalBrain(last?.content ?? '', {
+        history,
+        forceFirstContact: !assistantHasSpoken,
+        surface: 'vendor',
+        extraSystem: brief || undefined,
+      })
+      return NextResponse.json({ message: result.message, needsHuman: result.needsHuman })
     } else {
       // Public branch: per-IP throttle.
       const throttle = await checkIpThrottle(admin, {

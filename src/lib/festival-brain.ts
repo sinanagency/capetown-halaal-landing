@@ -43,6 +43,12 @@ export interface BrainContext {
    * Never overrides the hard identity / style / sign-off rules.
    */
   extraSystem?: string
+  /**
+   * Which surface is asking. 'vendor' = inside the exhibitor portal (may answer
+   * vendor-platform questions fully). 'public' (default) = public site /
+   * WhatsApp (must NOT give operational portal answers). See buildSystemPrompt.
+   */
+  surface?: 'public' | 'vendor'
 }
 
 export interface BrainResult {
@@ -208,7 +214,16 @@ export async function askFestivalBrain(
   }
 
   // Step 1: FAQ pattern match.
-  const faqHit: FaqEntry | null = matchFaq(message)
+  let faqHit: FaqEntry | null = matchFaq(message)
+  // Vendor-operational FAQ answers (stall prices, halaal-cert requirements,
+  // electricity add-ons) must NOT serve on the public surface — those belong in
+  // the exhibitor portal. Drop the hit so we fall through to the LLM step, which
+  // carries the PUBLIC_VENDOR_SCOPE deflection. ('vendor_apply' stays: telling
+  // people HOW to apply is allowed on the public site.)
+  const VENDOR_ONLY_FAQ = new Set<string>(['halaal_cert', 'stall_sizes', 'electricity'])
+  if (faqHit && context.surface !== 'vendor' && VENDOR_ONLY_FAQ.has(faqHit.key)) {
+    faqHit = null
+  }
   const isFirstContact =
     context.forceFirstContact ?? (context.waId ? await isFirstContactByWaId(context.waId) : true)
 
@@ -271,7 +286,7 @@ export async function askFestivalBrain(
   }
 
   const grounding = buildGroundingContext(intentFaqKeys(intent.intent))
-  let system = buildSystemPrompt(intent.intent, grounding)
+  let system = buildSystemPrompt(intent.intent, grounding, context.surface)
   if (context.extraSystem && context.extraSystem.trim()) {
     system = `${system}\n\n=== ABOUT THE SENDER ===\n${context.extraSystem.trim()}`
   }

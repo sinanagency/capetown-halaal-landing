@@ -21,9 +21,14 @@ HARD FACTS YOU ARE ALLOWED TO USE:
 - Venue: Youngsfield Military Base, Wetton Road, Claremont, Cape Town
 - Tickets: R30 per day, R60 weekend pass (all three days). Kids under 5 free.
 - Vendor applications: cthalaal.co.za/apply
+- Approved exhibitor portal (log in): cthalaal.co.za/exhibitor/login
 - Website: cthalaal.co.za
 - Contact: support@youngatheart.co.za
 - Instagram: @youngatheart_capetown
+- What it is: a family South African Lifestyle Exhibition, in association with Smile 90.4 FM. All food on site is strictly halaal.
+- Expected: a large family crowd across the three days.
+- Parking: free parking is available on site at Youngsfield Military Base.
+- Kids: children under 5 enter free; from age 5 the standard ticket price applies.
 
 ANY OTHER SPECIFIC FACT (extra dates, extra prices, sponsor names, exact stall numbers, exact opening times beyond what is in the grounding block) MUST come from the CANONICAL FACTS block in the message. If a user asks something not covered by the hard facts or the grounding block, say so plainly and offer to put them in touch with the team.
 
@@ -62,9 +67,34 @@ export function getSystemPrompt(): string {
   return `${joburgClockBlock()}\n\n${BASE_PROMPT}`
 }
 
-export function buildSystemPrompt(intent: Intent, grounding: string): string {
+export type BrainSurface = 'public' | 'vendor'
+
+// Vendor-platform facts. ONLY injected on the exhibitor-portal surface so the
+// public assistant cannot give operational portal answers (Taona's scope rule:
+// vendor answers belong only in the vendor portal). Prices mirror TIER_META and
+// venue-zones.ts — do not state them on the public surface.
+const VENDOR_FACTS = `EXHIBITOR PORTAL FACTS (approved / applying vendors only):
+- The Marquee is the only allocated zone (243 stalls on the floor plan). Marquee fees: Table 2x2m R3,700; Full 3x3m R6,500; Double Table 4x2m R6,500; Full Double 6x3m R12,000. Outdoor Bedouin 2x3m R3,750.
+- Other zones are tracked but not given a floor-plan slot: Bedouin (20), Food and Drink trucks (30), Dessert trucks (10), Snack trucks (5).
+- Apply at cthalaal.co.za/apply. Approval takes a few working days.
+- Documents: food vendors must submit a Halaal Certificate (and a Certificate of Acceptability where applicable). Also ID or company registration, and public liability where applicable. Upload these in the portal.
+- Payment: after approval, vendors pay their stall fee by card (Yoco) from the portal. A confirmation and tax invoice are emailed.
+- Stall allocation happens closer to the festival. After paying, a vendor waits for their stall to be allocated and emailed to them.
+- In the portal a vendor can: pay, view and download their tax invoice, upload documents, add staff for gate passes, view their allocated stall, and request a stall or tier change.`
+
+const PUBLIC_VENDOR_SCOPE = `VENDOR SCOPE (PUBLIC SITE): You are the PUBLIC festival assistant. You MAY explain how to become a vendor (apply at cthalaal.co.za/apply; food vendors need a halaal certificate) and that approved vendors manage everything in the exhibitor portal at cthalaal.co.za/exhibitor/login. You must NOT answer operational portal questions here: how to pay, upload documents, view or change a specific stall, or a specific person's application status. For those, tell them to apply, or if already approved to log into their exhibitor portal where the in-portal assistant helps. Do NOT state vendor stall prices or stall numbers on the public site.`
+
+const VENDOR_SURFACE_SCOPE = `VENDOR SCOPE (EXHIBITOR PORTAL): You are the assistant INSIDE the exhibitor portal, talking to an approved or applying vendor. You SHOULD help fully with vendor-platform questions using the EXHIBITOR PORTAL FACTS block: payments, documents, halaal certificate, staff and gate passes, stall allocation, stall or tier changes, invoices, plus general festival info. Be practical and specific. Still defer to support@youngatheart.co.za for anything not covered.`
+
+export function buildSystemPrompt(intent: Intent, grounding: string, surface: BrainSurface = 'public'): string {
   const hint = INTENT_HINTS[intent]
   const parts = [getSystemPrompt()]
+  if (surface === 'vendor') {
+    parts.push(VENDOR_SURFACE_SCOPE)
+    parts.push(VENDOR_FACTS)
+  } else {
+    parts.push(PUBLIC_VENDOR_SCOPE)
+  }
   if (hint) parts.push(`INTENT CONTEXT: ${hint}`)
   if (grounding) parts.push(grounding)
   return parts.join('\n\n')

@@ -16,6 +16,13 @@ const WELCOME_ADMIN = "Hi! I'm your admin assistant. Ask me about vendor applica
 export function ChatWidget() {
   const pathname = usePathname()
   const isAdmin = pathname.startsWith('/admin')
+  // Exhibitor portal = the vendor surface (gets vendor-platform answers; the
+  // server still verifies a real exhibitor session before answering).
+  const surface: 'admin' | 'vendor' | 'public' = isAdmin
+    ? 'admin'
+    : pathname.startsWith('/exhibitor')
+      ? 'vendor'
+      : 'public'
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: isAdmin ? WELCOME_ADMIN : WELCOME_PUBLIC },
@@ -51,7 +58,7 @@ export function ChatWidget() {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updated, context: isAdmin ? 'admin' : 'public' }),
+        body: JSON.stringify({ messages: updated, context: surface }),
       })
 
       if (!res.ok) {
