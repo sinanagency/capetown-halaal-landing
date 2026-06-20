@@ -148,6 +148,34 @@ export async function sendText(to: string, body: string): Promise<SendResult> {
   return extractMessageId(data, waId)
 }
 
+// --- Free-form media (document/image), only valid inside the 24h window ---
+// Uploads the bytes to the WhatsApp media endpoint, then sends a media message.
+// Gated by the same 24h-window/consent check as sendText.
+export async function sendMedia(
+  to: string,
+  opts: { bytes: Buffer | Uint8Array; mimeType: string; filename: string; caption?: string; kind: 'document' | 'image' },
+): Promise<SendResult> {
+  const waId = toWaId(to)
+  const gate = await canSend(toE164(to), { type: 'text' })
+  if (!gate.allowed) return { messageId: '', to: waId, skipped: gate.reason }
+  let mediaId: string
+  try {
+    mediaId = await uploadMedia(opts.bytes, opts.mimeType, opts.filename)
+  } catch (e) {
+    return { messageId: '', to: waId, skipped: `media upload failed: ${(e as Error).message}` }
+  }
+  const media: Record<string, unknown> = { id: mediaId }
+  if (opts.kind === 'document') media.filename = opts.filename
+  if (opts.caption) media.caption = opts.caption
+  const data = await waFetch(`${WA_PHONE_ID}/messages`, {
+    messaging_product: 'whatsapp',
+    to: waId,
+    type: opts.kind,
+    [opts.kind]: media,
+  })
+  return extractMessageId(data, waId)
+}
+
 // --- Approved template (business-initiated) ---
 // `bodyParams` fill the {{1}}, {{2}}... in order. `headerMedia` attaches a
 // document/image to a template that has a media header (e.g. the QR ticket).

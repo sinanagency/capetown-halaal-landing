@@ -6,6 +6,7 @@ import {
   Loader2, Mail, MessageCircle, Search, Send, ChevronDown, Star, MailOpen,
   MoreHorizontal, Check, Clock, RotateCcw, UserPlus, Sparkles, Wand2, MessageSquarePlus,
   FileText, Paperclip, ListChecks, X, ExternalLink, Bot, UserCheck, Tag as TagIcon, StickyNote,
+  IdCard, CreditCard, MapPin, FileCheck,
 } from 'lucide-react'
 
 type Tab = 'all' | 'mine' | 'open' | 'snoozed' | 'resolved' | 'unread'
@@ -104,6 +105,11 @@ function tagCls(t: string): string {
 
 interface CannedReply { slug: string; label: string; subject: string | null; body: string }
 interface Note { at: string; by: string; text: string }
+interface VendorContext {
+  status: string; tier: string | null; sector: string | null
+  payment: { status: string; amount: number | null; paid_at: string | null }
+  stall: string | null; docs_complete: boolean; contract_signed: boolean
+}
 
 export function CustomerInboxClient({ currentUserId, operators }: { currentUserId: string; operators: Operator[] }) {
   const [tab, setTab] = useState<Tab>('all')
@@ -133,8 +139,13 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
   const [notes, setNotes] = useState<Note[]>([])
   const [noteText, setNoteText] = useState('')
   const [notesOpen, setNotesOpen] = useState(false)
+  const [attachment, setAttachment] = useState<{ filename: string; contentType: string; dataBase64: string } | null>(null)
+  const [ctx, setCtx] = useState<VendorContext | null>(null)
+  const [ctxOpen, setCtxOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const prevSearch = useRef('')
   const autoOpened = useRef(false)
 
   const load = useCallback(async () => {
@@ -147,6 +158,21 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
   }, [channel])
 
   useEffect(() => { load() }, [load])
+
+  // Server-side search: when there's a query, fetch the whole base (matched
+  // vendors beyond the recency cap); when cleared, restore the recency list.
+  useEffect(() => {
+    const term = search.trim()
+    if (!term) { if (prevSearch.current) load(); prevSearch.current = ''; return }
+    prevSearch.current = term
+    const t = setTimeout(() => {
+      fetch(`/api/admin/inbox/unified?channel=${channel}&q=${encodeURIComponent(term)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => { if (j) { setContacts(j.contacts || []); setCounts(j.counts || null) } })
+        .catch(() => { /* keep last */ })
+    }, 350)
+    return () => clearTimeout(t)
+  }, [search, channel, load])
 
   // Canned replies (reused from the support inbox) — load once.
   useEffect(() => {
@@ -259,10 +285,15 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
     setReplyChannel(c.phone ? 'whatsapp' : 'email')
     setSendMsg(null); setAiResult(null); setMenuOpen(false); setAssignOpen(false); setWindowClosed(false)
     setCannedOpen(false); setTagOpen(false); setNotesOpen(false); setNoteText(''); setNotes([])
+    setAttachment(null); setCtx(null); setCtxOpen(false)
     if (c.application_id) {
       fetch(`/api/admin/inbox/unified/notes?applicationId=${c.application_id}`)
         .then((r) => (r.ok ? r.json() : { notes: [] }))
         .then((j) => setNotes(j.notes || []))
+        .catch(() => { /* optional */ })
+      fetch(`/api/admin/inbox/unified/context?applicationId=${c.application_id}`)
+        .then((r) => (r.ok ? r.json() : { context: null }))
+        .then((j) => setCtx(j.context || null))
         .catch(() => { /* optional */ })
     }
     markRead(c)
@@ -282,8 +313,20 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
     ta.style.height = `${Math.min(ta.scrollHeight, 192)}px`
   }, [reply, activeId])
 
+  const onPickFile = useCallback((file: File | null) => {
+    if (!file) return
+    if (file.size > 4_500_000) { setSendMsg('File too large (max ~4.5MB).'); return }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const res = String(reader.result || '')
+      const base64 = res.includes(',') ? res.split(',')[1] : res
+      setAttachment({ filename: file.name, contentType: file.type || 'application/octet-stream', dataBase64: base64 })
+    }
+    reader.readAsDataURL(file)
+  }, [])
+
   const submitReply = useCallback(async () => {
-    if (!active || !reply.trim()) return
+    if (!active || (!reply.trim() && !attachment)) return
     setSending(true); setSendMsg(null)
     try {
       const res = await fetch('/api/admin/inbox/unified/reply', {
@@ -292,7 +335,8 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
           channel: replyChannel,
           phone: replyChannel === 'whatsapp' ? active.phone : undefined,
           email: replyChannel === 'email' ? active.email : undefined,
-          text: reply.trim(),
+          text: reply.trim() || undefined,
+          attachment: attachment || undefined,
         }),
       })
       const j = await res.json().catch(() => ({}))
@@ -301,9 +345,9 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
         if (j.windowClosed) setWindowClosed(true)
         return
       }
-      setReply(''); setWindowClosed(false); await loadMessages(active)
+      setReply(''); setAttachment(null); setWindowClosed(false); await loadMessages(active)
     } catch { setSendMsg('Send failed.') } finally { setSending(false) }
-  }, [active, reply, replyChannel, loadMessages])
+  }, [active, reply, replyChannel, attachment, loadMessages])
 
   // Outside the 24h window: send the same text as an approved announcement template.
   const sendAsTemplate = useCallback(async () => {
@@ -496,6 +540,9 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                             </div>
                           )}
                         </div>
+                        {active.application_id && (
+                          <button onClick={() => { setCtxOpen((v) => !v); setMenuOpen(false) }} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><IdCard className="w-4 h-4 text-neutral-500" />{ctxOpen ? 'Hide vendor context' : 'Vendor context'}</button>
+                        )}
                         <button onClick={() => { setNotesOpen((v) => !v); setMenuOpen(false) }} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><FileText className="w-4 h-4 text-neutral-500" />{notesOpen ? 'Hide notes' : 'Internal notes'}{notes.length ? ` (${notes.length})` : ''}</button>
                         {active.application_id && (
                           <a href={`/admin/applications?focus=${active.application_id}`} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2 text-neutral-600"><ExternalLink className="w-4 h-4" />Open application</a>
@@ -505,6 +552,26 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                   </div>
                 </div>
               </div>
+
+              {/* Vendor context (at-a-glance facts) */}
+              {ctxOpen && active.application_id && (
+                <div className="border-b border-neutral-100 bg-neutral-50/60 px-5 py-3">
+                  {!ctx ? (
+                    <p className="text-xs text-neutral-400">Loading context…</p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${statusChip(ctx.status === 'approved' ? 'open' : ctx.status).cls}`}>Status: {ctx.status}</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${ctx.payment.status === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-neutral-100 text-neutral-600 border-neutral-200'}`}>
+                        <CreditCard className="w-3 h-3" />{ctx.payment.status}{ctx.payment.amount ? ` · R${ctx.payment.amount.toLocaleString()}` : ''}
+                      </span>
+                      {ctx.tier && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-white text-neutral-600 border-neutral-200">{ctx.tier}</span>}
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-white text-neutral-600 border-neutral-200"><MapPin className="w-3 h-3" />{ctx.stall ? `Stall ${ctx.stall}` : 'No stall yet'}</span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${ctx.docs_complete ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}><FileCheck className="w-3 h-3" />Docs {ctx.docs_complete ? 'complete' : 'pending'}</span>
+                      {ctx.contract_signed && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-green-50 text-green-700 border-green-200">Contract signed</span>}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Internal notes (private to the team) */}
               {notesOpen && (
@@ -622,6 +689,15 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                     )}
                   </div>
                 )}
+                {attachment && (
+                  <div className="mb-2 inline-flex items-center gap-2 text-[11px] bg-neutral-100 border border-neutral-200 rounded-lg px-2 py-1">
+                    <Paperclip className="w-3 h-3 text-neutral-500" />
+                    <span className="max-w-[200px] truncate">{attachment.filename}</span>
+                    <button onClick={() => setAttachment(null)} className="text-neutral-400 hover:text-neutral-700"><X className="w-3 h-3" /></button>
+                  </div>
+                )}
+                <input ref={fileRef} type="file" className="hidden"
+                  onChange={(e) => { onPickFile(e.target.files?.[0] || null); if (fileRef.current) fileRef.current.value = '' }} />
                 <div className="flex items-end gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 focus-within:border-[#cd2653]">
                   {active.phone && active.email && (
                     <select value={replyChannel} onChange={(e) => setReplyChannel(e.target.value as 'whatsapp' | 'email')}
@@ -630,6 +706,10 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                       <option value="email">Email</option>
                     </select>
                   )}
+                  <button onClick={() => fileRef.current?.click()} title="Attach a file"
+                    className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center self-center">
+                    <Paperclip className="w-4 h-4 text-neutral-400" />
+                  </button>
                   <textarea ref={taRef} value={reply} onChange={(e) => setReply(e.target.value)} rows={3}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply() } }}
                     placeholder={`Reply via ${replyChannel}…`}
@@ -638,7 +718,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                     className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center self-center disabled:opacity-50">
                     {aiBusy === 'smart_reply' ? <Loader2 className="w-4 h-4 animate-spin text-[#cd2653]" /> : <Sparkles className="w-4 h-4 text-[#cd2653]" />}
                   </button>
-                  <button onClick={submitReply} disabled={sending || !reply.trim()}
+                  <button onClick={submitReply} disabled={sending || (!reply.trim() && !attachment)}
                     className="w-9 h-9 rounded-lg bg-[#cd2653] text-white hover:bg-[#b31f47] disabled:opacity-50 flex items-center justify-center self-center">
                     {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </button>

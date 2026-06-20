@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendText, sendTemplate, toE164 } from '@/lib/whatsapp'
+import { sendText, sendTemplate, sendMedia, toE164 } from '@/lib/whatsapp'
 import { sendEmail } from '@/lib/email/resend'
 import { z } from 'zod'
 
@@ -27,8 +27,15 @@ const bodySchema = z.object({
   mode: z.enum(['text', 'template']).optional(),
   phone: z.string().max(30).optional(),
   email: z.string().email().max(160).optional(),
-  text: z.string().min(1).max(4000),
+  text: z.string().max(4000).optional(),
   subject: z.string().max(200).optional(),
+  // Optional attachment (~4.5MB binary). Email -> Resend attachment; WhatsApp ->
+  // uploaded + sent as a media message (in-window only).
+  attachment: z.object({
+    filename: z.string().min(1).max(200),
+    contentType: z.string().min(1).max(120),
+    dataBase64: z.string().min(1).max(6_000_000),
+  }).optional(),
 })
 
 async function firstNameForPhone(db: ReturnType<typeof createAdminClient>, e164: string): Promise<string> {
@@ -58,21 +65,51 @@ export async function POST(req: NextRequest) {
     throw e
   }
 
+  if (!body.text?.trim() && !body.attachment) {
+    return NextResponse.json({ error: 'text or attachment required' }, { status: 400 })
+  }
+  const text = body.text?.trim() || ''
+
   if (body.channel === 'whatsapp') {
     if (!body.phone) return NextResponse.json({ error: 'phone required' }, { status: 400 })
     const e164 = toE164(body.phone)
 
+    // Attachment path: upload + send as a media message (in-window only).
+    if (body.attachment) {
+      const kind: 'image' | 'document' = body.attachment.contentType.startsWith('image/') ? 'image' : 'document'
+      const res = await sendMedia(e164, {
+        bytes: Buffer.from(body.attachment.dataBase64, 'base64'),
+        mimeType: body.attachment.contentType,
+        filename: body.attachment.filename,
+        caption: text || undefined,
+        kind,
+      })
+      if (res.skipped) {
+        const windowClosed = res.skipped.includes('window')
+        return NextResponse.json({ ok: false, channel: 'whatsapp', reason: res.skipped, windowClosed, message: windowClosed ? 'Outside the 24h window, so a file cannot be sent. They need to message first.' : `Could not send file: ${res.skipped}` }, { status: 409 })
+      }
+      await db.from('wa_messages').insert({
+        direction: 'out',
+        wa_phone: e164.replace(/^\+/, ''),
+        body: text || `[file: ${body.attachment.filename}]`,
+        status: 'sent',
+        provider_message_id: res.messageId || null,
+        metadata: { sent_by: adminUser.email, attachment: body.attachment.filename },
+      })
+      return NextResponse.json({ ok: true, channel: 'whatsapp', via: 'media' })
+    }
+
     // Template path: reach a contact who is outside the 24h window.
     if (body.mode === 'template') {
       const firstName = await firstNameForPhone(db, e164)
-      const res = await sendTemplate(e164, 'festival_announcement', [firstName, body.text], { category: 'marketing' })
+      const res = await sendTemplate(e164, 'festival_announcement', [firstName, text], { category: 'marketing' })
       if (res.skipped) {
         return NextResponse.json({ ok: false, channel: 'whatsapp', reason: res.skipped, message: `Could not send template: ${res.skipped}` }, { status: 409 })
       }
       await db.from('wa_messages').insert({
         direction: 'out',
         wa_phone: e164.replace(/^\+/, ''),
-        body: body.text,
+        body: text,
         template_name: 'festival_announcement',
         status: 'sent',
         provider_message_id: res.messageId || null,
@@ -81,7 +118,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, channel: 'whatsapp', via: 'template' })
     }
 
-    const res = await sendText(e164, body.text)
+    const res = await sendText(e164, text)
     if (res.skipped) {
       const windowClosed = res.skipped.includes('window')
       return NextResponse.json({
@@ -97,7 +134,7 @@ export async function POST(req: NextRequest) {
     await db.from('wa_messages').insert({
       direction: 'out',
       wa_phone: e164.replace(/^\+/, ''),
-      body: body.text,
+      body: text,
       status: 'sent',
       provider_message_id: res.messageId || null,
       metadata: { sent_by: adminUser.email },
@@ -134,7 +171,10 @@ export async function POST(req: NextRequest) {
   const res = await sendEmail({
     to: body.email,
     subject,
-    text: body.text,
+    text: text || ' ',
+    attachments: body.attachment
+      ? [{ filename: body.attachment.filename, content: body.attachment.dataBase64, contentType: body.attachment.contentType }]
+      : undefined,
     extraHeaders: inReplyTo ? { 'In-Reply-To': inReplyTo, 'References': inReplyTo } : undefined,
   })
   if (!res.ok) {

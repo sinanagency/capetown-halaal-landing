@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url)
   const channelFilter = (url.searchParams.get('channel') || 'all') as 'all' | 'whatsapp' | 'email'
+  const q = (url.searchParams.get('q') || '').trim().toLowerCase()
 
   // ---- Resolution maps: phone -> vendor, email -> vendor ----
   const { data: apps } = await db
@@ -223,6 +224,39 @@ export async function GET(req: NextRequest) {
         // threads don't carry per-message direction here; treat unread_count as the signal
         (t.unread_count || 0) > 0 ? 'in' : 'out',
         'email',
+      )
+    }
+  }
+
+  // Server-side search: pull matching vendors in even if their last message is
+  // older than the recency scan above, so search finds the whole base, not just
+  // the most-recent 500. They sort to the bottom (no recent message) but appear.
+  if (q) {
+    const like = `%${q.replace(/[%_]/g, '')}%`
+    const { data: matched } = await db
+      .from('vendor_applications')
+      .select('id, business_name, contact_name, phone, email')
+      .or(`business_name.ilike.${like},contact_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
+      .limit(50)
+    for (const a of (matched || []) as Array<{ id: string; business_name: string | null; contact_name: string | null; phone: string | null; email: string | null }>) {
+      const st = tByApp.get(a.id)
+      touch(
+        {
+          phone: a.phone ? `+${norm(a.phone)}` : null,
+          email: a.email,
+          business_name: a.business_name,
+          contact_name: a.contact_name,
+          application_id: a.id,
+          identity: 'vendor',
+          status: st?.status || 'open',
+          starred: st?.starred || false,
+          tag: st?.tag || null,
+          assignee_id: st?.assignee || null,
+        },
+        null,
+        a.business_name || a.contact_name || '(no messages yet)',
+        null,
+        a.phone ? 'whatsapp' : 'email',
       )
     }
   }
