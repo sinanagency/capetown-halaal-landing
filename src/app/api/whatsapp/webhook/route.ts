@@ -241,6 +241,11 @@ async function handleInbound(msg: {
           direction: 'out', wa_phone: target.vendorE164, body: msg.text,
           status: fwd.skipped ? 'failed' : 'sent', providerMessageId: fwd.messageId,
         })
+        // Pin the vendor in handover so the auto-bot stays quiet while a human is
+        // actively replying (otherwise the brain could answer over the operator).
+        if (!fwd.skipped) {
+          await escalateToHuman(target.vendorE164, 'admin swipe-reply').catch(() => {})
+        }
         const who = await resolveIdentity(target.vendorE164)
         const ackName = who.vendor?.business_name || who.firstName || target.vendorE164
         const ack = fwd.skipped
