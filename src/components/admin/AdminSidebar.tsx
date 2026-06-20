@@ -38,8 +38,8 @@ const navGroups: NavGroup[] = [
   {
     label: 'COMMUNICATIONS',
     items: [
-      { name: 'Customer Inbox', href: '/admin/customer-inbox', icon: MessageCircle },
-      { name: 'Inbox', href: '/admin/bot-inbox', icon: Inbox },
+      { name: 'Inbox', href: '/admin/customer-inbox', icon: MessageCircle },
+      { name: 'Bot Inbox', href: '/admin/bot-inbox', icon: Inbox },
       { name: 'Support Inbox', href: '/admin/support-inbox', icon: Mail },
       { name: 'Broadcast', href: '/admin/broadcast', icon: Megaphone },
       { name: 'Follow Up', href: '/admin/follow-up', icon: UserX },
