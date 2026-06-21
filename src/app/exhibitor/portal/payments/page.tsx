@@ -3,7 +3,7 @@ import { getExhibitorContext } from '@/lib/exhibitor'
 import { parsePortalState } from '@/lib/portal-state'
 import { paymentsEnabled, paymentReference } from '@/lib/payments'
 import { computeVendorPricing, formatRand } from '@/lib/payments/pricing'
-import { computePaymentDue, daysUntil, fmtDate } from '@/lib/exhibitor-paygate'
+import { computePaymentDue, daysUntil, fmtDate, requireContractSigned } from '@/lib/exhibitor-paygate'
 import PaymentPanel from '@/components/exhibitor/PaymentPanel'
 import { AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import {
@@ -14,6 +14,8 @@ import MiniTaskStrip from '@/components/exhibitor/MiniTaskStrip'
 export const dynamic = 'force-dynamic'
 
 export default async function PaymentsPage() {
+  // Sequence gate: a vendor must sign the contract before they can pay.
+  await requireContractSigned()
   const ctx = await getExhibitorContext()
   const app = ctx?.application
   const state = parsePortalState(app?.admin_notes as string)

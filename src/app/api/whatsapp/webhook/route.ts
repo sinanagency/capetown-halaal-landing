@@ -378,6 +378,11 @@ async function handleInbound(msg: {
         waId: e164,
         history,
         extraSystem: identityBriefing(identity),
+        // V1: a known approved/applying vendor on WhatsApp gets the vendor scope
+        // (real per-vendor facts in identityBriefing + EXHIBITOR PORTAL FACTS),
+        // not the public deflection. Strictly gated on the vendor role so public
+        // / ticket_buyer / unknown / admin callers never see vendor scope.
+        ...(identity.role === 'vendor' ? { surface: 'vendor' as const } : {}),
       })
       reply = result.message
     } catch (e) {

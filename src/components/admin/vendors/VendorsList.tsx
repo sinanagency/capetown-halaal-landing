@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Search, Phone, Mail, MapPin, FileCheck, AlertTriangle, Users, Send, Download, Loader2 } from 'lucide-react'
 import { VendorBulkComposer } from './VendorBulkComposer'
@@ -73,13 +74,36 @@ export function VendorsList({ rows }: { rows: VendorRow[] }) {
       if (selected.size > 0) params.set('ids', Array.from(selected).join(','))
       else params.set('status', 'approved')
       const url = `/api/admin/vendors/csv?${params.toString()}`
-      // Trigger download via a temporary anchor.
+      // Fetch first, check res.ok, only download on success. An error body
+      // must NEVER be saved to disk (was saving the JSON error as csv.json).
+      const res = await fetch(url, { credentials: 'same-origin' })
+      if (!res.ok) {
+        let message = `Export failed (${res.status})`
+        try {
+          const body = await res.json()
+          if (body?.error) message = String(body.error)
+        } catch {
+          // non-JSON error body, keep the status-based message
+        }
+        // Distinguish a permissions issue (403) from a real server bug (500).
+        if (res.status === 401 || res.status === 403) {
+          toast.error("You don't have permission to export. Ask the owner to grant access.")
+        } else {
+          toast.error(`Export failed: ${message}`)
+        }
+        return
+      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = ''
+      a.href = objectUrl
+      a.download = `vendors-${new Date().toISOString().slice(0, 10)}.csv`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
+      URL.revokeObjectURL(objectUrl)
+    } catch (e) {
+      toast.error(`Export failed: ${e instanceof Error ? e.message : 'network error'}`)
     } finally {
       setExporting(false)
     }

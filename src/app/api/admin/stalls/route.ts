@@ -10,6 +10,33 @@ import { parsePortalState, syncPortalState } from '@/lib/portal-state'
 import { notifyVendor } from '@/lib/notifications'
 import { computeVendorPricing } from '@/lib/payments/pricing'
 
+// Festival-wide "blocked booth" set. A blocked booth has NO vendor, so it can't
+// live as a ⟦STALL⟧ marker on a vendor_applications row. Following the
+// announcements pattern (Law 8: DDL blocked, no stalls table), the blocked-code
+// set lives as a JSON array in the private vendor-docs bucket, read/written via
+// the service role. Reserved/allocated/held still ride the per-vendor marker.
+const BLOCKED_BUCKET = 'vendor-docs'
+const BLOCKED_PATH = '_system/blocked-stalls.json'
+
+async function loadBlocked(admin: ReturnType<typeof createAdminClient>): Promise<Set<string>> {
+  const { data, error } = await admin.storage.from(BLOCKED_BUCKET).download(BLOCKED_PATH)
+  if (error || !data) return new Set()
+  try {
+    const arr = JSON.parse(await data.text()) as string[]
+    return new Set(Array.isArray(arr) ? arr : [])
+  } catch {
+    return new Set()
+  }
+}
+
+async function saveBlocked(admin: ReturnType<typeof createAdminClient>, codes: Set<string>) {
+  await admin.storage.from(BLOCKED_BUCKET).upload(
+    BLOCKED_PATH,
+    Buffer.from(JSON.stringify([...codes])),
+    { contentType: 'application/json', upsert: true },
+  )
+}
+
 async function requireAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -67,10 +94,15 @@ export async function GET() {
     const auth = await requireAdmin()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { byCode, allocatable } = await loadOccupants(auth.admin)
+    const blocked = await loadBlocked(auth.admin)
 
     const stalls = STALL_LIST.map((s) => {
       const occ = byCode.get(s.code)
-      const status: StallStatus = occ ? (occ.stall_status as StallStatus) : 'available'
+      // A vendor marker wins over a blocked flag (an occupied stall can't be
+      // "blocked"). Otherwise a blocked code reads as blocked, else available.
+      const status: StallStatus = occ
+        ? (occ.stall_status as StallStatus)
+        : blocked.has(s.code) ? 'blocked' : 'available'
       return { ...s, status, occupant: occ || null }
     })
 
@@ -78,8 +110,10 @@ export async function GET() {
       { FT: { total: 0, allocated: 0, held: 0, available: 0 }, FS: { total: 0, allocated: 0, held: 0, available: 0 }, TS: { total: 0, allocated: 0, held: 0, available: 0 }, BS: { total: 0, allocated: 0, held: 0, available: 0 } }
     for (const t of Object.keys(STALL_CAPACITY) as StallType[]) availability[t].total = STALL_CAPACITY[t]
     for (const s of stalls) {
-      if (s.status === 'allocated') availability[s.type].allocated++
-      else if (s.status === 'held') availability[s.type].held++
+      // reserved counts alongside allocated as committed; held + blocked are
+      // off-market (neither available nor a firm allocation).
+      if (s.status === 'allocated' || s.status === 'reserved') availability[s.type].allocated++
+      else if (s.status === 'held' || s.status === 'blocked') availability[s.type].held++
     }
     for (const t of Object.keys(availability) as StallType[]) {
       availability[t].available = availability[t].total - availability[t].allocated - availability[t].held
@@ -106,21 +140,47 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const stallCode: string = body.stall_code
     const applicationId: string | null = body.application_id ?? null
-    const action: 'allocated' | 'held' | 'clear' = body.status || 'allocated'
+    const action: 'allocated' | 'held' | 'reserved' | 'blocked' | 'clear' = body.status || 'allocated'
 
     if (!stallCode || !stallTypeOf(stallCode)) {
       return NextResponse.json({ error: `Unknown stall ${stallCode}` }, { status: 400 })
     }
 
     const { byCode } = await loadOccupants(admin)
+    const blocked = await loadBlocked(admin)
     const current = byCode.get(stallCode) as { id: string; business_name?: string } | undefined
 
-    // ---- CLEAR a stall ----
+    // ---- BLOCK a stall (festival-wide, no vendor) ----
+    if (action === 'blocked') {
+      // Can't block a stall a vendor already holds — same intent as the
+      // over-confirm guard: clear the vendor first.
+      if (current) {
+        return NextResponse.json({
+          error: `${stallCode} is taken by ${current.business_name || 'a vendor'}. Clear it before blocking.`,
+          code: 'STALL_TAKEN',
+        }, { status: 409 })
+      }
+      if (!blocked.has(stallCode)) {
+        blocked.add(stallCode)
+        await saveBlocked(admin, blocked)
+      }
+      return NextResponse.json({ ok: true, message: `${stallCode} blocked` })
+    }
+
+    // ---- CLEAR a stall (also un-blocks) ----
     if (action === 'clear' || !applicationId) {
-      if (!current) return NextResponse.json({ ok: true, message: `${stallCode} already free` })
-      const { data: app } = await admin.from('vendor_applications').select('admin_notes').eq('id', current.id).single()
-      await admin.from('vendor_applications').update({ admin_notes: withAllocation(app?.admin_notes, null) }).eq('id', current.id)
-      return NextResponse.json({ ok: true, message: `${stallCode} cleared` })
+      let cleared = false
+      if (blocked.has(stallCode)) {
+        blocked.delete(stallCode)
+        await saveBlocked(admin, blocked)
+        cleared = true
+      }
+      if (current) {
+        const { data: app } = await admin.from('vendor_applications').select('admin_notes').eq('id', current.id).single()
+        await admin.from('vendor_applications').update({ admin_notes: withAllocation(app?.admin_notes, null) }).eq('id', current.id)
+        cleared = true
+      }
+      return NextResponse.json({ ok: true, message: cleared ? `${stallCode} cleared` : `${stallCode} already free` })
     }
 
     // ---- OVER-CONFIRM GUARD: stall already taken by a different vendor ----
@@ -128,6 +188,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         error: `${stallCode} is already taken by ${current.business_name || 'another vendor'}. Clear it first.`,
         code: 'STALL_TAKEN',
+      }, { status: 409 })
+    }
+
+    // ---- GUARD: a blocked stall is off-market until explicitly cleared ----
+    if (blocked.has(stallCode)) {
+      return NextResponse.json({
+        error: `${stallCode} is blocked. Unblock it before allocating.`,
+        code: 'STALL_BLOCKED',
       }, { status: 409 })
     }
 

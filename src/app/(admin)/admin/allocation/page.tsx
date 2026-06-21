@@ -421,7 +421,7 @@ export default function AllocationPage() {
               <div className="border-t border-neutral-100 pt-4 space-y-2">
                 <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block mb-2">Quick actions</span>
                 <Link
-                  href={`/admin/inbox/thread/vendor/${drawerApplication.id}`}
+                  href="/admin/customer-inbox"
                   className="flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-lg bg-neutral-50 hover:bg-neutral-100 transition-colors text-neutral-700"
                 >
                   <MessageSquare size={14} />

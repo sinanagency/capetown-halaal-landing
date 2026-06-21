@@ -11,7 +11,7 @@
 import stallsFile from '../../public/stalls.json'
 
 export type StallType = 'FT' | 'FS' | 'TS' | 'BS'
-export type StallStatus = 'available' | 'held' | 'allocated'
+export type StallStatus = 'available' | 'held' | 'allocated' | 'reserved' | 'blocked'
 
 export interface StallGeo {
   code: string
@@ -69,7 +69,7 @@ export function tierLabel(slug: string | null | undefined): string {
 }
 
 // ---- allocation marker on admin_notes ----
-const ALLOC_RE = /\s*⟦STALL:([A-Za-z]+\d+)(?::(held|allocated))?⟧\s*/
+const ALLOC_RE = /\s*⟦STALL:([A-Za-z]+\d+)(?::(held|allocated|reserved|blocked))?⟧\s*/
 
 export interface ParsedNotes { stall: string | null; status: StallStatus; human: string }
 
@@ -85,7 +85,8 @@ export function parseAllocation(adminNotes: string | null | undefined): ParsedNo
 export function withAllocation(adminNotes: string | null | undefined, stall: string | null, status: StallStatus = 'allocated'): string {
   const { human } = parseAllocation(adminNotes)
   if (!stall) return human
-  const marker = status === 'held' ? `⟦STALL:${stall}:held⟧` : `⟦STALL:${stall}⟧`
+  // allocated is the default (bare marker); every other state is tagged.
+  const marker = status === 'allocated' ? `⟦STALL:${stall}⟧` : `⟦STALL:${stall}:${status}⟧`
   return human ? `${human}\n\n${marker}` : marker
 }
 

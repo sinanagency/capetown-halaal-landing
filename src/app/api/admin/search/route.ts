@@ -246,7 +246,7 @@ export async function GET(req: NextRequest) {
         thread_key: r.thread_key as string,
         channel: r.channel as 'wa' | 'mail',
         last_inbound_at: (r.last_inbound_at as string | null) ?? null,
-        link: `/admin/inbox/thread/${r.channel}/${r.id}`,
+        link: `/admin/customer-inbox`,
       }))
     })()
 

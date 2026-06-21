@@ -17,7 +17,45 @@ import { ActionChipGrid } from '@/components/chrome/ActionChipGrid'
 import { ActionChip } from '@/components/chrome/ActionChip'
 import { RightDrawer } from '@/components/chrome/RightDrawer'
 import type { PortalState, DocRecord, StaffMember } from '@/lib/portal-state'
+import { TIER_META } from '@/lib/stalls'
 import { REQUIRED_DOC_LABELS, type RequiredDocType } from './doc-types'
+
+// Mirror of ELECTRICAL_OPTIONS in src/app/apply/page.tsx (minus 'none') and
+// ELECTRICAL_PRICES in src/lib/payments/pricing.ts. Keep in sync.
+const ELECTRICAL_OPTIONS: { value: string; label: string }[] = [
+  { value: 'charger-lighting', label: 'Charger/Lighting' },
+  { value: 'microwave', label: 'Microwave' },
+  { value: 'urn', label: 'Urn' },
+  { value: 'single-fryer', label: 'Single Fryer' },
+  { value: 'double-fryer', label: 'Double Fryer' },
+  { value: 'waffle-pancake-maker', label: 'Waffle/Pancake Maker' },
+  { value: 'blender', label: 'Blender' },
+  { value: 'coffee-machine', label: 'Coffee Machine' },
+  { value: 'electric-stove', label: 'Electric Stove' },
+  { value: 'small-display-fridge', label: 'Small Display Fridge' },
+  { value: 'large-display-fridge-freezer', label: 'Large Display Fridge/Freezer' },
+]
+
+// Read the priced electrical map (slug -> qty) out of special_requirements,
+// which may be a JSON string, an object, an array of slugs, or a human string.
+function readElectrical(raw: unknown): Record<string, number> {
+  let reqs: unknown = raw
+  if (typeof raw === 'string') {
+    try { reqs = JSON.parse(raw) } catch { return {} }
+  }
+  if (!reqs || typeof reqs !== 'object') return {}
+  const elec = (reqs as { electrical_appliances?: unknown }).electrical_appliances
+  const out: Record<string, number> = {}
+  if (Array.isArray(elec)) {
+    for (const k of elec) if (typeof k === 'string') out[k] = 1
+  } else if (elec && typeof elec === 'object') {
+    for (const [k, v] of Object.entries(elec as Record<string, unknown>)) {
+      const q = Math.max(0, Math.floor(Number(v) || 0))
+      if (q > 0) out[k] = q
+    }
+  }
+  return out
+}
 
 interface CommItem {
   id: string
@@ -103,6 +141,18 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
   const [markPaidNote, setMarkPaidNote] = useState('')
   const [markPaidErr, setMarkPaidErr] = useState<string | null>(null)
 
+  // --- Edit contact / amend application form state ---
+  const [editBusiness, setEditBusiness] = useState('')
+  const [editContact, setEditContact] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [editTier, setEditTier] = useState('')
+  const [editElectrical, setEditElectrical] = useState<Record<string, number>>({})
+  const [editBusy, setEditBusy] = useState(false)
+  const [editErr, setEditErr] = useState<string | null>(null)
+  const [editOk, setEditOk] = useState(false)
+
   function toggleCommExpanded(id: string) {
     setCommExpanded((prev) => {
       const next = new Set(prev)
@@ -113,8 +163,59 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
   }
 
   function openContactDrawer() {
+    setEditBusiness(businessName)
+    setEditContact(contactName)
+    setEditEmail(email)
+    setEditPhone(phone)
+    setEditCategory(category)
+    setEditTier(v.preferred_booth_tier ? String(v.preferred_booth_tier) : '')
+    setEditElectrical(readElectrical(v.special_requirements))
+    setEditErr(null)
+    setEditOk(false)
     setDrawerView('contact')
     setDrawerOpen(true)
+  }
+
+  function setApplianceQty(slug: string, qty: number) {
+    setEditElectrical((prev) => {
+      const next = { ...prev }
+      if (qty <= 0) delete next[slug]
+      else next[slug] = qty
+      return next
+    })
+  }
+
+  async function handleSaveContact() {
+    setEditBusy(true)
+    setEditErr(null)
+    setEditOk(false)
+    try {
+      const cats = editCategory.trim()
+        ? [editCategory.trim(), ...((v.product_categories as string[]) || []).slice(1)]
+        : ((v.product_categories as string[]) || [])
+      const r = await fetch(`/api/admin/vendors/${v.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          business_name: editBusiness,
+          contact_name: editContact,
+          email: editEmail,
+          phone: editPhone,
+          product_categories: cats,
+          preferred_booth_tier: editTier,
+          electrical_appliances: editElectrical,
+        }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setEditErr(j.error || 'Failed to save'); return }
+      setEditOk(true)
+      setDrawerOpen(false)
+      router.refresh()
+    } catch (e) {
+      setEditErr((e as Error).message)
+    } finally {
+      setEditBusy(false)
+    }
   }
 
   function openDocPreview(doc: DocRecord) {
@@ -419,13 +520,113 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
       >
         {drawerView === 'contact' && (
           <div className="space-y-4">
-            <LabeledField label="Business name" value={businessName} />
-            <LabeledField label="Contact person" value={contactName} />
-            <LabeledField label="Email" value={email} />
-            <LabeledField label="Phone" value={phone} />
-            <p className="text-xs text-neutral-400 mt-4">
-              Contact editing will be available in the next update.
+            <p className="text-xs text-neutral-500">
+              Amend this vendor&apos;s details on their behalf. Saves a vendor_amended audit event.
             </p>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Business name</label>
+              <input
+                type="text"
+                value={editBusiness}
+                onChange={(e) => setEditBusiness(e.target.value)}
+                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Contact person</label>
+              <input
+                type="text"
+                value={editContact}
+                onChange={(e) => setEditContact(e.target.value)}
+                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Email</label>
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Phone</label>
+              <input
+                type="tel"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Category</label>
+              <input
+                type="text"
+                value={editCategory}
+                onChange={(e) => setEditCategory(e.target.value)}
+                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+                placeholder="e.g. Food, Fashion"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Stall size / tier</label>
+              <select
+                value={editTier}
+                onChange={(e) => setEditTier(e.target.value)}
+                className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm bg-white"
+              >
+                <option value="">Not specified</option>
+                {Object.entries(TIER_META).map(([slug, meta]) => (
+                  <option key={slug} value={slug}>
+                    {meta.label} (R{meta.price.toLocaleString('en-ZA')})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-2">Electrical appliances</label>
+              <div className="space-y-1.5">
+                {ELECTRICAL_OPTIONS.map((opt) => {
+                  const qty = editElectrical[opt.value] || 0
+                  return (
+                    <div key={opt.value} className="flex items-center justify-between gap-2">
+                      <span className={`text-sm ${qty > 0 ? 'text-neutral-900 font-medium' : 'text-neutral-600'}`}>
+                        {opt.label}
+                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setApplianceQty(opt.value, qty - 1)}
+                          disabled={qty <= 0}
+                          className="w-6 h-6 rounded border border-neutral-200 text-neutral-600 disabled:opacity-40 hover:bg-neutral-50"
+                        >
+                          −
+                        </button>
+                        <span className="w-6 text-center text-sm tabular-nums">{qty}</span>
+                        <button
+                          type="button"
+                          onClick={() => setApplianceQty(opt.value, qty + 1)}
+                          className="w-6 h-6 rounded border border-neutral-200 text-neutral-600 hover:bg-neutral-50"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            {editErr && <p className="text-xs text-red-600">{editErr}</p>}
+            {editOk && <p className="text-xs text-emerald-600">Saved.</p>}
+            <button
+              onClick={handleSaveContact}
+              disabled={editBusy}
+              className="w-full bg-[#cd2653] hover:bg-[#b01f45] text-white text-sm font-medium py-2 px-4 rounded-md disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            >
+              {editBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Save Changes
+            </button>
           </div>
         )}
 

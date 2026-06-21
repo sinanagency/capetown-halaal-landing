@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AdminPage } from '@/components/admin/AdminPage'
 import {
   Loader2, Mail, MessageCircle, Search, Send, ChevronDown, Star, MailOpen,
-  MoreHorizontal, Check, Clock, RotateCcw, UserPlus, Sparkles, Wand2, MessageSquarePlus,
+  MoreHorizontal, Check, Clock, RotateCcw, Sparkles, Wand2, MessageSquarePlus,
   FileText, Paperclip, ListChecks, X, ExternalLink, Bot, UserCheck, Tag as TagIcon, StickyNote,
   IdCard, CreditCard, MapPin, FileCheck,
 } from 'lucide-react'
@@ -48,6 +48,8 @@ interface CommItem {
 interface Operator { id: string; email: string }
 
 type AiAction = 'smart_reply' | 'tone_adjust' | 'follow_up' | 'summarize' | 'attachments' | 'status_update'
+// Full catalogue kept so runAI()/AI_CARDS.find() label lookups stay intact for
+// every endpoint action. Only AI_ROW_CARDS is rendered as always-visible pills.
 const AI_CARDS: Array<{ action: AiAction; label: string; short: string; icon: typeof Sparkles }> = [
   { action: 'smart_reply', label: 'Smart Reply', short: 'Reply', icon: MessageSquarePlus },
   { action: 'tone_adjust', label: 'Tone Adjustment', short: 'Tone', icon: Wand2 },
@@ -56,6 +58,9 @@ const AI_CARDS: Array<{ action: AiAction; label: string; short: string; icon: ty
   { action: 'attachments', label: 'Suggested Attachments', short: 'Links', icon: Paperclip },
   { action: 'status_update', label: 'Automated Status Updates', short: 'Status', icon: ListChecks },
 ]
+// De-cluttered: only Smart Reply stays in the always-visible row (the composer
+// already has a ✨ icon for it too). Summarize moves into the More-menu.
+const AI_ROW_CARDS = AI_CARDS.filter((c) => c.action === 'smart_reply')
 
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 function fmtTime(iso: string): string {
@@ -113,7 +118,6 @@ interface VendorContext {
 
 export function CustomerInboxClient({ currentUserId, operators }: { currentUserId: string; operators: Operator[] }) {
   const [tab, setTab] = useState<Tab>('all')
-  const [sortWaiting, setSortWaiting] = useState(false)
   const [tagFilter, setTagFilter] = useState<InboxTag | null>(null)
   const [channel, setChannel] = useState<Channel>('all')
   const [contacts, setContacts] = useState<Contact[]>([])
@@ -130,7 +134,6 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
   const [aiBusy, setAiBusy] = useState<AiAction | null>(null)
   const [aiResult, setAiResult] = useState<{ title: string; text: string } | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [assignOpen, setAssignOpen] = useState(false)
   const [windowClosed, setWindowClosed] = useState(false)
   const [handoverBusy, setHandoverBusy] = useState(false)
   const [canned, setCanned] = useState<CannedReply[]>([])
@@ -232,14 +235,8 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
     const q = search.trim().toLowerCase()
     if (q) list = list.filter((c) =>
       nameOf(c).toLowerCase().includes(q) || (c.email || '').toLowerCase().includes(q) || (c.phone || '').includes(q))
-    if (sortWaiting) {
-      // Longest-waiting first: conversations awaiting our reply (unread), oldest
-      // at the top; everything else falls below in recency order.
-      const waitKey = (c: Contact) => (c.unread && c.last_message_at ? new Date(c.last_message_at).getTime() : Infinity)
-      list = [...list].sort((a, b) => waitKey(a) - waitKey(b))
-    }
     return list
-  }, [contacts, tab, search, tagFilter, sortWaiting, currentUserId])
+  }, [contacts, tab, search, tagFilter, currentUserId])
 
   const loadMessages = useCallback(async (c: Contact) => {
     setMsgsLoading(true)
@@ -283,7 +280,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
     if (!c) return
     loadMessages(c)
     setReplyChannel(c.phone ? 'whatsapp' : 'email')
-    setSendMsg(null); setAiResult(null); setMenuOpen(false); setAssignOpen(false); setWindowClosed(false)
+    setSendMsg(null); setAiResult(null); setMenuOpen(false); setWindowClosed(false)
     setCannedOpen(false); setTagOpen(false); setNotesOpen(false); setNoteText(''); setNotes([])
     setAttachment(null); setCtx(null); setCtxOpen(false)
     if (c.application_id) {
@@ -398,7 +395,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
     extra?: { assigneeId?: string | null; tag?: InboxTag },
   ) => {
     if (!active) return
-    setMenuOpen(false); setAssignOpen(false); setTagOpen(false)
+    setMenuOpen(false); setTagOpen(false)
     setContacts((prev) => prev.map((c) => {
       if (c.id !== active.id) return c
       if (action === 'resolve') return { ...c, status: 'resolved' }
@@ -450,7 +447,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
 
   return (
     <AdminPage fill title="Inbox" caption="UNIFIED" subtitle="Every WhatsApp, bot and email conversation in one place.">
-      <div className="grid lg:grid-cols-[1fr_380px] grid-rows-[minmax(0,1fr)] h-[calc(100dvh-12rem)] lg:h-full gap-4">
+      <div className="grid lg:grid-cols-[1fr_380px] grid-rows-[minmax(0,1fr)] h-[calc(100dvh-6rem)] lg:h-full gap-4">
 
         {/* LEFT: conversation */}
         <div className="flex flex-col min-h-0 border border-neutral-200 rounded-2xl overflow-hidden bg-white">
@@ -497,10 +494,6 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                       {active.bot_paused ? 'Hand back' : 'Take over'}
                     </button>
                   )}
-                  <button title={active.starred ? 'Unstar' : 'Star'} onClick={() => doStatus(active.starred ? 'unstar' : 'star')}
-                    className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
-                    <Star className={`w-4 h-4 ${active.starred ? 'fill-amber-400 text-amber-400' : 'text-neutral-400'}`} />
-                  </button>
                   <button title="Mark unread" onClick={() => doStatus('unread')} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
                     <MailOpen className="w-4 h-4 text-neutral-400" />
                   </button>
@@ -516,17 +509,9 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                         {active.status !== 'snoozed'
                           ? <button onClick={() => doStatus('snooze')} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><Clock className="w-4 h-4 text-amber-600" />Snooze</button>
                           : <button onClick={() => doStatus('reopen')} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><RotateCcw className="w-4 h-4 text-sky-600" />Reopen</button>}
-                        <div className="relative">
-                          <button onClick={() => setAssignOpen((v) => !v)} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><UserPlus className="w-4 h-4 text-neutral-500" />Assign…</button>
-                          {assignOpen && (
-                            <div className="absolute right-full top-0 mr-1 w-48 bg-white border border-neutral-200 rounded-xl shadow-lg py-1 max-h-56 overflow-y-auto">
-                              <button onClick={() => doStatus('assign', { assigneeId: null })} className="w-full px-3 py-1.5 text-left hover:bg-neutral-50 text-xs text-neutral-500">Unassigned</button>
-                              {operators.map((o) => (
-                                <button key={o.id} onClick={() => doStatus('assign', { assigneeId: o.id })} className="w-full px-3 py-1.5 text-left hover:bg-neutral-50 text-xs truncate">{o.email}</button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <button onClick={() => { runAI('summarize'); setMenuOpen(false) }} disabled={!!aiBusy} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2 disabled:opacity-50">
+                          {aiBusy === 'summarize' ? <Loader2 className="w-4 h-4 animate-spin text-[#cd2653]" /> : <FileText className="w-4 h-4 text-[#cd2653]" />}Summarize thread
+                        </button>
                         <div className="relative">
                           <button onClick={() => setTagOpen((v) => !v)} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><TagIcon className="w-4 h-4 text-neutral-500" />Tag…</button>
                           {tagOpen && (
@@ -553,55 +538,6 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                 </div>
               </div>
 
-              {/* Vendor context (at-a-glance facts) */}
-              {ctxOpen && active.application_id && (
-                <div className="border-b border-neutral-100 bg-neutral-50/60 px-5 py-3">
-                  {!ctx ? (
-                    <p className="text-xs text-neutral-400">Loading context…</p>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${statusChip(ctx.status === 'approved' ? 'open' : ctx.status).cls}`}>Status: {ctx.status}</span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${ctx.payment.status === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-neutral-100 text-neutral-600 border-neutral-200'}`}>
-                        <CreditCard className="w-3 h-3" />{ctx.payment.status}{ctx.payment.amount ? ` · R${ctx.payment.amount.toLocaleString()}` : ''}
-                      </span>
-                      {ctx.tier && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-white text-neutral-600 border-neutral-200">{ctx.tier}</span>}
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-white text-neutral-600 border-neutral-200"><MapPin className="w-3 h-3" />{ctx.stall ? `Stall ${ctx.stall}` : 'No stall yet'}</span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${ctx.docs_complete ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}><FileCheck className="w-3 h-3" />Docs {ctx.docs_complete ? 'complete' : 'pending'}</span>
-                      {ctx.contract_signed && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-green-50 text-green-700 border-green-200">Contract signed</span>}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Internal notes (private to the team) */}
-              {notesOpen && (
-                <div className="border-b border-neutral-100 bg-amber-50/40 px-5 py-3 max-h-44 overflow-y-auto">
-                  <div className="flex items-center gap-1.5 mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-700"><StickyNote className="w-3.5 h-3.5" />Internal notes</div>
-                  {!active.application_id ? (
-                    <p className="text-xs text-neutral-400">Internal notes are available for vendor contacts.</p>
-                  ) : (
-                    <>
-                      <div className="space-y-1 mb-2">
-                        {notes.length === 0
-                          ? <p className="text-xs text-neutral-400">No notes yet.</p>
-                          : notes.map((n, i) => (
-                            <div key={i} className="text-xs text-neutral-700 leading-relaxed">
-                              <span className="text-neutral-400">{n.by.split('@')[0]} · {timeAgo(n.at)}</span> {n.text}
-                            </div>
-                          ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input value={noteText} onChange={(e) => setNoteText(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNote() } }}
-                          placeholder="Add a private note…"
-                          className="flex-1 text-xs rounded-lg border border-neutral-200 px-2 py-1.5 outline-none focus:border-amber-500" />
-                        <button onClick={addNote} disabled={!noteText.trim()} className="text-[11px] font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg px-2.5 disabled:opacity-50">Add</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
               {/* Messages */}
               <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-5 space-y-5 bg-neutral-50/40 min-h-0">
                 {msgsLoading ? (
@@ -611,19 +547,37 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                 ) : grouped.map((g) => (
                   <div key={g.day} className="space-y-4">
                     <div className="flex items-center justify-center"><span className="text-[10px] font-semibold text-neutral-400 bg-white border border-neutral-200 rounded-full px-2.5 py-0.5">{g.day}</span></div>
-                    {g.items.map((m) => (
-                      <div key={m.id} className={`flex flex-col ${m.direction === 'out' ? 'items-end' : 'items-start'}`}>
-                        <div className="flex items-center gap-1.5 mb-1 px-1 text-[10px] text-neutral-400">
+                    {g.items.map((m) => {
+                      // Three distinct outbound roles + inbound. Email renders as a
+                      // full-width document card; WhatsApp stays a chat bubble.
+                      const isEmail = m.channel === 'email'
+                      const isBot = m.direction === 'out' && m.bot
+                      const isOperator = m.direction === 'out' && !m.bot
+                      // Bubble alignment: email always left (document); WA out = right.
+                      const alignRight = !isEmail && m.direction === 'out'
+                      // Bubble skin by role (WhatsApp only; email uses the card skin).
+                      const bubbleSkin = isEmail
+                        ? 'max-w-full w-full bg-white text-neutral-900 border border-neutral-200 rounded-lg'
+                        : isBot
+                          ? 'max-w-[78%] bg-neutral-100 text-neutral-700 border border-neutral-300 rounded-2xl rounded-tr-sm'
+                          : isOperator
+                            ? 'max-w-[78%] bg-[#cd2653] text-white rounded-2xl rounded-tr-sm'
+                            : 'max-w-[78%] bg-white text-neutral-900 border border-neutral-200 rounded-2xl rounded-tl-sm'
+                      return (
+                      <div key={m.id} className={`flex flex-col ${alignRight ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-center gap-1.5 mb-1 px-1 text-[11px] text-neutral-400">
                           {m.channel === 'whatsapp' ? <MessageCircle className="w-3 h-3 text-emerald-600" /> : <Mail className="w-3 h-3 text-blue-600" />}
-                          {m.bot && <Bot className="w-3 h-3 text-neutral-400" />}
+                          {isBot && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-600 font-semibold text-[10px]"><Bot className="w-3 h-3" />Bot</span>}
+                          {isOperator && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-[#cd2653]/10 text-[#cd2653] font-semibold text-[10px]">You</span>}
                           <span>{m.from}</span><span>·</span><span>{fmtTime(m.at)}</span>
                         </div>
-                        <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${m.direction === 'out' ? 'bg-[#cd2653] text-white rounded-tr-sm' : 'bg-white text-neutral-900 border border-neutral-200 rounded-tl-sm'}`}>
-                          {m.subject && m.channel === 'email' && <p className="text-[11px] font-semibold opacity-70 mb-1">{m.subject}</p>}
-                          <p className="whitespace-pre-wrap break-words leading-relaxed">{m.body}</p>
+                        <div className={`px-4 py-2.5 shadow-sm ${bubbleSkin}`}>
+                          {m.subject && isEmail && <p className="text-[12px] font-semibold opacity-70 mb-1">{m.subject}</p>}
+                          <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px]">{m.body}</p>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ))}
               </div>
@@ -647,7 +601,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
               {/* AI assist — compact icon row so the chat keeps its height */}
               <div className="px-4 pt-2 flex items-center gap-1.5 overflow-x-auto">
                 <Sparkles className="w-3.5 h-3.5 text-[#cd2653] shrink-0" />
-                {AI_CARDS.map(({ action, label, short, icon: Icon }) => (
+                {AI_ROW_CARDS.map(({ action, label, short, icon: Icon }) => (
                   <button key={action} onClick={() => runAI(action)} disabled={!!aiBusy} title={label}
                     className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50/60 hover:bg-white hover:border-[#cd2653]/40 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-700 disabled:opacity-50 transition">
                     {aiBusy === action ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#cd2653]" /> : <Icon className="w-3.5 h-3.5 text-[#cd2653]" />}
@@ -731,6 +685,56 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
 
         {/* RIGHT: list */}
         <div className="flex flex-col min-h-0 border border-neutral-200 rounded-2xl overflow-hidden bg-white">
+          {/* Vendor context (at-a-glance facts) — relocated here so the thread
+              gets the full left-column height. Toggled from the More menu. */}
+          {active && ctxOpen && active.application_id && (
+            <div className="border-b border-neutral-100 bg-neutral-50/60 px-4 py-3 shrink-0">
+              {!ctx ? (
+                <p className="text-xs text-neutral-400">Loading context…</p>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${statusChip(ctx.status === 'approved' ? 'open' : ctx.status).cls}`}>Status: {ctx.status}</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border font-semibold ${ctx.payment.status === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-neutral-100 text-neutral-600 border-neutral-200'}`}>
+                    <CreditCard className="w-3 h-3" />{ctx.payment.status}{ctx.payment.amount ? ` · R${ctx.payment.amount.toLocaleString()}` : ''}
+                  </span>
+                  {ctx.tier && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-white text-neutral-600 border-neutral-200">{ctx.tier}</span>}
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-white text-neutral-600 border-neutral-200"><MapPin className="w-3 h-3" />{ctx.stall ? `Stall ${ctx.stall}` : 'No stall yet'}</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border ${ctx.docs_complete ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}><FileCheck className="w-3 h-3" />Docs {ctx.docs_complete ? 'complete' : 'pending'}</span>
+                  {ctx.contract_signed && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border bg-green-50 text-green-700 border-green-200">Contract signed</span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Internal notes (private to the team) — relocated to the rail. */}
+          {active && notesOpen && (
+            <div className="border-b border-neutral-100 bg-amber-50/40 px-4 py-3 max-h-44 overflow-y-auto shrink-0">
+              <div className="flex items-center gap-1.5 mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-700"><StickyNote className="w-3.5 h-3.5" />Internal notes</div>
+              {!active.application_id ? (
+                <p className="text-xs text-neutral-400">Internal notes are available for vendor contacts.</p>
+              ) : (
+                <>
+                  <div className="space-y-1 mb-2">
+                    {notes.length === 0
+                      ? <p className="text-xs text-neutral-400">No notes yet.</p>
+                      : notes.map((n, i) => (
+                        <div key={i} className="text-xs text-neutral-700 leading-relaxed">
+                          <span className="text-neutral-400">{n.by.split('@')[0]} · {timeAgo(n.at)}</span> {n.text}
+                        </div>
+                      ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input value={noteText} onChange={(e) => setNoteText(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addNote() } }}
+                      placeholder="Add a private note…"
+                      className="flex-1 text-xs rounded-lg border border-neutral-200 px-2 py-1.5 outline-none focus:border-amber-500" />
+                    <button onClick={addNote} disabled={!noteText.trim()} className="text-[11px] font-semibold text-white bg-amber-600 hover:bg-amber-700 rounded-lg px-2.5 disabled:opacity-50">Add</button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="px-4 pt-4 pb-3 border-b border-neutral-100 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-lg font-serif text-neutral-900">All messages</h2>
@@ -760,11 +764,6 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                 className="w-full rounded-lg bg-neutral-50 border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:border-[#cd2653] focus:bg-white" />
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <button onClick={() => setSortWaiting((v) => !v)}
-                className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${sortWaiting ? 'bg-[#cd2653] text-white border-[#cd2653]' : 'bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400'}`}>
-                {sortWaiting ? '⏱ Longest waiting' : 'Most recent'}
-              </button>
-              <span className="w-px h-4 bg-neutral-200" />
               {INBOX_TAGS.map((t) => (
                 <button key={t} onClick={() => setTagFilter(tagFilter === t ? null : t)}
                   className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${tagFilter === t ? tagCls(t) + ' ring-1 ring-current' : 'bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400'}`}>

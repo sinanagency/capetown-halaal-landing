@@ -27,15 +27,15 @@ function escapeCsv(v: unknown): string {
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Not signed in. Please log in again.' }, { status: 401 })
 
   const db = createAdminClient()
   const { data: adminUser } = await db.from('admin_users').select('id, role, email').eq('id', user.id).maybeSingle()
-  if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!adminUser) return NextResponse.json({ error: 'Your account is not an admin user.' }, { status: 403 })
   // H5: PII export requires owner/operator. Cap row count + audit log.
   const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
   if (!['owner', 'operator'].includes(role)) {
-    return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
+    return NextResponse.json({ error: `Your role (${role}) cannot export vendor data. Ask the owner for owner/operator access.` }, { status: 403 })
   }
 
   const sp = req.nextUrl.searchParams
@@ -46,14 +46,17 @@ export async function GET(req: NextRequest) {
   const CSV_MAX_ROWS = 1000
   let q = db
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, phone, product_categories, item_category, status, admin_notes, contract_signed_at')
+    .select('id, business_name, contact_name, email, phone, product_categories, status, admin_notes, contract_signed_at')
     .order('business_name', { ascending: true })
     .limit(CSV_MAX_ROWS)
   if (ids && ids.length) q = q.in('id', ids)
   else if (status && status !== 'all') q = q.eq('status', status)
 
   const { data, error } = await q
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[vendors/csv] query failed:', error.message)
+    return NextResponse.json({ error: `Could not read vendors: ${error.message}` }, { status: 500 })
+  }
 
   // H5: audit log every export so we can trace PII flows. We anchor the
   // event on the first exported vendor's application_id (the audit table FK
@@ -94,14 +97,13 @@ export async function GET(req: NextRequest) {
     email: string | null
     phone: string | null
     product_categories: string[] | null
-    item_category: string | null
     status: string | null
     admin_notes: string | null
     contract_signed_at: string | null
   }>) {
     const portal = parsePortalState(row.admin_notes || '')
     const { stall } = parseAllocation(row.admin_notes || '')
-    const sector = row.product_categories?.[0] || row.item_category || ''
+    const sector = row.product_categories?.[0] || ''
     const paymentStatus = portal.payment?.status || 'none'
     lines.push([
       escapeCsv(row.business_name),
