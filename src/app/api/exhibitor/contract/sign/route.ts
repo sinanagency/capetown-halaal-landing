@@ -95,5 +95,17 @@ export async function POST(req: NextRequest) {
     // best-effort
   }
 
+  // Best-effort owner notification. Failure here never blocks the vendor's sign.
+  try {
+    const { notifyOwners } = await import('@/lib/bot/notify')
+    await notifyOwners({
+      event: 'system_alert',
+      body: `Contract signed: ${String(app.business_name || 'Vendor')}.`,
+      audience: 'all',
+    })
+  } catch (e) {
+    console.error('[contract-sign] notifyOwners failed:', (e as Error).message)
+  }
+
   return NextResponse.json({ ok: true, path })
 }

@@ -57,7 +57,13 @@ async function loadOccupants(admin: ReturnType<typeof createAdminClient>) {
   const allocatable: Record<string, unknown>[] = []
 
   for (const a of apps || []) {
+    // parseAllocation is cheap (regex on admin_notes). The expensive work,
+    // computeVendorPricing + parsePortalState, only matters for rows we keep:
+    // approved applicants or anyone already placed on a stall. Skip the rest so
+    // discarded rows cost nothing.
     const { stall, status } = parseAllocation(a.admin_notes as string)
+    if (a.status !== 'approved' && !stall) continue
+
     const portal = parsePortalState(a.admin_notes as string)
     const pricing = computeVendorPricing({
       preferred_booth_tier: a.preferred_booth_tier as string,
@@ -84,7 +90,7 @@ async function loadOccupants(admin: ReturnType<typeof createAdminClient>) {
     }
     if (stall) byCode.set(stall, row)
     // dropdown = approved applicants + anyone already placed (so you can move them)
-    if (a.status === 'approved' || stall) allocatable.push(row)
+    allocatable.push(row)
   }
   return { byCode, allocatable }
 }

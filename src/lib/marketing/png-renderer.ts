@@ -106,6 +106,43 @@ export async function renderMarketingPng(
   try {
     await page.setViewport({ width: dims.width, height: dims.height, deviceScaleFactor: 1 })
     await page.setContent(html, { waitUntil: 'load' })
+    // 'load' can fire before remote images (the network logo) finish painting,
+    // which produced the occasional blank/half-rendered PNG. Explicitly wait for
+    // any in-flight images to settle. Time-boxed + guarded so a slow/broken
+    // asset can never hang the render.
+    try {
+      await page.evaluate(
+        () =>
+          Promise.race([
+            Promise.all(
+              Array.from(document.images)
+                .filter((img) => !img.complete)
+                .map(
+                  (img) =>
+                    new Promise<void>((resolve) => {
+                      img.onload = () => resolve()
+                      img.onerror = () => resolve()
+                    }),
+                ),
+            ).then(() => undefined),
+            new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+          ]),
+      )
+    } catch {
+      // image wait unsupported or rejected; proceed with whatever painted.
+    }
+    // Belt-and-braces: explicitly wait for web fonts (Google Fonts) to finish
+    // loading so headings render in Fraunces/Inter rather than a fallback.
+    // Guarded + time-boxed so a font CDN hiccup can never hang the render.
+    try {
+      await page.evaluate(
+        () =>
+          (document as Document & { fonts?: { ready?: Promise<unknown> } }).fonts?.ready ??
+          Promise.resolve(),
+      )
+    } catch {
+      // document.fonts unsupported or rejected; proceed with whatever painted.
+    }
     const buf = await page.screenshot({
       type: 'png',
       omitBackground: false,

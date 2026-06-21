@@ -19,7 +19,7 @@ export default async function MyStand() {
   const initialPublish = Boolean(state.profile?.publish_stall)
 
   return (
-    <div className="bg-[#FAFAF8] -mx-4 sm:-mx-6 px-4 sm:px-6 py-6 min-h-[calc(100vh-72px)]">
+    <div className="bg-[#FAFAF8] -mx-4 sm:-mx-6 px-4 sm:px-6 py-6">
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-[#cd2653] font-semibold">My Stand</p>
@@ -34,7 +34,7 @@ export default async function MyStand() {
           </p>
         </div>
 
-        <div className="min-h-[600px]">
+        <div className={hasStall ? 'min-h-[600px]' : ''}>
           <StandView />
         </div>
 

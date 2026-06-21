@@ -91,5 +91,18 @@ export async function POST(req: NextRequest) {
     console.warn('[documents] site_events insert failed:', (e as Error).message)
   }
 
+  // Best-effort owner notification. Failure here never blocks the vendor's upload.
+  try {
+    const { notifyOwners } = await import('@/lib/bot/notify')
+    const bizName = String(ctx.application.business_name || 'Vendor')
+    await notifyOwners({
+      event: 'document_uploaded',
+      body: `New document uploaded by ${bizName}: ${docType}.`,
+      audience: 'all',
+    })
+  } catch (e) {
+    console.error('[documents] notifyOwners failed:', (e as Error).message)
+  }
+
   return NextResponse.json({ success: true, document: record })
 }

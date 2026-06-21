@@ -44,7 +44,7 @@ export default async function PortalLayout({ children }: { children: React.React
         <PortalNav businessName={businessName} inboxUnread={inboxUnread} />
         {showWaBanner && <WaOptInBanner prefillPhone={prefillPhone} firstName={firstName} />}
       </div>
-      <main className="flex-1 overflow-y-auto min-h-0">{children}</main>
+      <main className="flex-1 overflow-y-auto min-h-0 pb-8">{children}</main>
     </div>
   )
 }

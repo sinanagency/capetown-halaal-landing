@@ -76,7 +76,7 @@ export default function PortalNav({ businessName, inboxUnread = false }: { busin
 
   function isActive(href: string) {
     if (href === '/exhibitor/portal') return pathname === href
-    return pathname.startsWith(href)
+    return pathname === href || pathname.startsWith(href + '/')
   }
 
   return (

@@ -58,25 +58,23 @@ export default function AllocationPage() {
     setLoading(true)
     try {
       const res = await fetch('/api/admin/stalls')
+      // API is the auth gate now: an unauthenticated admin gets 401 here, so we
+      // route to login (mirrors the old client-side getUser() pre-gate).
+      if (res.status === 401) { router.push('/admin/login'); return }
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`)
       setData(await res.json())
     } catch (e) {
       toast.error(`Could not load stalls: ${e instanceof Error ? e.message : 'error'}`)
     } finally { setLoading(false) }
-  }, [])
+  }, [router])
 
   useEffect(() => {
-    let active = true
-    ;(async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!active) return
-      if (!user) { router.push('/admin/login'); return }
-      setReady(true)
-      load()
-    })()
-    return () => { active = false }
-  }, [router, load])
+    // No client-side auth pre-gate: the /api/admin/stalls call below already
+    // enforces auth (401 -> we route to login). Skipping getUser() here removes
+    // an auth round-trip from the critical path so the map paints sooner.
+    setReady(true)
+    load()
+  }, [load])
 
   // Stall drawer — find the matching application for the clicked stall.
   const drawerApplication = useMemo<AppRow | null>(() => {
@@ -262,10 +260,6 @@ export default function AllocationPage() {
     <AdminPage title="Floor plan" caption="BOOTH ALLOCATION">
     <div className="h-dvh overflow-hidden flex flex-col bg-neutral-50">
       <div className="flex-shrink-0 px-6 py-3 border-b border-neutral-200 bg-white flex items-center gap-4">
-        <div className="flex-shrink-0">
-          <p className="text-[10px] font-semibold text-[#cd2653] uppercase tracking-[0.2em]">Booth allocation</p>
-          <h1 className="text-base font-bold text-neutral-900 leading-tight">Floor plan</h1>
-        </div>
         {!loading && data && (
           <div className="ml-auto min-w-0 flex-1 flex items-center gap-3">
             <span className="text-xs font-medium text-neutral-500 bg-neutral-100/80 border border-neutral-200 px-2.5 py-1 rounded-full whitespace-nowrap">
@@ -289,6 +283,22 @@ export default function AllocationPage() {
       </div>
 
       <div className="flex-1 min-h-0 flex">
+        {loading && (
+          <div className="w-80 flex-shrink-0 border-r border-neutral-200 bg-white flex flex-col overflow-hidden animate-pulse">
+            <div className="p-3 border-b border-neutral-100 space-y-2">
+              <div className="h-3 w-32 rounded bg-neutral-100" />
+              <div className="h-7 w-full rounded-md bg-neutral-100" />
+            </div>
+            <div className="p-3 space-y-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="h-3.5 w-40 rounded bg-neutral-100" />
+                  <div className="h-2.5 w-24 rounded bg-neutral-100" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {!loading && data && (
           <div className="w-80 flex-shrink-0 border-r border-neutral-200 bg-white flex flex-col overflow-hidden">
             <div className="p-3 border-b border-neutral-100">
@@ -331,8 +341,8 @@ export default function AllocationPage() {
         )}
         <div className="flex-1 min-h-0 bg-white">
           {loading && (
-            <div className="flex items-center justify-center h-full gap-2 text-neutral-400 text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" /> Loading live allocation...
+            <div className="h-full p-4 animate-pulse">
+              <div className="h-full rounded-lg bg-neutral-100 border border-neutral-200" />
             </div>
           )}
           {!loading && data && (

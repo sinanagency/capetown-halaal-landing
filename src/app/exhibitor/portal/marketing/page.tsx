@@ -135,12 +135,21 @@ export default async function MarketingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {ASSET_CARDS.map((a) => (
             <Card key={a.key} className="flex flex-col">
-              <div className={`w-full ${a.ratio} bg-[#F8F5EE] rounded-xl overflow-hidden border border-[#E5E5E5]/60 mb-4`}>
+              {/* Fixed-height thumbnail so the grid lines up regardless of the
+                  asset's true aspect ratio (the real ratio is preserved only
+                  for the actual download). A placeholder sits behind the image:
+                  if the live render 500s the <img> paints nothing and this
+                  neutral box with the asset title stays visible. */}
+              <div className="relative w-full h-40 bg-[#F8F5EE] rounded-xl overflow-hidden border border-[#E5E5E5]/60 mb-4">
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-3 text-center pointer-events-none">
+                  <ImageIcon className="w-5 h-5 text-[#1B1A17]/25" />
+                  <span className="text-[11px] font-semibold text-[#1B1A17]/40 leading-tight">{a.label}</span>
+                </div>
                 <img
-                  src={a.href}
+                  src={`${a.href}?preview=1`}
                   alt={`${a.label} preview`}
                   loading="lazy"
-                  className="w-full h-full object-cover"
+                  className="relative w-full h-full object-cover"
                 />
               </div>
               <div className="mb-1 flex items-center justify-between">
