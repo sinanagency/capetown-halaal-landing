@@ -98,18 +98,30 @@ function buildLogoBlock(
   logoUrl: string | null,
   initials: string,
 ): string {
-  if (logoUrl) {
-    return `<img src="${logoUrl}" alt=""/>`
-  }
   const fontSize = MONOGRAM_FONT_SIZE[template] ?? MONOGRAM_FONT_SIZE['ig-feed']
-  return (
-    `<div style="width:100%;height:100%;background:#FAF7F2;` +
+  // Always render the monogram as a base layer filling the logo frame. When the
+  // vendor has a logo we overlay the <img> on top; if that image fails to load
+  // (no logo_path, or a logo_path whose file is missing/blank in storage, which
+  // is the common case), the <img> hides itself via onerror and the monogram
+  // shows through. This means a missing/broken logo NEVER renders as an empty
+  // white box, regardless of whether the path is absent or just unreachable.
+  const monogram =
+    `<div style="position:absolute;inset:0;background:#FAF7F2;` +
     `display:flex;align-items:center;justify-content:center;overflow:hidden;">` +
     `<span style="font-family:'Fraunces',Georgia,serif;font-weight:700;` +
     `font-size:${fontSize}px;line-height:1;color:#cd2653;` +
     `letter-spacing:0.01em;">${initials}</span>` +
     `</div>`
-  )
+  // The overlay starts hidden and only reveals itself once it has successfully
+  // loaded. A broken/missing logo file never reveals, so the monogram beneath
+  // stays visible. (The renderer waits for images via addEventListener, so these
+  // inline handlers are preserved, not clobbered.)
+  const overlay = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="" ` +
+      `style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;" ` +
+      `onload="this.style.display='block'" onerror="this.style.display='none'"/>`
+    : ''
+  return `<div style="position:relative;width:100%;height:100%;overflow:hidden;">${monogram}${overlay}</div>`
 }
 
 /**

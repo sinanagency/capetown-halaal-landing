@@ -123,8 +123,10 @@ export async function renderMarketingPng(
                 .map(
                   (img) =>
                     new Promise<void>((resolve) => {
-                      img.onload = () => resolve()
-                      img.onerror = () => resolve()
+                      // addEventListener (not img.onload=) so inline onload/
+                      // onerror handlers in the template markup are preserved.
+                      img.addEventListener('load', () => resolve())
+                      img.addEventListener('error', () => resolve())
                     }),
                 ),
             ).then(() => undefined),
