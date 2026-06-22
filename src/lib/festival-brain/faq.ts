@@ -20,6 +20,18 @@ export type FaqKey =
   | 'instagram'
   | 'opening_hours'
   | 'electricity'
+  | 'buy_tickets'
+  | 'payment_methods'
+  | 'gate_tickets'
+  | 'gift_tickets'
+  | 'ticket_types'
+  | 'ticket_exchange'
+  | 'ticket_transfer'
+  | 'ticket_delivery'
+  | 'entry_requirements'
+  | 'accessibility'
+  | 'ticket_collection'
+  | 'ticket_scan_issue'
 
 export interface FaqEntry {
   key: FaqKey
@@ -54,12 +66,15 @@ export const FAQ: Record<FaqKey, FaqEntry> = {
   ticket_price: {
     key: 'ticket_price',
     patterns: [
-      /\b(price|cost|how much|ticket[s]?|fee[s]?|entry)\b/i,
-      /\b(r\s?30|r\s?60|weekend pass|day pass)\b/i,
+      // Price-specific only. Generic "ticket"/"fee"/"entry" and pass NAMES are
+      // owned by ticket_types / payment_methods so those route correctly.
+      /\b(price|cost|how much|how expensive|pricing)\b/i,
+      /\b(r\s?30|r\s?60)\b/i,
+      /\bticket.{0,15}\b(price|cost|how much)\b/i,
     ],
-    fact: 'Tickets are R30 per day, R60 for the full weekend (all three days). Kids under 5 enter free.',
+    fact: 'Tickets are R30 per day, R60 for the full weekend (all three days). Children under 3 enter free when accompanied by a ticketed adult.',
     answer:
-      'Tickets are R30 per day, R60 for the full weekend pass (all three days, saves R30). Kids under 5 enter free. Buy at cthalaal.co.za.',
+      'Tickets are R30 per day, R60 for the full weekend pass (all three days, saves R30). Children under 3 enter free when accompanied by a ticketed adult. Buy at cthalaal.co.za.',
   },
   parking: {
     key: 'parking',
@@ -73,13 +88,13 @@ export const FAQ: Record<FaqKey, FaqEntry> = {
     patterns: [/\bkids?\s*(zone|area|activit|play|entertainment)\b/i, /\bchild(ren)?\b/i, /\bfamily\b/i],
     fact: 'There is a dedicated kids play area with activities and entertainment all three days.',
     answer:
-      'Yes, there is a dedicated kids zone with activities, entertainment and a play area all three days. Kids under 5 enter free.',
+      'Yes, there is a dedicated kids zone with activities, entertainment and a play area all three days. Children under 3 enter free when accompanied by a ticketed adult.',
   },
   kids_free_age: {
     key: 'kids_free_age',
-    patterns: [/\b(kids?|child(ren)?)\s+(under|free|age)\b/i, /\bage limit\b/i, /\bunder 5\b/i],
-    fact: 'Children under 5 enter free. Ages 5 and up pay the standard ticket price.',
-    answer: 'Children under 5 enter free. From age 5 the standard ticket price applies (R30 day, R60 weekend).',
+    patterns: [/\b(kids?|child(ren)?)\s+(under|free|age)\b/i, /\bage limit\b/i, /\bunder 3\b/i, /\b(kids?|child(ren)?)\b.{0,20}\b(need|require).{0,15}\bticket/i, /\bdo (kids?|child(ren)?) (need|pay)\b/i],
+    fact: 'Children under 3 enter free when accompanied by a ticketed adult. Ages 3 and up pay the standard ticket price.',
+    answer: 'Children under 3 enter free when accompanied by a ticketed adult. From age 3 the standard ticket price applies (R30 day, R60 weekend).',
   },
   vendor_apply: {
     key: 'vendor_apply',
@@ -108,11 +123,11 @@ export const FAQ: Record<FaqKey, FaqEntry> = {
   },
   refund_policy: {
     key: 'refund_policy',
-    patterns: [/\brefund\b/i, /\bcancel(lation)?\b/i, /\bmoney back\b/i],
+    patterns: [/\brefund\b/i, /\bmoney back\b/i, /\b(event|festival)\b.{0,25}\bcancel/i, /\bcancel(led|lation)?\b.{0,25}\b(event|festival)\b/i],
     fact:
-      'Tickets are non-refundable but transferable. If you cannot attend, you may give the ticket to someone else. Email support@youngatheart.co.za for help.',
+      'Refunds are available up to 14 days before the event. Tickets bought within 14 days of the event are non-refundable unless the event is cancelled or significantly changed. A full cancellation means a full refund including any booking fees, with buyers contacted via their purchase email. Refunds are processed within 5 to 10 business days to the original payment method.',
     answer:
-      'Tickets are non-refundable but transferable. If you cannot attend, pass the ticket to someone else. For special cases email support@youngatheart.co.za.',
+      'Refunds are available up to 14 days before the event. Tickets bought within 14 days are non-refundable unless the event is cancelled or significantly changed. If the event is fully cancelled you get a full refund including any booking fees, and we contact you on your purchase email. Refunds take 5 to 10 business days back to your original payment method. For help email support@youngatheart.co.za.',
   },
   stall_sizes: {
     key: 'stall_sizes',
@@ -167,6 +182,159 @@ export const FAQ: Record<FaqKey, FaqEntry> = {
     fact: 'Electricity is an optional add-on for stalls: R400 to R750 depending on load.',
     answer:
       'Electricity is an optional add-on for stalls, R400 to R750 depending on the load. Tick the box on the application form.',
+  },
+  buy_tickets: {
+    key: 'buy_tickets',
+    patterns: [
+      /\b(where|how)\b.*\b(buy|purchase|get|book)\b.*\bticket/i,
+      /\b(buy|purchase|book)\b.*\bticket/i,
+      /\bticket.*\b(buy|purchase|book|online)\b/i,
+    ],
+    fact:
+      'Tickets are sold online at cthalaal.co.za and in person at Youngsfield Military Base. Buying online lets you skip the queues.',
+    answer:
+      'You can buy tickets online at cthalaal.co.za or in person at Youngsfield Military Base. Buy online to skip the queues at the gate.',
+  },
+  payment_methods: {
+    key: 'payment_methods',
+    patterns: [
+      /\b(payment|pay)\s*(method|option|type)?s?\b/i,
+      /\b(credit|debit)\s*card\b/i,
+      /\b(visa|mastercard)\b/i,
+      /\bcash\b/i,
+      /\bhow (can|do) i pay\b/i,
+      /\b(booking|extra|hidden|service|additional)\s*fees?\b/i,
+      /\bany\s*(extra\s*)?fees?\b/i,
+      /\bis there\b.{0,15}\bfee/i,
+    ],
+    fact:
+      'Payment is by major credit and debit cards (Visa, Mastercard), and cash at the event. There is no booking fee for online or in-person purchases.',
+    answer:
+      'We accept major credit and debit cards (Visa, Mastercard) and cash at the event. There is no booking fee for either online or in-person purchases.',
+  },
+  gate_tickets: {
+    key: 'gate_tickets',
+    patterns: [
+      /\b(gate|door|on the day|day of|same day|walk[\s-]?in)\b.*\bticket/i,
+      /\bticket.*\b(at the (gate|door)|on the day)\b/i,
+      /\bcan i (just )?(buy|get|pay).*\b(gate|door|on the day)\b/i,
+    ],
+    fact:
+      'Tickets may be available at the gate subject to availability. Advance purchase is recommended because capacity is limited and there may be queues.',
+    answer:
+      'Tickets may be available at the gate on the day, subject to availability. We recommend buying in advance, since capacity is limited and there can be queues.',
+  },
+  gift_tickets: {
+    key: 'gift_tickets',
+    patterns: [
+      /\bgift\b/i,
+      /\bticket.{0,20}\bgift\b/i,
+      /\bgift\b.{0,20}\bticket/i,
+      /\bticket.*\b(for|in)\b.*\b(someone else|another person|a friend)\b.*\bname\b/i,
+      /\bbuy.*\bfor (someone|a friend|my)\b/i,
+    ],
+    fact:
+      'Tickets can be bought as a gift in someone else\'s name. Enter the recipient\'s details at checkout, or contact the team to arrange it.',
+    answer:
+      'Yes, you can buy a ticket as a gift. Just enter the recipient\'s details at checkout, or contact us at support@youngatheart.co.za and we will arrange it.',
+  },
+  ticket_types: {
+    key: 'ticket_types',
+    patterns: [
+      /\b(ticket|pass)\s*(type|option|kind|category)s?\b/i,
+      /\b(day|weekend)\s*pass\b/i,
+      /\brider\b/i,
+      /\bwhat tickets? (are|do you)\b/i,
+    ],
+    fact:
+      'Ticket types are: Day Pass (single-day access), Weekend Pass (all days at a reduced combined price), and Rider Tickets (carnival access). Full pricing is on cthalaal.co.za.',
+    answer:
+      'There are three ticket types: a Day Pass for single-day access, a Weekend Pass for all days at a reduced combined price, and Rider Tickets for carnival access. See cthalaal.co.za for full pricing.',
+  },
+  ticket_exchange: {
+    key: 'ticket_exchange',
+    patterns: [
+      /\bexchange\b/i,
+      /\bswap\b.*\b(date|day|ticket)\b/i,
+      /\bchange\b.*\b(my )?(date|day)\b/i,
+      /\bdifferent (day|date)\b/i,
+    ],
+    fact:
+      'Exchanges are permitted up to the day before the ticketed session, subject to availability. Contact the team to arrange an exchange.',
+    answer:
+      'You can exchange a ticket up to the day before your ticketed session, subject to availability. Email support@youngatheart.co.za to arrange it.',
+  },
+  ticket_transfer: {
+    key: 'ticket_transfer',
+    patterns: [
+      /\btransfer\b/i,
+      /\bgive\b.*\bticket.*\b(to )?(someone|another person|a friend)\b/i,
+      /\bsomeone else\b.*\bgo\b/i,
+      /\bchange\b.*\b(the )?name\b/i,
+    ],
+    fact:
+      'Tickets can be transferred to someone else free of charge. Contact the team with the new attendee\'s details before the event.',
+    answer:
+      'Yes, you can transfer your ticket to someone else free of charge. Contact us at support@youngatheart.co.za with the new attendee\'s details before the event.',
+  },
+  ticket_delivery: {
+    key: 'ticket_delivery',
+    patterns: [
+      /\b(receive|get|sent|delivered|arrive)\b.*\bticket/i,
+      /\bticket.*\b(email|e[\s-]?ticket|pdf|sent|delivered)\b/i,
+      /\bwhere('| i)s my ticket\b/i,
+    ],
+    fact:
+      'Online purchases are sent to the buyer\'s email as a PDF or e-ticket. You can show it on your phone or print it. Both are accepted at the gate.',
+    answer:
+      'Online tickets are emailed to you as a PDF, or e-ticket. You can show it on your phone or print it out, and both are accepted at the gate.',
+  },
+  entry_requirements: {
+    key: 'entry_requirements',
+    patterns: [
+      /\bwhat\b.*\b(bring|need)\b.*\b(entry|enter|get in|gate)\b/i,
+      /\bneed\b.*\bto (get|bring)\b.*\bin\b/i,
+      /\bdo i need\b.*\b(ticket|anything)\b.*\b(enter|entry|gate|get in)\b/i,
+    ],
+    fact:
+      'To enter you need your ticket, either digital or printed.',
+    answer:
+      'All you need to get in is your ticket, either digital on your phone or printed.',
+  },
+  accessibility: {
+    key: 'accessibility',
+    patterns: [
+      /\b(wheelchair|accessible|accessibility|mobility|disabled|disability)\b/i,
+      /\bpriority viewing\b/i,
+    ],
+    fact:
+      'The site is wheelchair accessible with dedicated pathways, accessible toilets, and priority viewing areas. Contact the team in advance for specific assistance.',
+    answer:
+      'Yes, the site is wheelchair accessible with dedicated pathways, accessible toilets, and priority viewing areas. For specific assistance, contact us in advance at support@youngatheart.co.za.',
+  },
+  ticket_collection: {
+    key: 'ticket_collection',
+    patterns: [
+      /\b(collect|collection|pick up|pickup)\b.*\bticket/i,
+      /\bticket.*\b(collect|collection|pick up|pickup)\b/i,
+      /\bwhere\b.*\bcollect\b/i,
+    ],
+    fact:
+      'In-person tickets are collected at the main entrance on event days.',
+    answer:
+      'You can collect in-person tickets at the main entrance on event days.',
+  },
+  ticket_scan_issue: {
+    key: 'ticket_scan_issue',
+    patterns: [
+      /\bscan\b/i,
+      /\bticket.*\b(won'?t|wont|not|doesn'?t|does not|can'?t)\b.*\b(work|scan|open)\b/i,
+      /\b(qr|barcode)\b.*\b(work|scan|invalid)\b/i,
+    ],
+    fact:
+      'If an e-ticket will not scan, go to the customer service desk at the entrance with the booking confirmation email ready. Staff will assist.',
+    answer:
+      'If your e-ticket will not scan, head to the customer service desk at the entrance with your booking confirmation email ready, and staff will sort it out.',
   },
 }
 
