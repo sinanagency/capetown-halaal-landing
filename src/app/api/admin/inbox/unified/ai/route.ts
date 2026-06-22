@@ -40,7 +40,7 @@ interface Turn { role: 'vendor' | 'team'; channel: 'whatsapp' | 'email'; text: s
 
 const HARD_FACTS = `FESTIVAL FACTS (use only these, never invent):
 - Young at Heart Festival (Cape Town Halaal), 11 to 13 December 2026, Youngsfield Military Base, Wetton Road, Claremont, Cape Town.
-- Tickets R30/day, R60 weekend pass, kids under 5 free. Buy + apply at cthalaal.co.za. Vendor apply: cthalaal.co.za/apply. Exhibitor portal: cthalaal.co.za/exhibitor/login.
+- Tickets R30/day, R60 weekend pass, children under 3 free. Buy + apply at cthalaal.co.za. Vendor apply: cthalaal.co.za/apply. Exhibitor portal: cthalaal.co.za/exhibitor/login.
 - All food on site is strictly halaal. Free parking on site. Contact: support@youngatheart.co.za.
 - Vendor flow: apply, approval takes a few working days, pay stall fee by card in the portal, stall allocated closer to the festival.`
 
