@@ -187,7 +187,10 @@ export async function POST(request: NextRequest) {
       // Stamp the durable marker only after a confirmed send, so dedup never claims an unsent vendor.
       if (admin && r.id) {
         const newNotes = (r.notes || '').trim() ? `${r.notes}\n${markLine}` : markLine
-        await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', r.id)
+        const { error: stampError } = await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', r.id)
+        if (stampError) {
+          console.error('[campaign/send] dedup marker stamp failed for', r.id, stampError.message)
+        }
       }
     } catch (e) {
       failed++

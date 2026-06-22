@@ -199,7 +199,11 @@ export async function POST(req: NextRequest) {
         // Release ONLY this code from the vendor's list. removeStallCode keeps
         // their other booths and drops the marker only when this was their last.
         const { data: app } = await admin.from('vendor_applications').select('admin_notes').eq('id', current.id).single()
-        await admin.from('vendor_applications').update({ admin_notes: removeStallCode(app?.admin_notes, stallCode) }).eq('id', current.id)
+        const { error } = await admin.from('vendor_applications').update({ admin_notes: removeStallCode(app?.admin_notes, stallCode) }).eq('id', current.id)
+        if (error) {
+          console.error('[stalls clear] update failed:', error.message)
+          return NextResponse.json({ error: error.message }, { status: 500 })
+        }
         cleared = true
       }
       return NextResponse.json({ ok: true, message: cleared ? `${stallCode} cleared` : `${stallCode} already free` })

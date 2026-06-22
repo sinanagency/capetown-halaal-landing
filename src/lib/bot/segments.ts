@@ -5,6 +5,18 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePortalState } from '@/lib/portal-state'
 
+// Canonical "paid" test: read the three real sources (payment_status column,
+// paid_at column, legacy portal-state marker), mirroring exhibitor-paygate
+// isPaid / triage buckets hasPaid / whatsapp isPaidRow. paid_at also catches
+// waived vendors (payment_status='waived' + paid_at stamped). The old
+// marker-only test misclassified vendors paid by Yoco webhook / admin
+// mark-paid / fee waiver (column set, marker absent).
+function isRowPaid(r: { payment_status: string | null; paid_at: string | null; admin_notes: string | null }): boolean {
+  if (r.payment_status === 'paid') return true
+  if (r.paid_at) return true
+  return parsePortalState(r.admin_notes).payment?.status === 'paid'
+}
+
 export type SegmentKey =
   | 'pending'
   | 'approved'
@@ -67,7 +79,7 @@ export async function resolveSegment(key: SegmentKey): Promise<Recipient[]> {
   const baseStatus = key === 'approved_unpaid' || key === 'approved_paid' ? 'approved' : key
   const { data } = await db
     .from('vendor_applications')
-    .select('id, email, business_name, contact_name, admin_notes')
+    .select('id, email, business_name, contact_name, admin_notes, payment_status, paid_at')
     .eq('status', baseStatus)
     .limit(5000)
   let rows = (data || []) as Array<{
@@ -76,13 +88,17 @@ export async function resolveSegment(key: SegmentKey): Promise<Recipient[]> {
     business_name: string | null
     contact_name: string | null
     admin_notes: string | null
+    payment_status: string | null
+    paid_at: string | null
   }>
 
+  // approved_paid and approved_unpaid are exact complements over the approved
+  // set, partitioned on isRowPaid (see helper above).
   if (key === 'approved_unpaid') {
-    rows = rows.filter((r) => parsePortalState(r.admin_notes).payment?.status !== 'paid')
+    rows = rows.filter((r) => !isRowPaid(r))
   }
   if (key === 'approved_paid') {
-    rows = rows.filter((r) => parsePortalState(r.admin_notes).payment?.status === 'paid')
+    rows = rows.filter((r) => isRowPaid(r))
   }
 
   return rows
