@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireOperator } from '@/lib/admin-rbac'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await requireOperator()
+  if (!gate.ok) return gate.response
 
   const admin = createAdminClient()
-  const { data: adminUser } = await admin.from('admin_users').select('id').eq('id', user.id).single()
-  if (!adminUser) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json()
   const { action, value } = body

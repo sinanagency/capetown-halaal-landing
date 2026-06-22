@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireOperator } from '@/lib/admin-rbac'
 import {
   STALL_LIST, STALL_GRID, STALL_ZONES, STALL_CAPACITY, TYPE_META,
   parseAllocation, withAllocation, removeStallCode, tierLabel, stallTypeOf,
@@ -143,9 +144,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireAdmin()
-    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
-    const admin = auth.admin
+    // Mutating: allocates/holds/blocks/clears stalls + fires vendor notifications.
+    // Centralised owner/operator gate (the local requireAdmin above stays on GET).
+    const gate = await requireOperator()
+    if (!gate.ok) return gate.response
+    const admin = createAdminClient()
 
     const body = await req.json().catch(() => ({}))
     const stallCode: string = body.stall_code

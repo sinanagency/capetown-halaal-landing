@@ -92,8 +92,8 @@ export default function FinancePage() {
   const [data, setData] = useState<FinanceResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'payments' | 'reconciliation'>('payments')
-  // Operator default: show PAID vendors first on load. 'All' stays available.
-  const [paymentFilter, setPaymentFilter] = useState<string>('paid')
+  // Operator default: show ALL vendors on load. Paid/Pending/Overdue/Not invoiced stay available.
+  const [paymentFilter, setPaymentFilter] = useState<string>('')
   // Outside-vendor payment capture (non-marquee zones — tracked, not allocated).
   const [captureOpen, setCaptureOpen] = useState(false)
   const [capVendor, setCapVendor] = useState('')

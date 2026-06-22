@@ -8,11 +8,11 @@
 // (no DDL — the payment columns don't exist; Law 8).
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { updatePortalState } from '@/lib/portal-state'
 import { zoneByKey } from '@/lib/venue-zones'
 import { notifyOwners } from '@/lib/bot/notify'
+import { requireOperator } from '@/lib/admin-rbac'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -27,21 +27,11 @@ const bodySchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  const gate = await requireOperator()
+  if (!gate.ok) return gate.response
+  const { user, adminUser } = gate
 
   const admin = createAdminClient()
-  const { data: adminUser } = await admin
-    .from('admin_users')
-    .select('id, role, email')
-    .eq('id', user.id)
-    .single()
-  if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-  const role = (adminUser.role || 'operator') as string
-  if (!['owner', 'operator'].includes(role)) {
-    return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
-  }
 
   let parsed: z.infer<typeof bodySchema>
   try {

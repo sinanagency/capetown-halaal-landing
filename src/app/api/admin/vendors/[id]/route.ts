@@ -24,8 +24,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireOperator } from '@/lib/admin-rbac'
 import { TIER_META } from '@/lib/stalls'
 
 export const runtime = 'nodejs'
@@ -68,22 +68,12 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid application id' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+    const gate = await requireOperator()
+    if (!gate.ok) return gate.response
+    const { adminUser } = gate
 
     const db = createAdminClient()
-    const { data: adminUser } = await db
-      .from('admin_users')
-      .select('id, role, email')
-      .eq('id', user.id)
-      .maybeSingle()
-    if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-    const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
-    if (!['owner', 'operator'].includes(role)) {
-      return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
-    }
-    const actorEmail = ((adminUser as { email?: string | null }).email) || user.email || null
+    const actorEmail = adminUser.email
 
     const body = await req.json().catch(() => ({}))
 

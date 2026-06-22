@@ -122,6 +122,47 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
   const amount = input.amount ?? before.payment?.amount ?? pricing.total
 
   const paidAtIso = new Date().toISOString()
+
+  // Atomic transition authority. This guarded UPDATE is the SINGLE point that
+  // decides whether THIS call is the one that moved the row unpaid -> paid.
+  // It only touches a row where paid_at IS NULL, and .select() returns the
+  // rows it actually wrote. Under Yoco retry / concurrent webhook delivery,
+  // exactly one call matches the unpaid row and gets a returned row back; every
+  // other concurrent/retried call matches 0 rows and gets an empty array. We
+  // run this BEFORE the side-effects and gate every send on its result, so a
+  // duplicate webhook can never re-send the confirmation email/WhatsApp/owner
+  // notify. The non-atomic `alreadyPaid` read above is no longer load-bearing
+  // for the send decision (it stays only as a returned-result hint to callers).
+  //
+  // Idempotent: only writes when paid_at IS NULL (first transition into paid).
+  // payment_status is also flipped to 'paid' or 'waived' to match the method.
+  // This mirrors the portal-state payment to the top-level vendor_applications
+  // columns the admin queue + CSV export + segments read from.
+  const targetPaymentStatus: 'paid' | 'waived' =
+    input.method === 'waived' ? 'waived' : 'paid'
+  const { data: transitioned, error: colErr } = await admin
+    .from('vendor_applications')
+    .update({
+      paid_at: paidAtIso,
+      payment_status: targetPaymentStatus,
+    })
+    .eq('id', input.applicationId)
+    .is('paid_at', null)
+    .select('id')
+  if (colErr) {
+    console.error('[confirmPayment] column mirror failed:', colErr.message)
+  }
+
+  // This call won the unpaid -> paid transition iff the guarded UPDATE affected
+  // exactly the unpaid row (returned >= 1 row). On a DB error we conservatively
+  // treat the transition as NOT won (wonTransition = false) so a failed/ambiguous
+  // write never triggers a send. A retried/concurrent duplicate matches 0 rows
+  // here and therefore skips all sends below while the first caller proceeds.
+  const wonTransition = !colErr && Array.isArray(transitioned) && transitioned.length > 0
+
+  // Keep the base64 marker on admin_notes in sync (admin UI + portal read it).
+  // This stays idempotent for marker state regardless of who won the column
+  // transition, so the marker is correct even on a retried call.
   await updatePortalState(input.applicationId, (s) => ({
     ...s,
     payment: {
@@ -134,28 +175,11 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
     stage: s.stage === 'show_ready' ? 'show_ready' : 'paid',
   }))
 
-  // Broken-wire fix: mirror the portal-state payment to the top-level
-  // vendor_applications columns the admin queue + CSV export + segments read
-  // from. Without this, those surfaces lie about who's paid because they read
-  // the columns, not the base64 marker on admin_notes.
-  // Idempotent: only writes when paid_at IS NULL (first transition into paid).
-  // payment_status is also flipped to 'paid' or 'waived' to match the method.
-  const targetPaymentStatus: 'paid' | 'waived' =
-    input.method === 'waived' ? 'waived' : 'paid'
-  const { error: colErr } = await admin
-    .from('vendor_applications')
-    .update({
-      paid_at: paidAtIso,
-      payment_status: targetPaymentStatus,
-    })
-    .eq('id', input.applicationId)
-    .is('paid_at', null)
-  if (colErr) {
-    console.error('[confirmPayment] column mirror failed:', colErr.message)
-  }
-
-  if (alreadyPaid || input.silent) {
-    return { ok: true, alreadyPaid, amount }
+  // Send-gating: only the call that actually performed the unpaid -> paid
+  // transition sends. `silent` still suppresses sends for backfill/corrections.
+  // A duplicate webhook (wonTransition === false) returns here WITHOUT sending.
+  if (!wonTransition || input.silent) {
+    return { ok: true, alreadyPaid: !wonTransition, amount }
   }
 
   const contactName = (app.contact_name as string) || 'there'
@@ -211,5 +235,6 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
     }
   }
 
+  // Reached only by the call that won the unpaid -> paid transition and sent.
   return { ok: true, alreadyPaid: false, amount }
 }

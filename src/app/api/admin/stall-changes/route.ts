@@ -40,7 +40,7 @@ async function requireOperator() {
   const db = createAdminClient()
   const { data: adminUser } = await db.from('admin_users').select('id, role').eq('id', user.id).maybeSingle()
   if (!adminUser) return { error: 'forbidden', status: 403 as const }
-  const role = ((adminUser as { role?: string }).role || 'operator').toLowerCase()
+  const role = ((adminUser as { role?: string }).role || 'viewer').toLowerCase()
   if (!['owner', 'operator'].includes(role)) {
     return { error: 'insufficient_role', status: 403 as const }
   }
