@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { getExhibitorContext } from '@/lib/exhibitor'
 import { parsePortalState } from '@/lib/portal-state'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { paymentsEnabled, paymentReference } from '@/lib/payments'
 import { computeVendorPricing, formatRand } from '@/lib/payments/pricing'
 import { computePaymentDue, daysUntil, fmtDate, requireContractSigned } from '@/lib/exhibitor-paygate'
 import PaymentPanel from '@/components/exhibitor/PaymentPanel'
-import { AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock, Download } from 'lucide-react'
 import {
   PageShell, PageHeader, Card
 } from '@/components/chrome/PageChrome'
@@ -26,6 +27,33 @@ export default async function PaymentsPage() {
   const reference = state.payment?.reference || (app ? paymentReference(app.id as string) : null)
   const attemptedAt = state.payment?.attempted_at as string | undefined
   const failedAttempts = (state.payment?.failed_attempts as number | undefined) || 0
+
+  // EFT payment receipts / refund proofs an organiser uploaded for this vendor.
+  // Each proof's file lives in the private vendor-docs bucket; we mint a short
+  // lived signed URL server-side (Law 2). This page is already scoped to the
+  // logged-in vendor's own application, so only their own proofs are listed.
+  // A proof whose signed URL cannot be minted is skipped, never crashes the page.
+  const proofs = state.payment?.proofs || []
+  const proofViews = proofs.length > 0
+    ? (await Promise.all(
+        proofs.map(async (p) => {
+          if (!p.path || typeof p.path !== 'string' || p.path.trim().length === 0) return null
+          try {
+            const admin = createAdminClient()
+            const { data } = await admin.storage.from('vendor-docs').createSignedUrl(p.path, 3600)
+            if (!data?.signedUrl) return null
+            return {
+              kind: p.kind,
+              note: p.note,
+              uploaded_at: p.uploaded_at,
+              url: data.signedUrl,
+            }
+          } catch {
+            return null
+          }
+        })
+      )).filter((p): p is NonNullable<typeof p> => p !== null)
+    : []
 
   // Compute the itemised breakdown from the application data so the vendor sees
   // exactly what they're paying for. An organiser-set state.payment.amount
@@ -159,6 +187,44 @@ export default async function PaymentsPage() {
           attemptedAt={attemptedAt || null}
           failedAttempts={failedAttempts}
         />
+
+        {proofViews.length > 0 && (
+          <Card>
+            <p className="text-xs uppercase tracking-wider text-[#1B1A17]/55 font-semibold mb-4">
+              Payment &amp; refund proofs
+            </p>
+            <ul className="space-y-3">
+              {proofViews.map((p, i) => (
+                <li
+                  key={i}
+                  className="flex items-start justify-between gap-4 rounded-xl border border-[#B8924A]/15 bg-white p-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1B1A17]">
+                      {p.kind === 'refund' ? 'Refund proof' : 'Payment receipt'}
+                    </p>
+                    {p.note && (
+                      <p className="text-sm text-[#1B1A17]/70 mt-0.5 break-words">{p.note}</p>
+                    )}
+                    {p.uploaded_at && (
+                      <p className="text-xs text-[#1B1A17]/50 mt-1">
+                        Uploaded {fmtDate(p.uploaded_at)}
+                      </p>
+                    )}
+                  </div>
+                  <a
+                    href={p.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[#cd2653]/30 px-3 py-1.5 text-xs font-semibold text-[#cd2653] hover:bg-[#cd2653]/5"
+                  >
+                    <Download className="w-3.5 h-3.5" /> View
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
       </div>
     </PageShell>
   )

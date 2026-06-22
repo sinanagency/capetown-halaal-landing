@@ -93,6 +93,11 @@ export interface PortalState {
     zone?: string
     /** Free-text note the operator added when capturing a manual payment. */
     capture_note?: string
+    /** EFT receipt / refund proof files an operator uploaded. The file lives in
+     *  the private vendor-docs bucket; only the storage path is stored here, the
+     *  vendor portal mints a short-lived signed URL server-side (Law 2). Writer:
+     *  /api/admin/vendors/[id]/payment-proof. */
+    proofs?: Array<{ path: string; kind: 'receipt' | 'refund'; note?: string; uploaded_at: string }>
   }
   docs?: DocRecord[]
   staff?: StaffMember[]

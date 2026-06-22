@@ -171,6 +171,16 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
   const [markPaidNote, setMarkPaidNote] = useState('')
   const [markPaidErr, setMarkPaidErr] = useState<string | null>(null)
 
+  // --- EFT payment / refund proof upload state ---
+  const [proofFile, setProofFile] = useState<File | null>(null)
+  const [proofKind, setProofKind] = useState<'receipt' | 'refund'>('receipt')
+  const [proofNote, setProofNote] = useState('')
+  const [proofBusy, setProofBusy] = useState(false)
+  const [proofErr, setProofErr] = useState<string | null>(null)
+  const [proofOk, setProofOk] = useState(false)
+  // Bump on each successful upload to force the file input to remount + clear.
+  const [proofInputKey, setProofInputKey] = useState(0)
+
   // --- Edit contact / amend application form state ---
   const [editBusiness, setEditBusiness] = useState('')
   const [editContact, setEditContact] = useState('')
@@ -334,6 +344,38 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
       setMarkPaidErr((e as Error).message)
     } finally {
       setMarkPaidBusy(false)
+    }
+  }
+
+  // Upload an EFT payment receipt or a refund proof. POSTs multipart form-data
+  // to /api/admin/vendors/[id]/payment-proof, which stores the file in the
+  // private vendor-docs bucket and appends to state.payment.proofs. The vendor
+  // then sees it in their portal payments page via a signed URL (Law 2).
+  async function handleUploadProof() {
+    if (!proofFile) { setProofErr('Choose a file first'); return }
+    setProofBusy(true)
+    setProofErr(null)
+    setProofOk(false)
+    try {
+      const fd = new FormData()
+      fd.append('file', proofFile)
+      fd.append('kind', proofKind)
+      if (proofNote.trim()) fd.append('note', proofNote.trim())
+      const r = await fetch(`/api/admin/vendors/${v.id}/payment-proof`, {
+        method: 'POST',
+        body: fd,
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setProofErr(j.error || `Failed (${r.status})`); return }
+      setProofOk(true)
+      setProofFile(null)
+      setProofNote('')
+      setProofInputKey((k) => k + 1)
+      router.refresh()
+    } catch (e) {
+      setProofErr((e as Error).message)
+    } finally {
+      setProofBusy(false)
     }
   }
 
@@ -852,6 +894,61 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
               {markPaidBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
               Confirm Paid
             </button>
+
+            {/* EFT payment / refund proof upload. The file lands in the private
+                vendor-docs bucket; the vendor sees it on their portal payments
+                page via a short-lived signed URL (Law 2). */}
+            <div className="pt-4 mt-2 border-t border-neutral-200 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-neutral-700">EFT payment / refund proof</p>
+                <p className="text-xs text-neutral-500 mt-1">
+                  Upload a bank receipt for an extra EFT payment, or a refund proof. The vendor sees it in their portal.
+                </p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-neutral-600 block mb-1">Proof type</label>
+                <select
+                  value={proofKind}
+                  onChange={(e) => setProofKind(e.target.value as 'receipt' | 'refund')}
+                  aria-label="Proof type"
+                  className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm bg-white"
+                >
+                  <option value="receipt">Payment receipt</option>
+                  <option value="refund">Refund proof</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-neutral-600 block mb-1">File</label>
+                <input
+                  key={proofInputKey}
+                  type="file"
+                  onChange={(e) => setProofFile(e.target.files?.[0] || null)}
+                  aria-label="Proof file"
+                  className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-neutral-100 file:px-2 file:py-1 file:text-xs file:font-medium file:text-neutral-700"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-neutral-600 block mb-1">Note</label>
+                <input
+                  type="text"
+                  value={proofNote}
+                  onChange={(e) => setProofNote(e.target.value)}
+                  aria-label="Proof note"
+                  className="w-full border border-neutral-200 rounded-md px-3 py-2 text-sm"
+                  placeholder="Optional note, e.g. EFT for extra electrical"
+                />
+              </div>
+              {proofErr && <p className="text-xs text-red-600">{proofErr}</p>}
+              {proofOk && <p className="text-xs text-emerald-600">Proof uploaded. Vendor can now see it.</p>}
+              <button
+                onClick={handleUploadProof}
+                disabled={proofBusy || !proofFile}
+                className="w-full bg-[#cd2653] hover:bg-[#b01f45] text-white text-sm font-medium py-2 px-4 rounded-md disabled:opacity-60 inline-flex items-center justify-center gap-2"
+              >
+                {proofBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                Upload Proof
+              </button>
+            </div>
           </div>
         )}
 
