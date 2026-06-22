@@ -9,8 +9,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireOperator } from '@/lib/admin-rbac'
 import { stripEmDashes } from '@/lib/festival-brain/system-prompt'
 import { z } from 'zod'
 
@@ -118,12 +118,12 @@ function promptFor(action: Action, turns: Turn[], draft: string): { system: stri
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  // RBAC: owner/operator only. This route burns LLM budget and reads full
+  // vendor PII (WhatsApp + email transcripts), so a viewer-role admin must
+  // not run it. requireOperator preserves 401-before-403 semantics.
+  const gate = await requireOperator()
+  if (!gate.ok) return gate.response
   const db = createAdminClient()
-  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
-  if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   if (!client) return NextResponse.json({ error: 'AI is not configured right now.' }, { status: 503 })
 

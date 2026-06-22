@@ -8,7 +8,7 @@ import {
   Calendar, MapPin, Users, Building2, ArrowRight, ArrowUpRight,
   Utensils, ShoppingBag, Sparkles, Globe, Award, Clock,
   ChevronRight, Instagram, Facebook, Youtube,
-  Mail, Phone, Star, Ticket, Store, Play, ChevronDown, Zap, X, Send, LogIn
+  Mail, Phone, Star, Ticket, Store, Play, ChevronDown, Zap, LogIn
 } from 'lucide-react'
 import { Logo, LogoMark } from '@/components/logo'
 import { HeroSection } from '@/components/hero-section'
@@ -24,7 +24,6 @@ import { SponsorsSection } from '@/components/sponsors-section'
 import { GallerySection } from '@/components/gallery-section'
 import { SmileFMBanner } from '@/components/smile-fm-banner'
 import { GlowingLine } from '@/components/ui/floating-particles'
-import { toast } from 'sonner'
 
 // Images
 const IMAGES = {
@@ -149,151 +148,6 @@ function FeatureCard({ icon: Icon, title, description, delay = 0 }: { icon: Reac
   )
 }
 
-// Contact Modal Component
-function ContactModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    subject: '',
-    message: ''
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-
-    // Simulate form submission
-    await new Promise(resolve => setTimeout(resolve, 1000))
-
-    toast.success('Message sent successfully!', {
-      description: "We'll get back to you within 24 hours."
-    })
-
-    setIsSubmitting(false)
-    onClose()
-    setFormData({ name: '', email: '', subject: '', message: '' })
-  }
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          onClick={onClose}
-        >
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg bg-neutral-900 border border-white/10 rounded-2xl p-6 shadow-2xl"
-          >
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="mb-6">
-              <h3 className="text-2xl font-bold text-white mb-2">Get In Touch</h3>
-              <p className="text-neutral-400 text-sm">
-                Have questions about Young at Heart Festival 2026? We&apos;d love to hear from you.
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-1">Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-[#cd2653]/50 transition-colors"
-                    placeholder="John Doe"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-300 mb-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-[#cd2653]/50 transition-colors"
-                    placeholder="you@example.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-1">Subject</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.subject}
-                  onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-[#cd2653]/50 transition-colors"
-                  placeholder="What's this about?"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-300 mb-1">Message</label>
-                <textarea
-                  rows={4}
-                  required
-                  value={formData.message}
-                  onChange={(e) => setFormData(prev => ({ ...prev, message: e.target.value }))}
-                  className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-neutral-500 focus:outline-none focus:border-[#cd2653]/50 transition-colors resize-none"
-                  placeholder="Your message..."
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3 bg-gradient-to-r from-[#cd2653] to-[#bf3026] rounded-xl font-semibold text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    Send Message
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-center gap-6 text-sm text-neutral-400">
-              <a href="mailto:support@youngatheart.co.za" className="flex items-center gap-2 hover:text-white transition-colors">
-                <Mail className="w-4 h-4" />
-                support@youngatheart.co.za
-              </a>
-              <a href="tel:+27659435012" className="flex items-center gap-2 hover:text-white transition-colors">
-                <Phone className="w-4 h-4" />
-                065 943 5012
-              </a>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  )
-}
-
 function LoadingScreen() {
   return (
     <motion.div
@@ -355,7 +209,6 @@ function LoadingScreen() {
 
 export default function HomePage() {
   const [isLoaded, setIsLoaded] = useState(false)
-  const [contactModalOpen, setContactModalOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
@@ -377,7 +230,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white text-neutral-900">
-      <ContactModal isOpen={contactModalOpen} onClose={() => setContactModalOpen(false)} />
       <Spotlight />
 
       {/* Navigation */}

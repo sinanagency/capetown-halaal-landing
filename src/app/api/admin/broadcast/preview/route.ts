@@ -20,6 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireOperator } from '@/lib/admin-rbac'
 import {
   TEMPLATE_KEYS,
   renderMailTemplatePreview,
@@ -170,8 +171,13 @@ interface PreviewBody {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await assertAdmin()
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  // RBAC: owner/operator only. POST renders vendor PII (merge-tag substitution
+  // of names, business names, stall codes) into the preview, so a viewer-role
+  // admin must not run it. requireOperator (centralized gate, replacing the
+  // inline assertAdmin) preserves 401-before-403 semantics. The GET audience
+  // sample stays membership-only by design (read-only picker data).
+  const gate = await requireOperator()
+  if (!gate.ok) return gate.response
 
   let body: PreviewBody
   try {

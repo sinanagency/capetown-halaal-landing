@@ -41,7 +41,11 @@ export interface FloorCommandProps {
   booths: FloorBooth[]
   grid: { cols: number; rows: number }
   applications?: FloorApp[]
+  /** Single owned booth code (backward-compat, single-booth vendors). */
   mineCode?: string | null
+  /** Full list of the vendor's owned booth codes (multi-booth). Every code in
+   *  this set is flagged as "yours" on the map. Takes precedence over mineCode. */
+  mineCodes?: string[]
   /** Hide the Admin/Vendor toggle pill. The page already knows its role. */
   hideModeSwitch?: boolean
   onAllocate?: (boothCode: string, vendorName: string, status: 'allocated' | 'reserved') => Promise<void> | void
@@ -116,12 +120,23 @@ export default function FloorCommand({
   grid,
   applications = [],
   mineCode = null,
+  mineCodes,
   hideModeSwitch = false,
   onAllocate,
   onRelease,
   onToggleBlock,
   onStallClick,
 }: FloorCommandProps) {
+  // Owned booth codes (multi-booth aware). `mineCodes` (array) wins; fall back to
+  // the legacy single `mineCode`. EVERY code in this set is flagged as "yours".
+  const mineSet = useMemo(() => {
+    const list = (mineCodes && mineCodes.length ? mineCodes : (mineCode ? [mineCode] : []))
+    return new Set(list)
+  }, [mineCodes, mineCode])
+  // Primary owned code: the anchor used for initial selection. First in the list.
+  const primaryMine = (mineCodes && mineCodes.length ? mineCodes[0] : mineCode) || null
+  const hasMine = mineSet.size > 0
+
   const [mode, setMode] = useState<'admin' | 'vendor'>(initialMode)
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -136,8 +151,8 @@ export default function FloorCommand({
 
   useEffect(() => {
     setMode(initialMode)
-    if (initialMode === 'vendor' && mineCode) setSelected(mineCode)
-  }, [initialMode, mineCode])
+    if (initialMode === 'vendor' && primaryMine) setSelected(primaryMine)
+  }, [initialMode, primaryMine])
 
   const selBooth = useMemo(() => booths.find((b) => b.code === selected) || null, [booths, selected])
 
@@ -447,12 +462,12 @@ export default function FloorCommand({
             {booths.map((b) => {
               const isFacility = b.type === 'facility'
               const isSel = selected === b.code
-              const isMine = !!mineCode && b.code === mineCode
+              const isMine = mineSet.has(b.code)
               const isHit = searchHits.has(b.code)
               // Dim non-matches while a search is active (any mode), so the few
               // matches stand out. Facilities never dim — they're context.
               const searchDim = hasActiveSearch && searchHits.size > 0 && !isHit && !isFacility
-              const isDimmed = searchDim || (mode === 'vendor' && !!mineCode && !isMine && !isHit)
+              const isDimmed = searchDim || (mode === 'vendor' && hasMine && !isMine && !isHit)
               const fill = isMine ? C.brand : fillFor(b.status)
               const stroke = isMine ? C.brand2 : isSel || isHit ? C.brand : strokeFor(b.status)
               const tcolor = isMine ? '#fff' : textFill(b.status)
@@ -659,7 +674,7 @@ export default function FloorCommand({
               </>
             )}
 
-            {mode === 'vendor' && selBooth.code === mineCode && (
+            {mode === 'vendor' && mineSet.has(selBooth.code) && (
               <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
                 This is your booth. If anything looks off, message the organisers from the support page.
               </div>

@@ -4,8 +4,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { requireOperator } from '@/lib/admin-rbac'
 import { askDgx, dgxConfigured, DgxNotConfigured } from '@/lib/llm/dgx'
 import { toE164 } from '@/lib/whatsapp'
 import { wrapUntrusted, UNTRUSTED_CONTENT_RULE } from '@/lib/ai/prompt-safety'
@@ -60,12 +60,12 @@ Suggestions should be warm but practical. Address the vendor by name when known.
 ${UNTRUSTED_CONTENT_RULE}`
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+  // RBAC: owner/operator only. This route burns LLM budget and reads full
+  // vendor PII (WhatsApp transcripts + vendor record), so a viewer-role admin
+  // must not run it. requireOperator preserves 401-before-403 semantics.
+  const gate = await requireOperator()
+  if (!gate.ok) return gate.response
   const db = createAdminClient()
-  const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
-  if (!adminUser) return NextResponse.json({ ok: false, error: 'Forbidden' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const phone = String(body.phone || '').trim()
