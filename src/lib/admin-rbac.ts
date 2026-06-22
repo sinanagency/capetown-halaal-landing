@@ -32,7 +32,10 @@ export async function getRole(userId: string | null | undefined): Promise<AdminR
       .single()
 
     if (error || !data) return null
-    return normalizeRole((data as { role?: string }).role) ?? 'operator'
+    // Fail CLOSED: an admin_users row with a missing or unrecognized role
+    // is the LEAST-privileged role (viewer), never operator. A role-less
+    // row must not silently inherit vendor-mutate rights.
+    return normalizeRole((data as { role?: string }).role) ?? 'viewer'
   } catch (err) {
     console.error('[admin-rbac] getRole failed:', err)
     return null

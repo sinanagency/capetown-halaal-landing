@@ -120,6 +120,44 @@ export const WA_META_TEMPLATES: WaTemplateSpec[] = [
       { key: 'first_name', label: 'First name', placeholder: 'Aisha', required: true },
     ],
   },
+  // ---------------------------------------------------------------------------
+  // PENDING META APPROVAL — added 2026-06-22 to stop notifyVendor silently 400ing
+  // on template names Meta never had. The two events below (document approved /
+  // document rejected) fire from an ADMIN action in the workbench, so the vendor
+  // is almost never inside the 24h customer service window. A free-form sendText
+  // would be blocked by canSend and never deliver, so these MUST go via a
+  // business-initiated template. The exact `key` names below must be CREATED AND
+  // APPROVED in Meta Business Manager against the YAH WABA before they will
+  // actually deliver. Until approved, the send will skip/fail observably (logged
+  // by notifyVendor) instead of silently 400ing on a name that can never exist.
+  // ---------------------------------------------------------------------------
+  {
+    key: 'vendor_document_approved',
+    label: 'Vendor document approved',
+    description: 'Confirm to a vendor that a submitted document was approved.',
+    category: 'utility',
+    lang: 'en',
+    previewBody:
+      'Hi {{1}}, good news. Your {{2}} has been approved. Thank you for submitting. You can review your documents in the vendor portal.',
+    params: [
+      { key: 'first_name', label: 'First name', placeholder: 'Aisha', required: true },
+      { key: 'document_label', label: 'Document', placeholder: 'food handling certificate', required: true },
+    ],
+  },
+  {
+    key: 'vendor_document_rejected',
+    label: 'Vendor document needs attention',
+    description: 'Tell a vendor a submitted document was not approved and why.',
+    category: 'utility',
+    lang: 'en',
+    previewBody:
+      'Hi {{1}}, your {{2}} was not approved. Reason: {{3}}. Please log in to the vendor portal to upload a replacement.',
+    params: [
+      { key: 'first_name', label: 'First name', placeholder: 'Aisha', required: true },
+      { key: 'document_label', label: 'Document', placeholder: 'food handling certificate', required: true },
+      { key: 'reason', label: 'Reason', placeholder: 'image was blurry', required: true },
+    ],
+  },
 ]
 
 export function findWaTemplate(key: string): WaTemplateSpec | undefined {

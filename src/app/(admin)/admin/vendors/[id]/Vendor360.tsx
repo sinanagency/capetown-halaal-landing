@@ -6,8 +6,9 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, MessageCircle, Mail, CreditCard, MapPin, Phone,
   FileText, Users, History, Eye, ChevronDown, ChevronUp, Loader2,
-  StickyNote, Plus,
+  StickyNote, Plus, Check, X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { AdminPage } from '@/components/admin/AdminPage'
 import { KpiStrip } from '@/components/chrome/KpiStrip'
 import { Kpi } from '@/components/chrome/Kpi'
@@ -222,6 +223,46 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
     setPreviewDoc(doc)
     setDrawerView('doc')
     setDrawerOpen(true)
+  }
+
+  // Approve / reject a single uploaded document. Hits the doc-action route,
+  // which mutates portal.docs[].status, fires notifyVendor(document_approved/
+  // rejected), and stamps ⟦DOCS:complete⟧ once every required doc is approved.
+  const [docBusy, setDocBusy] = useState<string | null>(null)
+  async function handleDocAction(doc: DocRecord, action: 'approve' | 'reject') {
+    const key = `${doc.type}:${action}`
+    let note: string | undefined
+    if (action === 'reject') {
+      const reason = window.prompt(`Reason for rejecting "${doc.name}"? (sent to the vendor)`)
+      if (reason === null) return // operator cancelled
+      note = reason.trim() || undefined
+    }
+    setDocBusy(key)
+    try {
+      const r = await fetch(`/api/admin/vendors/${v.id}/doc-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: doc.type, action, note }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || `Failed (${r.status})`)
+      const label = REQUIRED_DOC_LABELS[doc.type] || doc.type
+      if (action === 'approve') {
+        toast.success(
+          j.all_required_approved
+            ? `${label} approved. All required docs complete, vendor notified.`
+            : `${label} approved. Vendor notified.`
+        )
+      } else {
+        toast.success(`${label} rejected. Vendor notified.`)
+      }
+      setDrawerOpen(false)
+      router.refresh()
+    } catch (e) {
+      toast.error((e as Error).message || 'Document action failed')
+    } finally {
+      setDocBusy(null)
+    }
   }
 
   function openMarkPaid() {
@@ -445,13 +486,37 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
               ),
             },
             {
-              key: 'actions', header: '', width: '60px', render: (doc) => (
-                <button
-                  onClick={(e) => { e.stopPropagation(); openDocPreview(doc) }}
-                  className="text-xs text-blue-700 hover:underline inline-flex items-center gap-1"
-                >
-                  <Eye className="w-3 h-3" /> View
-                </button>
+              key: 'actions', header: '', width: '210px', render: (doc) => (
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openDocPreview(doc) }}
+                    className="text-xs text-blue-700 hover:underline inline-flex items-center gap-1"
+                  >
+                    <Eye className="w-3 h-3" /> View
+                  </button>
+                  {doc.status !== 'approved' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDocAction(doc, 'approve') }}
+                      disabled={docBusy !== null}
+                      className="text-xs font-semibold text-green-700 hover:text-green-800 inline-flex items-center gap-1 disabled:opacity-50"
+                    >
+                      {docBusy === `${doc.type}:approve`
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <Check className="w-3 h-3" />} Approve
+                    </button>
+                  )}
+                  {doc.status !== 'rejected' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDocAction(doc, 'reject') }}
+                      disabled={docBusy !== null}
+                      className="text-xs font-semibold text-[#cd2653] hover:text-[#bf3026] inline-flex items-center gap-1 disabled:opacity-50"
+                    >
+                      {docBusy === `${doc.type}:reject`
+                        ? <Loader2 className="w-3 h-3 animate-spin" />
+                        : <X className="w-3 h-3" />} Reject
+                    </button>
+                  )}
+                </div>
               ),
             },
           ]}
@@ -698,6 +763,28 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
                   No file path
                 </div>
               )}
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={() => handleDocAction(previewDoc, 'approve')}
+                disabled={docBusy !== null || previewDoc.status === 'approved'}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {docBusy === `${previewDoc.type}:approve`
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Check className="w-4 h-4" />}
+                {previewDoc.status === 'approved' ? 'Approved' : 'Approve'}
+              </button>
+              <button
+                onClick={() => handleDocAction(previewDoc, 'reject')}
+                disabled={docBusy !== null || previewDoc.status === 'rejected'}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[#cd2653] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#bf3026] disabled:opacity-50"
+              >
+                {docBusy === `${previewDoc.type}:reject`
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <X className="w-4 h-4" />}
+                {previewDoc.status === 'rejected' ? 'Rejected' : 'Reject'}
+              </button>
             </div>
           </div>
         )}

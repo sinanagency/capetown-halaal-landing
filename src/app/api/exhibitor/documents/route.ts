@@ -4,7 +4,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { updatePortalState, parsePortalState, type DocRecord } from '@/lib/portal-state'
 
 const BUCKET = 'vendor-docs'
-const ALLOWED = ['halaal_cert', 'health_permit', 'fire_safety', 'public_liability', 'electrical_coc', 'contract', 'indemnity', 'other']
+// Canonical doc-type keys. Must match portal.docs[].type and the admin
+// required-set in doc-action/route.ts + admin/vendors/[id]/doc-types.ts.
+// `halaal_cert` (two a's) is the canonical spelling the portal writes.
+// `gas_cert` is offered by DocumentsManager (conditional on gas use) and
+// MUST be accepted here or every gas upload 400s.
+const ALLOWED = ['halaal_cert', 'health_permit', 'gas_cert', 'fire_safety', 'public_liability', 'electrical_coc', 'contract', 'indemnity', 'other']
 const MAX_BYTES = 10 * 1024 * 1024 // 10MB
 
 // GET: list the signed-in vendor's documents with short-lived signed view URLs.

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertRole } from '@/lib/admin-rbac'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -49,6 +50,13 @@ export async function POST(req: NextRequest) {
   const db = createAdminClient()
   const { data: adminUser } = await db.from('admin_users').select('id, email').eq('id', user.id).maybeSingle()
   if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
+  // Role gate: writing an internal note mutates the application — owner/operator only.
+  try {
+    await assertRole(user.id, ['owner', 'operator'])
+  } catch {
+    return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
+  }
 
   let body: z.infer<typeof postSchema>
   try {

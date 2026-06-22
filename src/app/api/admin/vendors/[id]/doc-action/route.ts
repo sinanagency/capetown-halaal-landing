@@ -20,12 +20,16 @@ import { notifyVendor } from '@/lib/notifications'
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
+// Canonical required-set for the ⟦DOCS:complete⟧ rollup. These MUST be doc
+// types the exhibitor portal can actually upload (see DocumentsManager.REQUIRED
+// + the ALLOWED list in /api/exhibitor/documents/route.ts), otherwise the
+// marker can never fire. Previously this checked `halal_cert` (one a) plus
+// food_handler_cert/id_document/business_reg which the portal never uploads,
+// so DOCS:complete was unreachable. Canonical spelling: `halaal_cert` (two a's).
+// gas_cert is intentionally NOT required for everyone (conditional on gas use).
 export const REQUIRED_DOC_TYPES = [
-  'halal_cert',
-  'public_liability',
-  'food_handler_cert',
-  'id_document',
-  'business_reg',
+  'halaal_cert',
+  'health_permit',
 ] as const
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

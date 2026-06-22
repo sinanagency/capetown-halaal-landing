@@ -97,10 +97,18 @@ function isIdentityQuestion(message: string): boolean {
 
 /**
  * Look up wa_messages to decide if this is a first-contact conversation
- * (zero outbound from us in the last 24h to this wa_id).
+ * (zero outbound from us in the last 24h to this phone number).
  *
- * Defensive: if the table is missing or the env is not wired, default to true
- * so we err on the side of identifying ourselves.
+ * NOTE: the inbound sender's E.164 phone is stored on wa_messages as `wa_phone`
+ * (see supabase-migration-whatsapp-bot-consolidated.sql). There is NO `wa_id`
+ * column. Querying the wrong column makes Supabase return an error, the catch
+ * fires, and we default to first-contact=true on EVERY turn — which appends the
+ * Zanii sign-off to every reply, not just the first. (Root cause of KT bot
+ * sign-off spam.)
+ *
+ * Defensive: if the env is not wired we default to true (err toward identifying
+ * ourselves). A genuine query error is now logged, not silently treated as
+ * first-contact.
  */
 async function isFirstContactByWaId(waId: string): Promise<boolean> {
   try {
@@ -112,16 +120,20 @@ async function isFirstContactByWaId(waId: string): Promise<boolean> {
     const { count, error } = await sb
       .from('wa_messages')
       .select('id', { count: 'exact', head: true })
-      .eq('wa_id', waId)
+      .eq('wa_phone', waId)
       .eq('direction', 'out')
       .gte('created_at', since)
 
     if (error) {
-      // Table missing or RLS denied: be safe, sign off
+      // Surface the real error rather than silently defaulting to a wrong
+      // "first contact = true". Still fail safe (sign off) so we identify
+      // ourselves if the lookup is genuinely unavailable.
+      console.error('[festival-brain] isFirstContactByWaId query error', error)
       return true
     }
     return (count ?? 0) === 0
-  } catch {
+  } catch (err) {
+    console.error('[festival-brain] isFirstContactByWaId threw', err)
     return true
   }
 }
@@ -129,6 +141,19 @@ async function isFirstContactByWaId(waId: string): Promise<boolean> {
 /**
  * Record an escalation. The portal surfaces these in the "Needs You" queue.
  * Defensive: never throw to the caller.
+ *
+ * SCHEMA WARNING (needs live check): no migration in this repo defines the
+ * `brain_escalations` table, so its real column names cannot be confirmed from
+ * source. The other table in this file (wa_messages) stores the sender phone as
+ * `wa_phone`, NOT `wa_id` — so the `wa_id` field written below is very likely
+ * the wrong column name. If `brain_escalations` does not have a `wa_id` column,
+ * this insert silently fails and escalations never reach the "Needs You" queue.
+ * ACTION: verify the live `brain_escalations` schema (e.g.
+ *   select column_name from information_schema.columns
+ *   where table_name = 'brain_escalations';)
+ * and rename `wa_id` here to match (likely `wa_phone` or `phone`). Until then,
+ * insert errors are LOGGED below instead of being swallowed, so a column
+ * mismatch is visible in the bot logs rather than failing silently.
  */
 async function escalateToHuman(opts: {
   waId?: string
@@ -139,7 +164,9 @@ async function escalateToHuman(opts: {
   try {
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return
     const sb = createAdminClient()
-    await sb.from('brain_escalations').insert({
+    // TODO(live-schema): confirm column name for the sender phone on
+    // brain_escalations and fix the key below if it is not `wa_id`.
+    const { error } = await sb.from('brain_escalations').insert({
       wa_id: opts.waId ?? null,
       message: opts.message,
       intent: opts.intent.intent,
@@ -147,8 +174,14 @@ async function escalateToHuman(opts: {
       reason: opts.reason,
       created_at: new Date().toISOString(),
     })
-  } catch {
-    // brain_escalations table may not exist yet in this env. Silent.
+    if (error) {
+      // Do not silently lose escalations. A column mismatch (e.g. wa_id vs
+      // wa_phone) or a missing table surfaces here instead of vanishing.
+      console.error('[festival-brain] escalateToHuman insert error', error)
+    }
+  } catch (err) {
+    // brain_escalations table may not exist yet in this env. Log, never throw.
+    console.error('[festival-brain] escalateToHuman threw', err)
   }
 }
 

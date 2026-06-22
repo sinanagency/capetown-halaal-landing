@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendText, sendTemplate, sendMedia, toE164 } from '@/lib/whatsapp'
 import { sendEmail } from '@/lib/email/resend'
+import { assertRole } from '@/lib/admin-rbac'
 import { z } from 'zod'
 
 export const runtime = 'nodejs'
@@ -56,6 +57,14 @@ export async function POST(req: NextRequest) {
   const db = createAdminClient()
   const { data: adminUser } = await db.from('admin_users').select('id, email').eq('id', user.id).maybeSingle()
   if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+
+  // Role gate. This route SENDS a live WhatsApp/email reply to a vendor —
+  // a viewer session must not be able to do this. Only owner/operator.
+  try {
+    await assertRole(user.id, ['owner', 'operator'])
+  } catch {
+    return NextResponse.json({ error: 'insufficient_role' }, { status: 403 })
+  }
 
   let body: z.infer<typeof bodySchema>
   try {

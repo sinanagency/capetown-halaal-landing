@@ -29,6 +29,7 @@ import {
 } from '@/lib/mail/templates'
 import { renderTemplate } from '@/lib/interpolate'
 import { parseAllocation } from '@/lib/stalls'
+import { parsePortalState } from '@/lib/portal-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,21 @@ interface AudienceRow {
   product_categories: string[] | null
   status: string | null
   admin_notes: string | null
+  payment_status: string | null
+  paid_at: string | null
+  contract_signed_at: string | null
+}
+
+/** Paid truth, mirroring lib/exhibitor-paygate.ts isPaid(). No ⟦PAID⟧ marker exists. */
+function isPaidRow(r: AudienceRow): boolean {
+  if (r.payment_status === 'paid') return true
+  if (r.paid_at) return true
+  return parsePortalState(r.admin_notes).payment?.status === 'paid'
+}
+
+/** Contract-signed truth: the column the /exhibitor/contract/sign route stamps. */
+function isContractSignedRow(r: AudienceRow): boolean {
+  return !!r.contract_signed_at
 }
 
 async function assertAdmin(): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
@@ -69,7 +85,7 @@ async function buildAudience(params: URLSearchParams): Promise<AudienceRow[]> {
   const admin = createAdminClient()
   let q = admin
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, phone, preferred_booth_tier, product_categories, status, admin_notes')
+    .select('id, business_name, contact_name, email, phone, preferred_booth_tier, product_categories, status, admin_notes, payment_status, paid_at, contract_signed_at')
     .limit(50)
 
   const status = params.get('status')
@@ -90,10 +106,10 @@ async function buildAudience(params: URLSearchParams): Promise<AudienceRow[]> {
     const n = r.admin_notes || ''
     if (hasDocs === true && !n.includes('⟦DOCS:complete⟧')) return false
     if (hasDocs === false && n.includes('⟦DOCS:complete⟧')) return false
-    if (contractSigned === true && !n.includes('⟦CONTRACT_SIGNED⟧')) return false
-    if (contractSigned === false && n.includes('⟦CONTRACT_SIGNED⟧')) return false
-    if (paid === true && !n.includes('⟦PAID⟧')) return false
-    if (paid === false && n.includes('⟦PAID⟧')) return false
+    if (contractSigned === true && !isContractSignedRow(r)) return false
+    if (contractSigned === false && isContractSignedRow(r)) return false
+    if (paid === true && !isPaidRow(r)) return false
+    if (paid === false && isPaidRow(r)) return false
     return true
   })
 }
