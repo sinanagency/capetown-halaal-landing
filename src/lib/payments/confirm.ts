@@ -136,22 +136,23 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
   // for the send decision (it stays only as a returned-result hint to callers).
   //
   // Idempotent: only writes when paid_at IS NULL (first transition into paid).
-  // payment_status is also flipped to 'paid' or 'waived' to match the method.
-  // This mirrors the portal-state payment to the top-level vendor_applications
-  // columns the admin queue + CSV export + segments read from.
-  const targetPaymentStatus: 'paid' | 'waived' =
-    input.method === 'waived' ? 'waived' : 'paid'
+  // paid_at is the ONLY real top-level payment column on this table (there is
+  // no payment_status / payment_amount column in the CTH Supabase, verified
+  // against information_schema). The richer payment detail (status, amount,
+  // provider_ref) lives in the ⟦PORTAL⟧ marker on admin_notes, mirrored just
+  // below. Writing a phantom payment_status here previously errored the whole
+  // UPDATE, so paid_at never persisted AND wonTransition was always false,
+  // which silently suppressed every payment confirmation send.
   const { data: transitioned, error: colErr } = await admin
     .from('vendor_applications')
     .update({
       paid_at: paidAtIso,
-      payment_status: targetPaymentStatus,
     })
     .eq('id', input.applicationId)
     .is('paid_at', null)
     .select('id')
   if (colErr) {
-    console.error('[confirmPayment] column mirror failed:', colErr.message)
+    console.error('[confirmPayment] paid_at transition failed:', colErr.message)
   }
 
   // This call won the unpaid -> paid transition iff the guarded UPDATE affected

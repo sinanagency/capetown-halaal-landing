@@ -22,8 +22,8 @@
 //   has_docs          = true|false (true = admin_notes contains '⟦DOCS:complete⟧')
 //   contract_signed   = true|false (true = vendor_applications.contract_signed_at IS NOT NULL,
 //                       the column the /exhibitor/contract/sign route stamps)
-//   paid              = true|false (true = payment_status='paid' OR paid_at IS NOT NULL OR
-//                       parsePortalState(admin_notes).payment.status==='paid' — same isPaid()
+//   paid              = true|false (true = paid_at IS NOT NULL OR
+//                       parsePortalState(admin_notes).payment.status==='paid', same isPaid()
 //                       truth the paygate + confirm.ts use; NO ⟦PAID⟧ marker is ever written)
 //
 // Doctrine notes:
@@ -176,7 +176,6 @@ interface AudienceRow {
   product_categories: string[] | null
   status: string | null
   admin_notes: string | null
-  payment_status: string | null
   paid_at: string | null
   contract_signed_at: string | null
 }
@@ -191,7 +190,6 @@ const DOCS_COMPLETE_MARKER = '⟦DOCS:complete⟧'
  * notes.includes('⟦PAID⟧') predicate always matched zero rows.
  */
 function isPaidRow(r: AudienceRow): boolean {
-  if (r.payment_status === 'paid') return true
   if (r.paid_at) return true
   return parsePortalState(r.admin_notes).payment?.status === 'paid'
 }
@@ -205,7 +203,7 @@ async function buildAudience(filters: BroadcastFilters): Promise<AudienceRow[]> 
   const admin = createAdminClient()
   let q = admin
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, phone, preferred_booth_tier, product_categories, status, admin_notes, payment_status, paid_at, contract_signed_at')
+    .select('id, business_name, contact_name, email, phone, preferred_booth_tier, product_categories, status, admin_notes, paid_at, contract_signed_at')
 
   if (filters.status) q = q.eq('status', filters.status)
   if (filters.booth_tier) q = q.eq('preferred_booth_tier', filters.booth_tier)
