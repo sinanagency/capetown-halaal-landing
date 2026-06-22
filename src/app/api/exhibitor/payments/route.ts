@@ -30,15 +30,18 @@ export async function POST() {
   if (!paymentsEnabled()) {
     return NextResponse.json({ error: 'Online card payment is not enabled yet' }, { status: 503 })
   }
-  const state = parsePortalState(app.admin_notes as string)
-  // Compute amount from the application's stall + electricals + furniture. An
-  // organiser-set state.payment.amount overrides for special-case quotes.
+  // Bill the LIVE computed total (stall + electricals incl. admin-added custom
+  // charges + furniture), recomputed at pay-time. This is what the vendor
+  // currently owes, so an operator amendment (e.g. adding an electrical charge)
+  // automatically re-bills on the next Pay with no manual step. A stored
+  // state.payment.amount is the locked RECORD of what was actually paid (written
+  // at payment time), not a pre-payment quote, so it never overrides here.
   const { computeVendorPricing } = await import('@/lib/payments/pricing')
   const pricing = computeVendorPricing({
     preferred_booth_tier: app.preferred_booth_tier as string,
     special_requirements: app.special_requirements,
   })
-  const amount = state.payment?.amount && state.payment.amount > 0 ? state.payment.amount : pricing.total
+  const amount = pricing.total
   if (!amount || amount <= 0) {
     return NextResponse.json({ error: 'Your stall fee could not be computed. Please contact the team.' }, { status: 400 })
   }

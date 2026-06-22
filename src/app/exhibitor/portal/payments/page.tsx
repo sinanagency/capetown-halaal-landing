@@ -40,7 +40,11 @@ export default async function PaymentsPage() {
           if (!p.path || typeof p.path !== 'string' || p.path.trim().length === 0) return null
           try {
             const admin = createAdminClient()
-            const { data } = await admin.storage.from('vendor-docs').createSignedUrl(p.path, 3600)
+            // Long-lived link (1 year). The proof is only reachable from this
+            // authenticated vendor portal (the portal is the security boundary),
+            // and this page re-mints the URL on every visit, so the link does
+            // not practically expire on the vendor.
+            const { data } = await admin.storage.from('vendor-docs').createSignedUrl(p.path, 60 * 60 * 24 * 365)
             if (!data?.signedUrl) return null
             return {
               kind: p.kind,
