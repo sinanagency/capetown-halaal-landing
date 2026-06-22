@@ -764,7 +764,7 @@ async function sendRaw(e164: string, body: string) {
     // wall must never block the send
   }
   try {
-    await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${process.env.WHATSAPP_PHONE_ID}/messages`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
@@ -777,6 +777,13 @@ async function sendRaw(e164: string, body: string) {
         text: { preview_url: false, body: sendBody },
       }),
     })
+    // Best-effort: opted_out is already persisted by recordOptOut(), so a failed
+    // confirmation must NOT throw or block. Without an .ok check, a non-2xx from
+    // Graph (the send silently failing) would vanish. Log it so it is observable.
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      console.warn('stop-confirm send non-ok:', res.status, detail)
+    }
   } catch (e) {
     console.error('stop-confirm send error', e)
   }

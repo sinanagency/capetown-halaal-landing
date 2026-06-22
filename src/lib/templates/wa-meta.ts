@@ -158,6 +158,39 @@ export const WA_META_TEMPLATES: WaTemplateSpec[] = [
       { key: 'reason', label: 'Reason', placeholder: 'image was blurry', required: true },
     ],
   },
+  // ---------------------------------------------------------------------------
+  // PENDING META APPROVAL — added 2026-06-23 to stop confirmPayment() silently
+  // skipping the paid-confirmation WhatsApp. confirmPayment() (lib/payments/
+  // confirm.ts) fires this template on the unpaid -> paid transition, but the
+  // name was never registered here, so findWaTemplate('vendor_payment_
+  // confirmation') returned undefined and the vendor got the email but no
+  // WhatsApp. Param order below MUST match the exact sendTemplate() call in
+  // confirm.ts: [firstName, formatRand(amount), pricing.stallLabel]
+  //   {{1}} = first_name      (e.g. "Aisha")
+  //   {{2}} = amount          (already a formatted Rand string, e.g. "R3,500")
+  //   {{3}} = stall_label     (e.g. "Food stall F-12")
+  // NOTE: amount arrives PRE-FORMATTED as "R3,500" (formatRand), so the approved
+  // Meta body must NOT prepend its own "R" before {{2}}.
+  // ACTION REQUIRED (operator): this exact `key` ('vendor_payment_confirmation')
+  // must be CREATED AND APPROVED in Meta Business Manager against the YAH WABA
+  // before it will actually deliver. Until approved, the send fails observably
+  // (logged + written to wa_messages with status 'failed') instead of silently
+  // skipping.
+  // ---------------------------------------------------------------------------
+  {
+    key: 'vendor_payment_confirmation',
+    label: 'Vendor payment confirmation',
+    description: 'Confirm to a vendor that their stall payment was received.',
+    category: 'utility',
+    lang: 'en',
+    previewBody:
+      'Payment received, {{1}}. We have confirmed {{2}} for your stall: {{3}}. Your trading spot at Young at Heart Festival 2026 is secured. Welcome to the family.',
+    params: [
+      { key: 'first_name', label: 'First name', placeholder: 'Aisha', required: true },
+      { key: 'amount', label: 'Amount (formatted Rand)', placeholder: 'R3,500', required: true },
+      { key: 'stall_label', label: 'Stall', placeholder: 'Food stall F-12', required: true },
+    ],
+  },
 ]
 
 export function findWaTemplate(key: string): WaTemplateSpec | undefined {

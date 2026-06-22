@@ -31,11 +31,18 @@ async function loadBlocked(admin: ReturnType<typeof createAdminClient>): Promise
 }
 
 async function saveBlocked(admin: ReturnType<typeof createAdminClient>, codes: Set<string>) {
-  await admin.storage.from(BLOCKED_BUCKET).upload(
+  // Check { error }: a failed write here would otherwise report success and the
+  // operator would be told the stall was blocked when nothing persisted. Surface
+  // it so the POST handler's try/catch returns a real error instead of ok:true.
+  const { error } = await admin.storage.from(BLOCKED_BUCKET).upload(
     BLOCKED_PATH,
     Buffer.from(JSON.stringify([...codes])),
     { contentType: 'application/json', upsert: true },
   )
+  if (error) {
+    console.error('[stalls] saveBlocked upload failed:', error.message)
+    throw new Error(`Failed to save blocked stalls: ${error.message}`)
+  }
 }
 
 async function requireAdmin() {

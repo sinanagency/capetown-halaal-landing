@@ -11,6 +11,7 @@ import { sendEmail } from '@/lib/email/resend'
 import { VendorPaymentConfirmation } from '@/lib/email/templates/VendorPaymentConfirmation'
 import { computeVendorPricing, formatRand } from '@/lib/payments/pricing'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
+import { findWaTemplate, buildWaTemplateParams } from '@/lib/templates/wa-meta'
 
 const SITE = 'https://cthalaal.co.za'
 
@@ -213,23 +214,75 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
     console.error('[confirmPayment] notify owners failed:', (e as Error).message)
   }
 
+  // WhatsApp paid-confirmation is best-effort and secondary to the email above.
+  // It NEVER throws into confirmPayment(). We route through the wa-meta registry
+  // guard (mirrors notifyVendor): validate the template name + params BEFORE
+  // hitting Meta, and make every outcome OBSERVABLE. This template ('vendor_
+  // payment_confirmation') was historically NOT registered, so findWaTemplate
+  // returned undefined and the send silently skipped. Now a missing/invalid
+  // template is logged and written to wa_messages as a failed row instead of
+  // vanishing. Param order MUST stay aligned with the wa-meta spec:
+  // [first_name, amount(formatted Rand), stall_label].
+  const TEMPLATE_KEY = 'vendor_payment_confirmation'
   const waPhone = (before.wa?.phone as string) || (app.phone as string) || ''
   if (waPhone) {
+    const waTo = toE164(waPhone)
+    const previewBody = `[${TEMPLATE_KEY}] Payment received, ${firstName}. Amount: ${formatRand(amount)}, Stall: ${pricing.stallLabel}`
     try {
-      const res = await sendTemplate(
-        toE164(waPhone),
-        'vendor_payment_confirmation',
-        [firstName, formatRand(amount), pricing.stallLabel],
-        { category: 'utility' }
-      )
-      await admin.from('wa_messages').insert({
-        direction: 'out',
-        wa_phone: toE164(waPhone),
-        body: `[vendor_payment_confirmation] Payment received, ${firstName}. Amount: ${formatRand(amount)}, Stall: ${pricing.stallLabel}`,
-        status: res.skipped ? 'failed' : 'sent',
-        provider_message_id: res.messageId || null,
-        error: res.skipped || null,
-      })
+      const spec = findWaTemplate(TEMPLATE_KEY)
+      if (!spec) {
+        // Registry guard: template name not registered in wa-meta. This is the
+        // exact silent-skip the original bug caused. Surface it loudly + durably.
+        const err = `wa template not registered: ${TEMPLATE_KEY}`
+        console.error(`[confirmPayment] whatsapp skipped: ${err}`)
+        await admin.from('wa_messages').insert({
+          direction: 'out',
+          wa_phone: waTo,
+          body: previewBody,
+          status: 'failed',
+          provider_message_id: null,
+          error: err,
+        })
+      } else {
+        // Validate params against the spec (ordered + required checks) the same
+        // way the inbox composer does, so a malformed payload fails observably
+        // rather than rendering a broken template at Meta.
+        const built = buildWaTemplateParams(spec, {
+          first_name: firstName,
+          amount: formatRand(amount),
+          stall_label: pricing.stallLabel,
+        })
+        if (!built.ok) {
+          const err = `wa template params invalid (${TEMPLATE_KEY}): ${built.error}`
+          console.error(`[confirmPayment] whatsapp skipped: ${err}`)
+          await admin.from('wa_messages').insert({
+            direction: 'out',
+            wa_phone: waTo,
+            body: previewBody,
+            status: 'failed',
+            provider_message_id: null,
+            error: err,
+          })
+        } else {
+          const res = await sendTemplate(
+            waTo,
+            TEMPLATE_KEY,
+            built.ordered,
+            { category: spec.category }
+          )
+          if (res.skipped) {
+            console.error(`[confirmPayment] whatsapp not sent (${TEMPLATE_KEY}): ${res.skipped}`)
+          }
+          await admin.from('wa_messages').insert({
+            direction: 'out',
+            wa_phone: waTo,
+            body: previewBody,
+            status: res.skipped ? 'failed' : 'sent',
+            provider_message_id: res.messageId || null,
+            error: res.skipped || null,
+          })
+        }
+      }
     } catch (e) {
       console.error('[confirmPayment] whatsapp failed:', (e as Error).message)
     }
