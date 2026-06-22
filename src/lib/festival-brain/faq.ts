@@ -123,9 +123,9 @@ export const FAQ: Record<FaqKey, FaqEntry> = {
       /\bhow much.*(stall|booth)\b/i,
     ],
     fact:
-      'Stall sizes range from 3x3m to larger custom layouts. Booth prices run R3,700 to R12,000 depending on size and category. Food trucks R5,000 to R8,500. Electricity is an optional add-on (R400 to R750).',
+      'Stall sizes range from 2x2m tables up to 6x3m full double layouts. Marquee stall fees run R3,700 to R12,000 depending on size and category. Food and drink trucks are an outside zone with their own fee. Electricity is an optional add-on (R400 to R750). Full pricing is on the application form.',
     answer:
-      'Stall sizes start at 3x3m. Booth prices run R3,700 to R12,000 depending on size and category, with food trucks R5,000 to R8,500. Electricity is optional, R400 to R750. Full options are on cthalaal.co.za/apply.',
+      'Stall sizes start at a 2x2m table and go up to 6x3m. Marquee stall fees run R3,700 to R12,000 depending on size and category. Food and drink trucks are an outside zone with their own fee. Electricity is optional, R400 to R750. Full options and exact prices are on cthalaal.co.za/apply.',
   },
   contact: {
     key: 'contact',

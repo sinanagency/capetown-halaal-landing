@@ -11,6 +11,14 @@
 
 import { Intent } from './intents'
 import { joburgClockBlock } from '../joburg-clock'
+import { MARQUEE_CAPACITY, zoneByKey } from '../venue-zones'
+
+// Source of truth: lib/venue-zones.ts. Pull the non-allocated zone capacities
+// from there so the exhibitor-facts block can never drift from the map.
+const BEDOUIN_CAP = zoneByKey('bedouin')?.capacity ?? 0
+const FOOD_TRUCK_CAP = zoneByKey('food_drink_truck')?.capacity ?? 0
+const DESSERT_TRUCK_CAP = zoneByKey('dessert_truck')?.capacity ?? 0
+const SNACK_TRUCK_CAP = zoneByKey('snack_truck')?.capacity ?? 0
 
 export const BASE_PROMPT = `You are Zanii AI, the assistant for the Young at Heart Festival (Cape Town Halaal) 2026.
 
@@ -74,8 +82,8 @@ export type BrainSurface = 'public' | 'vendor'
 // vendor answers belong only in the vendor portal). Prices mirror TIER_META and
 // venue-zones.ts — do not state them on the public surface.
 const VENDOR_FACTS = `EXHIBITOR PORTAL FACTS (approved / applying vendors only):
-- The Marquee is the only allocated zone (243 stalls on the floor plan). Marquee fees: Table 2x2m R3,700; Full 3x3m R6,500; Double Table 4x2m R6,500; Full Double 6x3m R12,000. Outdoor Bedouin 2x3m R3,750.
-- Other zones are tracked but not given a floor-plan slot: Bedouin (20), Food and Drink trucks (30), Dessert trucks (10), Snack trucks (5).
+- The Marquee is the only allocated zone (${MARQUEE_CAPACITY} stalls on the floor plan). Marquee fees: Table 2x2m R3,700; Full 3x3m R6,500; Double Table 4x2m R6,500; Full Double 6x3m R12,000. Outdoor Bedouin 2x3m R3,750.
+- Other zones are outside, payment-tracked but not given a floor-plan slot: Bedouin (${BEDOUIN_CAP}), Food and Drink trucks (${FOOD_TRUCK_CAP}), Dessert trucks (${DESSERT_TRUCK_CAP}), Snack trucks (${SNACK_TRUCK_CAP}). These outside spots are allocated on setup day, not in advance.
 - Apply at cthalaal.co.za/apply. Approval takes a few working days.
 - Documents: food vendors must submit a Halaal Certificate (and a Certificate of Acceptability where applicable). Also ID or company registration, and public liability where applicable. Upload these in the portal.
 - Payment: after approval, vendors pay their stall fee by card (Yoco) from the portal. A confirmation and tax invoice are emailed.

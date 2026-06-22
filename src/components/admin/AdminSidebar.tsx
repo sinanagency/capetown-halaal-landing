@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Megaphone, Users, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen, Wallet, MessageCircle } from 'lucide-react'
+import { LayoutDashboard, FileText, Files, Ticket, LogOut, ExternalLink, Globe, BarChart3, UserX, ShieldCheck, Shield, Eye, Menu, X, Megaphone, Users, Map, Search, Settings as SettingsIcon, IdCard, ChevronLeft, ChevronRight, Activity, PanelLeftClose, LifeBuoy, BookOpen, Wallet, MessageCircle, Tent, ArrowLeftRight } from 'lucide-react'
 import { Z_CLASS } from '@/lib/z'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -29,6 +29,8 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Applications', href: '/admin/applications', icon: FileText },
       { name: 'Allocation', href: '/admin/allocation', icon: Map },
+      { name: 'Outside Vendors', href: '/admin/outside', icon: Tent },
+      { name: 'Stall Changes', href: '/admin/stall-changes', icon: ArrowLeftRight },
       { name: 'Vendors', href: '/admin/vendors', icon: Users },
       { name: 'People', href: '/admin/people', icon: IdCard },
       { name: 'Documents', href: '/admin/documents', icon: Files },

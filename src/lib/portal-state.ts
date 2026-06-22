@@ -124,6 +124,13 @@ export interface PortalState {
     created_at: string
     author: string | null
   }>
+  /** Per-vendor notification channel preferences. Keys are `${event}_${channel}`
+   *  (e.g. `stall_allocated_whatsapp`, `document_approved_email`) and are read
+   *  VERBATIM by lib/notifications.ts `notifyVendor` to gate outbound sends:
+   *  a missing/true value means send, an explicit false suppresses that channel.
+   *  Writer: /api/exhibitor/notification-prefs. Keep keys in lockstep with the
+   *  NotifyEvent union. */
+  notification_preferences?: Record<string, boolean>
   /** Stall change request submitted by vendor (Agent 12). */
   stallChangeRequest?: {
     requestedTier: string

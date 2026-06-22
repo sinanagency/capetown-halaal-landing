@@ -10,8 +10,23 @@ import {
   logGuardEvent,
   clientIp,
 } from '@/lib/security/abuse-guard'
+import {
+  MARQUEE_CAPACITY,
+  TOTAL_DEFINED_CAPACITY,
+  VENUE_ZONES,
+} from '@/lib/venue-zones'
 
 const ENDPOINT = 'chat'
+
+// Source of truth: lib/venue-zones.ts. Derived here so the admin prompt can
+// never drift from the allocation map. 243 marquee (on-map) + 20 bedouin + 45
+// trucks (30 food/drink + 10 dessert + 5 snack) = 308 defined vendor spots.
+const ZONE_BREAKDOWN = VENUE_ZONES.map((z) => `${z.label} ${z.capacity}`).join(', ')
+const TRUCK_TOTAL = VENUE_ZONES.filter((z) => z.key.endsWith('_truck')).reduce(
+  (s, z) => s + z.capacity,
+  0,
+)
+const OUTSIDE_TOTAL = TOTAL_DEFINED_CAPACITY - MARQUEE_CAPACITY
 // 10 messages / IP / 10min for the public branch. Anyone past that is either
 // a scraper or an LLM-burn DoS. Admin branch separately gates on session.
 const MAX_PER_WINDOW = 10
@@ -28,12 +43,12 @@ You have access to these admin tools and pages:
 - Analytics (/admin/analytics): page views, visitors, geo data, device breakdown, referrers, vendor funnel
 - Follow Up (/admin/follow-up): failed payments, abandoned checkouts, captured emails from drop-offs
 
-KEY METRICS YOU KNOW:
-- 264 total booth spaces across 4 categories (FT, FS, TS, BS)
-- Booth prices: R3,700 to R12,000 (marquee), R4,800 to R8,500 (food trucks)
+KEY METRICS YOU KNOW (source of truth: lib/venue-zones.ts):
+- ${TOTAL_DEFINED_CAPACITY} defined vendor spots across 5 zones: ${ZONE_BREAKDOWN}.
+- The Marquee (${MARQUEE_CAPACITY} stalls) is the ONLY zone that gets a floor-plan stall allocation. The other ${OUTSIDE_TOTAL} spots are outside zones (${OUTSIDE_TOTAL - TRUCK_TOTAL} bedouin + ${TRUCK_TOTAL} trucks): payment-tracked and acknowledged only, no map slot, allocated on setup day.
 - Festival dates: 11, 12, 13 December 2026
 - Ticket prices: R30 per day, R60 weekend pass
-- Expected: 25,000+ visitors, 350+ vendors
+- Marquee stall fees are in the exhibitor portal and on the application form. Do not quote stall or truck prices from memory. If asked for a specific fee, point the team to the Applications page or the apply form rather than stating a number.
 
 ADMIN GUIDANCE:
 - When asked about revenue, refer them to Dashboard or Ticket Sales page

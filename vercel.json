@@ -1,4 +1,10 @@
 {
+  "functions": {
+    "src/app/api/exhibitor/portal/marketing/**/route.ts": {
+      "memory": 3009,
+      "maxDuration": 60
+    }
+  },
   "crons": [
     {
       "path": "/api/cron/mail-fetcher",

@@ -8,6 +8,8 @@ type NotifyEvent =
   | 'stall_allocated'
   | 'document_approved'
   | 'document_rejected'
+  | 'stall_change_approved'
+  | 'stall_change_rejected'
 
 interface NotifyVendorParams {
   event: NotifyEvent
@@ -56,6 +58,14 @@ export async function notifyVendor(params: NotifyVendorParams) {
       waTemplate: 'document_rejected',
       emailSubject: 'Document needs attention',
       emailBody: `Hi ${app.business_name},\n\nYour ${params.data?.docType || 'document'} was not approved. Reason: ${params.data?.reason || 'Please upload a valid version.'}\n\nPlease log in to upload a replacement: https://cthalaal.co.za/exhibitor/portal/documents`,
+    },
+    stall_change_approved: {
+      emailSubject: `Your stall change has been approved${params.data?.tier ? `: ${params.data.tier}` : ''}`,
+      emailBody: `Hi ${app.business_name},\n\nYour stall change request${params.data?.tier ? ` to ${params.data.tier}` : ''} was approved. Log in to the exhibitor portal to review your stand details.\n\nExhibitor portal: https://cthalaal.co.za/exhibitor/portal/stand`,
+    },
+    stall_change_rejected: {
+      emailSubject: 'Update on your stall change request',
+      emailBody: `Hi ${app.business_name},\n\nYour stall change request was not approved.${params.data?.reason ? ` ${params.data.reason}` : ''}\n\nReach out via the exhibitor portal if you would like to discuss options.\n\nExhibitor portal: https://cthalaal.co.za/exhibitor/portal/stand`,
     },
   }
 
