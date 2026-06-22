@@ -34,18 +34,21 @@ export async function GET() {
 
   const byCode = new Map<string, { ownerId: string; business_name: string; status: 'held' | 'allocated'; publishStall: boolean }>()
   for (const a of (apps || []) as Row[]) {
-    const { stall, status } = parseAllocation(a.admin_notes)
-    if (!stall) continue
+    const { stalls, status } = parseAllocation(a.admin_notes)
+    if (stalls.length === 0) continue
     const state = parsePortalState(a.admin_notes)
     // publish_stall is an optional opt-in flag on profile. Optional-chained
     // so missing flag = false (fail-closed per Law 2).
     const publishStall = Boolean((state.profile as (typeof state.profile & { publish_stall?: boolean }) | undefined)?.publish_stall)
-    byCode.set(stall, {
-      ownerId: a.id,
-      business_name: a.business_name,
-      status: status === 'held' ? 'held' : 'allocated',
-      publishStall,
-    })
+    // Multi-booth: every code the vendor holds maps back to them.
+    for (const stall of stalls) {
+      byCode.set(stall, {
+        ownerId: a.id,
+        business_name: a.business_name,
+        status: status === 'held' ? 'held' : 'allocated',
+        publishStall,
+      })
+    }
   }
 
   const mine = parseAllocation(myAdminNotes).stall

@@ -42,6 +42,7 @@ import { sendTemplate } from '@/lib/whatsapp/sender'
 import { renderTemplate, TEMPLATE_KEYS, type TemplateKey, type TemplateVars } from '@/lib/mail/templates'
 import { buildUnsubUrl } from '@/lib/mail/unsubscribe-token'
 import { renderTemplate as interpolate, type InterpolateVars } from '@/lib/interpolate'
+import { parseAllocation } from '@/lib/stalls'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -169,7 +170,6 @@ interface AudienceRow {
   admin_notes: string | null
 }
 
-const STALL_MARKER_RE = /⟦STALL:([^⟧]+)⟧/
 const DOCS_COMPLETE_MARKER = '⟦DOCS:complete⟧'
 const CONTRACT_SIGNED_MARKER = '⟦CONTRACT_SIGNED⟧'
 const PAID_MARKER = '⟦PAID⟧'
@@ -290,8 +290,9 @@ function firstName(contact?: string | null): string | null {
 
 function stallFromNotes(notes?: string | null): string | undefined {
   if (!notes) return undefined
-  const m = STALL_MARKER_RE.exec(notes)
-  return m ? m[1].trim() : undefined
+  // Multi-booth: join the vendor's code list for the {{stall}} merge token.
+  const { stalls } = parseAllocation(notes)
+  return stalls.length ? stalls.join(', ') : undefined
 }
 
 export async function POST(req: NextRequest) {

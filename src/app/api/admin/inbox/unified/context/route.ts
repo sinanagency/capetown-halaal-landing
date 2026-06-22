@@ -6,11 +6,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parsePortalState } from '@/lib/portal-state'
+import { parseAllocation } from '@/lib/stalls'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const STALL_RE = /⟦STALL:([^⟧]+)⟧/
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -31,7 +30,9 @@ export async function GET(req: NextRequest) {
   if (!app) return NextResponse.json({ context: null, supported: false })
 
   const portal = parsePortalState(app.admin_notes || '')
-  const stall = (app.admin_notes || '').match(STALL_RE)?.[1] || null
+  // Multi-booth: join the vendor's code list ("FS1, FS2") for the context chip.
+  const { stalls } = parseAllocation(app.admin_notes || '')
+  const stall = stalls.length ? stalls.join(', ') : null
   const payment = portal.payment || {}
 
   return NextResponse.json({

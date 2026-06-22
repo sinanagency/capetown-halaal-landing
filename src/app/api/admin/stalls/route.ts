@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   STALL_LIST, STALL_GRID, STALL_ZONES, STALL_CAPACITY, TYPE_META,
-  parseAllocation, withAllocation, tierLabel, stallTypeOf,
+  parseAllocation, withAllocation, removeStallCode, tierLabel, stallTypeOf,
   type StallType, type StallStatus,
 } from '@/lib/stalls'
 import { parsePortalState, syncPortalState } from '@/lib/portal-state'
@@ -61,8 +61,8 @@ async function loadOccupants(admin: ReturnType<typeof createAdminClient>) {
     // computeVendorPricing + parsePortalState, only matters for rows we keep:
     // approved applicants or anyone already placed on a stall. Skip the rest so
     // discarded rows cost nothing.
-    const { stall, status } = parseAllocation(a.admin_notes as string)
-    if (a.status !== 'approved' && !stall) continue
+    const { stall, stalls, status } = parseAllocation(a.admin_notes as string)
+    if (a.status !== 'approved' && stalls.length === 0) continue
 
     const portal = parsePortalState(a.admin_notes as string)
     const pricing = computeVendorPricing({
@@ -82,14 +82,18 @@ async function loadOccupants(admin: ReturnType<typeof createAdminClient>) {
       tier: a.preferred_booth_tier,
       tier_label: tierLabel(a.preferred_booth_tier as string),
       app_status: a.status,
-      stall,
-      stall_status: stall ? status : null,
+      stall,                                   // first code (backward-compat)
+      stalls,                                  // full list (multi-booth)
+      booth_count: stalls.length,
+      stall_status: stalls.length ? status : null,
       payment_status: paymentStatus,
       payment_amount: paymentAmount,
       payment_ref: portal.payment?.provider_ref || portal.payment?.reference || null,
     }
-    if (stall) byCode.set(stall, row)
-    // dropdown = approved applicants + anyone already placed (so you can move them)
+    // Reverse map: EVERY code the vendor holds points back to this row, so the
+    // floor highlights all of a multi-booth vendor's stalls (not just the first).
+    for (const code of stalls) byCode.set(code, row)
+    // dropdown = approved applicants + anyone already placed (so you can add/move them)
     allocatable.push(row)
   }
   return { byCode, allocatable }
@@ -182,8 +186,10 @@ export async function POST(req: NextRequest) {
         cleared = true
       }
       if (current) {
+        // Release ONLY this code from the vendor's list. removeStallCode keeps
+        // their other booths and drops the marker only when this was their last.
         const { data: app } = await admin.from('vendor_applications').select('admin_notes').eq('id', current.id).single()
-        await admin.from('vendor_applications').update({ admin_notes: withAllocation(app?.admin_notes, null) }).eq('id', current.id)
+        await admin.from('vendor_applications').update({ admin_notes: removeStallCode(app?.admin_notes, stallCode) }).eq('id', current.id)
         cleared = true
       }
       return NextResponse.json({ ok: true, message: cleared ? `${stallCode} cleared` : `${stallCode} already free` })
@@ -212,8 +218,10 @@ export async function POST(req: NextRequest) {
       .eq('id', applicationId).single()
     if (!app) return NextResponse.json({ error: 'Application not found' }, { status: 404 })
 
-    // moving a vendor: their old marker is on THIS app row, withAllocation overwrites it,
-    // so the previously-held stall is freed automatically.
+    // Multi-booth: withAllocation APPENDS this code to the vendor's existing list
+    // (does not move/replace their other booths). The over-confirm guard above
+    // already ensured no OTHER vendor holds this code. Status is per-vendor: the
+    // action applies to the whole marker (confirming/reserving the vendor's set).
     const newNotes = withAllocation(app.admin_notes, stallCode, action)
     const { error } = await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', applicationId)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })

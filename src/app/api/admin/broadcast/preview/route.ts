@@ -28,6 +28,7 @@ import {
   type TemplateVars,
 } from '@/lib/mail/templates'
 import { renderTemplate } from '@/lib/interpolate'
+import { parseAllocation } from '@/lib/stalls'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,8 +43,6 @@ interface AudienceRow {
   status: string | null
   admin_notes: string | null
 }
-
-const STALL_MARKER_RE = /⟦STALL:([^⟧]+)⟧/
 
 async function assertAdmin(): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const supabase = await createClient()
@@ -107,8 +106,9 @@ function firstNameOrNull(contact?: string | null): string | null {
 
 function stallFromNotes(notes?: string | null): string | undefined {
   if (!notes) return undefined
-  const m = STALL_MARKER_RE.exec(notes)
-  return m ? m[1].trim() : undefined
+  // Multi-booth: join the vendor's code list for the {{stall}} merge token.
+  const { stalls } = parseAllocation(notes)
+  return stalls.length ? stalls.join(', ') : undefined
 }
 
 function varsFor(row: AudienceRow, customMessage: string): TemplateVars {

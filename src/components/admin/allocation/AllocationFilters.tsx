@@ -15,6 +15,8 @@ export interface AppRowLite {
   tier: string | null
   app_status: string
   stall: string | null
+  /** Full list of the vendor's allocated codes (multi-booth). Falls back to [stall] when absent. */
+  stalls?: string[]
 }
 
 interface Props {
@@ -58,8 +60,9 @@ export default function AllocationFilters({
     const sectorStallCodes: Set<string> | null = sector
       ? new Set(
           applications
-            .filter((a) => appInSector(a, sector) && a.stall)
-            .map((a) => a.stall as string)
+            .filter((a) => appInSector(a, sector))
+            // Multi-booth: count EVERY code the vendor holds, not just the first.
+            .flatMap((a) => (a.stalls && a.stalls.length ? a.stalls : a.stall ? [a.stall] : []))
         )
       : null
     const inZone = (s: MapStall) => (zone ? s.type === zone : true)

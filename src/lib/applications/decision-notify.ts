@@ -25,6 +25,7 @@ import { ApplicationInfoRequested } from '@/lib/email/templates/ApplicationInfoR
 import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
 import { findWaTemplate, renderWaTemplatePreview } from '@/lib/templates/wa-meta'
+import { parseAllocation } from '@/lib/stalls'
 import type { createAdminClient } from '@/lib/supabase/admin'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -144,14 +145,15 @@ export async function notifyApplicationDecision({
         const phone = (app.phone || app.whatsapp_number) as string | null
         if (phone) {
           const firstName = String(app.contact_name || '').trim().split(/\s+/)[0] || 'there'
-          const stallMatch = String(app.admin_notes || '').match(/⟦STALL:([^⟧]+)⟧/)
-          // {{2}} is embedded mid-sentence as "Your stall: {{2}}". When a stall
-          // is allocated we pass the code; when it is not yet allocated we pass a
-          // full clause so the sentence reads cleanly ("Your stall: to be
+          // Multi-booth: join the vendor's code list (strips any status suffix).
+          // {{2}} is embedded mid-sentence as "Your stall: {{2}}". When stalls
+          // are allocated we pass the code(s); when none are yet allocated we pass
+          // a full clause so the sentence reads cleanly ("Your stall: to be
           // allocated and shared closer to the festival.") instead of a dangling
           // "Your stall: to be confirmed shortly" fragment.
-          const stallCode = stallMatch
-            ? stallMatch[1].trim()
+          const allocatedCodes = parseAllocation(app.admin_notes as string).stalls
+          const stallCode = allocatedCodes.length
+            ? allocatedCodes.join(', ')
             : 'to be allocated and shared closer to the festival'
           const e164 = toE164(phone)
           const wa = await sendTemplate(

@@ -11,6 +11,7 @@ import { sendTemplate, toE164 } from '@/lib/whatsapp'
 import { assertRole } from '@/lib/admin-rbac'
 import { capJsonbSize } from '@/lib/audit/cap'
 import { findWaTemplate, renderWaTemplatePreview } from '@/lib/templates/wa-meta'
+import { parseAllocation } from '@/lib/stalls'
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -270,14 +271,15 @@ export async function PATCH(
             const phone = (data.phone || data.whatsapp_number) as string | null
             if (phone) {
               const firstName = String(data.contact_name || '').trim().split(/\s+/)[0] || 'there'
-              const stallMatch = String(data.admin_notes || '').match(/⟦STALL:([^⟧]+)⟧/)
-              // {{2}} is embedded mid-sentence as "Your stall: {{2}}". When a
-              // stall is allocated we pass the code; when it is not yet
+              // Multi-booth: join the vendor's code list (strips any status
+              // suffix). {{2}} is embedded mid-sentence as "Your stall: {{2}}".
+              // When stalls are allocated we pass the code(s); when none are yet
               // allocated we pass a full clause so the sentence reads cleanly
               // ("Your stall: to be allocated and shared closer to the
               // festival.") instead of a dangling fragment.
-              const stallCode = stallMatch
-                ? stallMatch[1].trim()
+              const allocatedCodes = parseAllocation(data.admin_notes as string).stalls
+              const stallCode = allocatedCodes.length
+                ? allocatedCodes.join(', ')
                 : 'to be allocated and shared closer to the festival'
               const e164 = toE164(phone)
               const wa = await sendTemplate(

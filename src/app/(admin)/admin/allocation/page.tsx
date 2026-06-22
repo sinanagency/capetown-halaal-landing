@@ -16,6 +16,8 @@ interface AppRow extends AppRowLite {
   phone: string | null
   email: string | null
   tier_label: string
+  stalls?: string[]
+  booth_count?: number
   stall_status: string | null
   payment_status?: string
   payment_amount?: number
@@ -151,6 +153,7 @@ export default function AllocationPage() {
         business_name: a.business_name,
         tier_label: a.tier_label,
         stall: a.stall,
+        stalls: a.stalls ?? (a.stall ? [a.stall] : []),
       }))
   }, [data, sector, tier])
 
@@ -159,7 +162,9 @@ export default function AllocationPage() {
     if (!data) return []
     return data.applications.filter((a) => {
       if (a.app_status !== 'approved') return false
-      if (a.stall) return false
+      // Placed = the vendor's booth list is non-empty (multi-booth aware).
+      const boothCount = a.booth_count ?? (a.stalls?.length ?? (a.stall ? 1 : 0))
+      if (boothCount > 0) return false
       if (vendorSearch.trim()) {
         const q = vendorSearch.toLowerCase()
         if (!a.business_name.toLowerCase().includes(q)) return false

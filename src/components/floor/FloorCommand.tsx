@@ -30,7 +30,10 @@ export interface FloorApp {
   id: string
   business_name: string
   tier_label?: string
+  /** First allocated code (backward-compat). */
   stall?: string | null
+  /** Full list of the vendor's allocated codes (multi-booth). */
+  stalls?: string[]
 }
 
 export interface FloorCommandProps {
@@ -138,6 +141,14 @@ export default function FloorCommand({
 
   const selBooth = useMemo(() => booths.find((b) => b.code === selected) || null, [booths, selected])
 
+  // The application that owns the selected booth (matched by vendor name), so the
+  // drawer can show how many booths they hold in total (multi-booth context).
+  const selVendorApp = useMemo(() => {
+    if (!selBooth?.vendor) return null
+    const v = selBooth.vendor.toLowerCase()
+    return applications.find((a) => a.business_name.toLowerCase() === v) || null
+  }, [selBooth, applications])
+
   // Crop viewBox to actual booth+facility extent (live stalls.json is 216x167
   // but only ~50% is used). Padding 1 grid cell so outermost stalls don't hug.
   const bbox = useMemo(() => {
@@ -234,15 +245,21 @@ export default function FloorCommand({
     setVendorInput('')
   }, [])
 
+  // Booth count for a vendor (multi-booth aware), used in the drawer + datalist.
+  const boothCountOf = useCallback((a: FloorApp) =>
+    a.stalls && a.stalls.length ? a.stalls.length : a.stall ? 1 : 0
+  , [])
+
   const matchApplication = useCallback((name: string) => {
     const q = name.trim().toLowerCase()
     if (!q) return null
     const matches = (a: { business_name: string }) =>
       a.business_name.toLowerCase() === q || a.business_name.toLowerCase().includes(q)
-    // Multi-stall: a vendor may have several applications (one per stall). Prefer
-    // an UNPLACED one so a second allocation goes to their free application
-    // instead of moving a stall they already have.
-    return applications.find((a) => matches(a) && !a.stall)
+    // Multi-booth model: ONE application per vendor holding a LIST of codes.
+    // Allocating to a vendor who already has booths ADDS to their list (the API
+    // appends), so we just match by name — placed or not. Exact match wins over
+    // a substring match.
+    return applications.find((a) => a.business_name.toLowerCase() === q)
       || applications.find(matches)
       || null
   }, [applications])
@@ -546,6 +563,18 @@ export default function FloorCommand({
               <KV label="Type" value={prettyType(selBooth.type)} />
               <KV label="Zone" value={selBooth.zone || '·'} />
               <KV label="Vendor" value={selBooth.vendor || '·'} />
+              {selVendorApp && (selVendorApp.stalls?.length || 0) > 1 && (
+                <KV
+                  label="Booths"
+                  value={
+                    <span>
+                      <b style={{ color: C.brand }}>{selVendorApp.stalls!.length}</b>
+                      {' · '}
+                      <span style={{ color: C.muted }}>{selVendorApp.stalls!.join(', ')}</span>
+                    </span>
+                  }
+                />
+              )}
               <KV
                 label="Footprint"
                 value={selBooth.type === 'FS' ? '3 × 3 m' : selBooth.type === 'TS' ? '2 × 2 m' : selBooth.type === 'FT' ? 'Truck bay' : '3 × 3 m'}
@@ -568,11 +597,37 @@ export default function FloorCommand({
                       }}
                     />
                     <datalist id="floor-approved-list">
-                      {applications.filter((a) => !a.stall).map((a) => (
-                        <option key={a.id} value={a.business_name} label={a.tier_label || ''} />
-                      ))}
+                      {/* All approved vendors, placed or not. A placed vendor's
+                          option is annotated with their current booth count so
+                          picking them clearly ADDS a booth (multi-booth). */}
+                      {applications.map((a) => {
+                        const n = boothCountOf(a)
+                        const tier = a.tier_label || ''
+                        const placed = n > 0 ? `${n} booth${n > 1 ? 's' : ''}` : ''
+                        const label = [tier, placed].filter(Boolean).join(' · ')
+                        return <option key={a.id} value={a.business_name} label={label} />
+                      })}
                     </datalist>
-                    <BtnP onClick={() => doAllocate('allocated')} disabled={saving}>Allocate booth</BtnP>
+                    {(() => {
+                      // If the typed vendor already holds booths, this allocation
+                      // ADDS a booth to them (multi-booth) rather than being their
+                      // first. Surface that so it never reads as a mistake.
+                      const typed = matchApplication(vendorInput)
+                      const n = typed ? boothCountOf(typed) : 0
+                      if (!typed || n === 0) return null
+                      return (
+                        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+                          {typed.business_name} already holds <b style={{ color: C.brand }}>{n} booth{n > 1 ? 's' : ''}</b>
+                          {typed.stalls && typed.stalls.length ? ` (${typed.stalls.join(', ')})` : ''}. This adds {selBooth.code}.
+                        </div>
+                      )
+                    })()}
+                    <BtnP onClick={() => doAllocate('allocated')} disabled={saving}>
+                      {(() => {
+                        const typed = matchApplication(vendorInput)
+                        return typed && boothCountOf(typed) > 0 ? 'Add this booth' : 'Allocate booth'
+                      })()}
+                    </BtnP>
                     <BtnG onClick={() => doAllocate('reserved')} disabled={saving}>Hold as reserved</BtnG>
                     {selBooth.status === 'blocked'
                       ? <BtnG onClick={doToggleBlock} disabled={saving}>Unblock</BtnG>
