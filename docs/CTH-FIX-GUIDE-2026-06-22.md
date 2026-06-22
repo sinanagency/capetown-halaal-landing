@@ -2,6 +2,39 @@
 
 Source: live QA sweep (gstack headless browser, logged in as owner + demo vendor) + 6-agent read-only root-cause investigation. Every item below is grounded in `file:line`. **No code was changed producing this guide.**
 
+---
+
+## ✅ RESOLUTION STATUS — 2026-06-22 (all shipped + live on cthalaal.co.za, curl→200)
+
+Deployed `inbox-master-unification` → `vercel --prod` (dpl_J2XVtHx3j1sNY3VibrjPqjQDAWxW). Build green, tsc clean. Commits: **c22ed85** (Wave 1), **f6a79f9** (Wave 2 / T2-T10 + notify), **4d1ace1** (download class), **8bb72b1** (RLS doc).
+
+| ID | Status | Resolution |
+|----|--------|-----------|
+| T1 | ✅ fixed (c22ed85) | Retired orphan `/admin/inbox` (Option A); Cmd+K + search + allocation links repointed to `/admin/customer-inbox` (healthy unified source). |
+| T2 | ✅ fixed + prod-verified (f6a79f9) | Renderer waits for images+fonts before screenshot; `?preview=1` cacheable inline URL split; placeholder behind `<img>`; normalized thumb height. **Live: grid aligned, 3/4 previews paint branded assets, `ig-story` (1080x1920) still 500s at the Puppeteer render layer but now shows a labeled placeholder, NOT a blank box.** Residual: tall-template render reliability (separate issue, graceful fallback in place). |
+| T3 | ✅ fixed (f6a79f9) | Removed misrouted `whatsapp-broadcast?limit=1` fetch + dead wa-failures task from `TaskCenter.tsx`. 400 gone. |
+| T4 | ✅ fixed (f6a79f9) | `chartData` now cumulative running total (no longer flat); sparkline explicit `height={48}` kills `width(-1)` warning. |
+| T5 | ✅ fixed (f6a79f9) | Money In promoted to full-width hero; duplicate Pending card deleted; Tickets/Approved/Conversion demoted to one strip. |
+| T6 | ✅ fixed (f6a79f9) | Dropped client auth pre-gate; skeleton replaces bare spinner; heavy per-row compute moved inside the keep-branch. |
+| T7 | ✅ fixed (f6a79f9) | Conditional 600px map reserve + dropped forced `min-h` on My Stand; collapsed Announcements empty state. |
+| T8 | ✅ fixed (f6a79f9) | `pb-8` on the portal scroll region (no PageChrome refactor). |
+| T9 | ✅ fixed (f6a79f9) | Removed the hand-rolled duplicate `<h1>Floor plan</h1>`; kept the `AdminPage` header. |
+| T10 | ✅ fixed (f6a79f9) | Boundary-aware `isActive` in `PortalNav` (no stuck Announcements tab). |
+| V1 | ✅ verified non-bug | Login error handling exists (`exhibitor/login` red banner on `!res.ok`); was a stale-deploy/automation artifact. |
+| V2 | ✅ resolved | The "non-navigation" was the paygate redirect; paygate now enforces approved→sign→pay→unlock correctly and a paid vendor reaches every page (verified live as demo vendor). |
+
+**Beyond the guide, shipped same waves:** Samreen's 4 (paygate/amend/export/inbox), bot temp-0 + vendor-scope, block/reserve persistence, sponsor form, operator notify gaps (contract/doc/staff), full bare-anchor download class (export + marketing + invoice/contract/badge PDFs).
+
+**Prod-verified live (logged in dev@/demo-vendor on cthalaal.co.za):** T1 inbox, T2 marketing, T3 dashboard 400 gone, T4 cumulative chart, T5 single hero metric, T6 allocation load, T9 single header, T10 nav active state, paygate sequence (paid vendor passes), vendor amend form. T7/T8 (vendor whitespace/footer) build+deploy verified.
+
+**Residual (NOT in-scope bugs / need operator input):**
+- `ig-story` (1080x1920) marketing PNG still 500s at the Puppeteer/chromium render layer (tall-template reliability) — graceful placeholder now shown, no blank box. Separate render-infra issue.
+- RLS v13 enum is a bug only in an UNRAN file — live prod policies are membership-based and correct, DDL deliberately NOT run (see `supabase-migration-v13-rls.sql` header).
+- Bot internal fact-numbers (`chat/route.ts` ADMIN_PROMPT) need canonical festival figures.
+- Stall-change self-service + notification-prefs persistence are feature builds.
+
+The per-ticket detail below is preserved as the original root-cause record.
+
 Stack: Next.js 16 · React 19 · Supabase · recharts · Tailwind. Repo root: `capetown-halaal-landing`.
 
 **Out of scope (decided):** the "Zanii AI on behalf of Young at Heart" signoff/bot-identity is **deliberate** (comment cites the "M13" directive) and is being **kept**. Not a bug. Do not change `lib/mail/templates.ts:133` or `lib/festival-brain/system-prompt.ts`.
