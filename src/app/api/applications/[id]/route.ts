@@ -12,6 +12,7 @@ import { assertRole } from '@/lib/admin-rbac'
 import { capJsonbSize } from '@/lib/audit/cap'
 import { findWaTemplate, renderWaTemplatePreview } from '@/lib/templates/wa-meta'
 import { parseAllocation } from '@/lib/stalls'
+import { parsePortalState, updatePortalState } from '@/lib/portal-state'
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -105,7 +106,7 @@ export async function PATCH(
     if (validated.status) {
       const { data: existing } = await admin
         .from('vendor_applications')
-        .select('id, status, reviewed_at, approved_at, business_name, email, contact_name, payment_status, preferred_booth_tier')
+        .select('id, status, reviewed_at, approved_at, business_name, email, contact_name, admin_notes, preferred_booth_tier')
         .eq('id', id)
         .single()
       if (existing) {
@@ -114,9 +115,14 @@ export async function PATCH(
         previousApprovedAt = (existing.approved_at as string | null) ?? null
       }
       if (existing && existing.status === validated.status && (existing.reviewed_at || existing.approved_at)) {
+        // payment_status is NOT a column on this Supabase project; payment state
+        // lives only in the ⟦PORTAL⟧ marker on admin_notes. Surface it from the
+        // marker so the no-op response still carries a payment status.
+        const paymentStatus =
+          parsePortalState(existing.admin_notes as string).payment?.status ?? null
         return NextResponse.json({
           success: true,
-          application: existing,
+          application: { ...existing, payment_status: paymentStatus },
           alreadyInStatus: true,
           emailSent: false,
         })
@@ -194,18 +200,29 @@ export async function PATCH(
       }
     }
 
-    // On approval, reserve the booth and set payment_due_date = approved_at + 30 days.
-    // Vendors are approved on different days, so each has their own 30-day window.
-    // Weekly reminders fire from /api/cron/payment-reminders.
+    // On approval, reserve the booth and set the payment due date = approved_at
+    // + 30 days. Vendors are approved on different days, so each has their own
+    // 30-day window. Weekly reminders fire from /api/cron/payment-reminders.
+    // There is NO payment_status / payment_due_date column on this Supabase
+    // project (DDL is blocked, CTH-DOCTRINE Law 8): payment state lives only in
+    // the base64 ⟦PORTAL⟧ marker on admin_notes, and the exhibitor portal reads
+    // state.payment?.due for the due date. Never downgrade a paid vendor.
     if (validated.status === 'approved') {
       const dueDate = new Date()
       dueDate.setDate(dueDate.getDate() + 30)
       const dueDateIso = dueDate.toISOString().slice(0, 10) // YYYY-MM-DD
-      const { error: payErr } = await admin
-        .from('vendor_applications')
-        .update({ payment_status: 'deferred', payment_due_date: dueDateIso })
-        .eq('id', id)
-      if (payErr) console.error('Payment defaults skipped (migration v5 pending?):', payErr.message)
+      try {
+        await updatePortalState(id, (s) => ({
+          ...s,
+          payment: {
+            ...(s.payment || {}),
+            status: s.payment?.status === 'paid' ? 'paid' : 'pending',
+            due: dueDateIso,
+          },
+        }))
+      } catch (e) {
+        console.error('[approve] payment due-date marker write failed:', (e as Error).message)
+      }
     }
 
     // Send status notification email. Capture the result so the admin UI can

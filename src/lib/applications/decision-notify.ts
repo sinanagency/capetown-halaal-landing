@@ -26,6 +26,7 @@ import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
 import { findWaTemplate, renderWaTemplatePreview } from '@/lib/templates/wa-meta'
 import { parseAllocation } from '@/lib/stalls'
+import { updatePortalState } from '@/lib/portal-state'
 import type { createAdminClient } from '@/lib/supabase/admin'
 
 type AdminClient = ReturnType<typeof createAdminClient>
@@ -87,16 +88,29 @@ export async function notifyApplicationDecision({
     let res: { ok: boolean; error?: string } | undefined
 
     if (status === 'approved') {
-      // Reserve the booth + set payment_due_date = today + 30 days. Each vendor
-      // is approved on their own day, so each gets their own 30-day window.
+      // Reserve the booth + set the payment due date = today + 30 days. Each
+      // vendor is approved on their own day, so each gets their own 30-day
+      // window. There is NO payment_status / payment_due_date column on this
+      // Supabase project (DDL is blocked, CTH-DOCTRINE Law 8): payment state
+      // lives only in the base64 ⟦PORTAL⟧ marker on admin_notes. Write the
+      // due date + pending status there so the exhibitor portal (which reads
+      // state.payment?.due) actually shows it. Never downgrade a vendor who
+      // has already paid back to pending.
       const dueDate = new Date()
       dueDate.setDate(dueDate.getDate() + 30)
       const dueDateIso = dueDate.toISOString().slice(0, 10) // YYYY-MM-DD
-      const { error: payErr } = await admin
-        .from('vendor_applications')
-        .update({ payment_status: 'deferred', payment_due_date: dueDateIso })
-        .eq('id', id)
-      if (payErr) console.error('Payment defaults skipped (migration v5 pending?):', payErr.message)
+      try {
+        await updatePortalState(id, (s) => ({
+          ...s,
+          payment: {
+            ...(s.payment || {}),
+            status: s.payment?.status === 'paid' ? 'paid' : 'pending',
+            due: dueDateIso,
+          },
+        }))
+      } catch (e) {
+        console.error('[approve] payment due-date marker write failed:', (e as Error).message)
+      }
 
       // Create (or reset) the vendor's real portal account + temp password.
       let tempPassword = ''

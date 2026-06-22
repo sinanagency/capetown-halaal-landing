@@ -52,6 +52,7 @@ interface ApplicationLike {
 interface SpecialRequirementsShape {
   stall_type?: string
   electrical_appliances?: Record<string, number> | string[]
+  electrical_custom?: Array<{ label: string; amount: number; qty?: number }>
   hired_chairs?: number | string
   hired_tables?: number | string
   stall_price?: number
@@ -93,6 +94,24 @@ export function computeVendorPricing(app: ApplicationLike): VendorPricing {
       electrical.push({ label: meta.label, amount: meta.price * q, qty: q })
     }
   }
+
+  // Admin-set custom electrical charges for off-list appliances (Samreen).
+  // Each entry: per-unit Rand amount * qty (defaults to 1). Blank labels or
+  // non-finite/<=0 amounts are skipped so a half-filled row never charges.
+  const custom = reqs.electrical_custom
+  if (Array.isArray(custom)) {
+    for (const entry of custom) {
+      if (!entry || typeof entry !== 'object') continue
+      const label = typeof entry.label === 'string' ? entry.label.trim() : ''
+      const amt = Number(entry.amount)
+      if (!label || !Number.isFinite(amt) || amt <= 0) continue
+      const qty = Math.max(1, Math.floor(Number(entry.qty) || 1))
+      electrical.push({ label, amount: amt * qty, qty })
+    }
+  }
+
+  // electricalTotal is the sum of ALL electrical items (priced + custom), so
+  // custom charges flow into total below and onto the invoice.
   const electricalTotal = electrical.reduce((s, i) => s + i.amount, 0)
 
   const chairsQty = Math.max(0, Math.floor(Number(reqs.hired_chairs) || 0))

@@ -58,6 +58,35 @@ function readElectrical(raw: unknown): Record<string, number> {
   return out
 }
 
+interface CustomElectrical {
+  label: string
+  amount: number
+  qty: number
+}
+
+// Read the off-list custom electrical charges out of special_requirements,
+// which may be a JSON string or an object. Mirrors readElectrical above but
+// pulls the operator-set special_requirements.electrical_custom array.
+function readCustomElectrical(raw: unknown): CustomElectrical[] {
+  let reqs: unknown = raw
+  if (typeof raw === 'string') {
+    try { reqs = JSON.parse(raw) } catch { return [] }
+  }
+  if (!reqs || typeof reqs !== 'object') return []
+  const custom = (reqs as { electrical_custom?: unknown }).electrical_custom
+  if (!Array.isArray(custom)) return []
+  const out: CustomElectrical[] = []
+  for (const row of custom) {
+    if (!row || typeof row !== 'object') continue
+    const r = row as { label?: unknown; amount?: unknown; qty?: unknown }
+    const label = typeof r.label === 'string' ? r.label : ''
+    const amount = Number(r.amount) || 0
+    const qty = Math.max(1, Math.floor(Number(r.qty) || 1))
+    out.push({ label, amount, qty })
+  }
+  return out
+}
+
 interface CommItem {
   id: string
   channel: 'whatsapp' | 'email'
@@ -150,6 +179,7 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
   const [editCategory, setEditCategory] = useState('')
   const [editTier, setEditTier] = useState('')
   const [editElectrical, setEditElectrical] = useState<Record<string, number>>({})
+  const [editCustomElectrical, setEditCustomElectrical] = useState<CustomElectrical[]>([])
   const [editBusy, setEditBusy] = useState(false)
   const [editErr, setEditErr] = useState<string | null>(null)
   const [editOk, setEditOk] = useState(false)
@@ -171,6 +201,7 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
     setEditCategory(category)
     setEditTier(v.preferred_booth_tier ? String(v.preferred_booth_tier) : '')
     setEditElectrical(readElectrical(v.special_requirements))
+    setEditCustomElectrical(readCustomElectrical(v.special_requirements))
     setEditErr(null)
     setEditOk(false)
     setDrawerView('contact')
@@ -194,6 +225,14 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
       const cats = editCategory.trim()
         ? [editCategory.trim(), ...((v.product_categories as string[]) || []).slice(1)]
         : ((v.product_categories as string[]) || [])
+      // Drop blank add-rows; coerce amount to a number and qty to >= 1.
+      const customCharges = editCustomElectrical
+        .filter((c) => c.label.trim() !== '')
+        .map((c) => ({
+          label: c.label.trim(),
+          amount: Number(c.amount) || 0,
+          qty: Math.max(1, Math.floor(Number(c.qty) || 1)),
+        }))
       const r = await fetch(`/api/admin/vendors/${v.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -205,6 +244,7 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
           product_categories: cats,
           preferred_booth_tier: editTier,
           electrical_appliances: editElectrical,
+          electrical_custom: customCharges,
         }),
       })
       const j = await r.json().catch(() => ({}))
@@ -680,6 +720,81 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
                     </div>
                   )
                 })}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Custom electrical charges</label>
+              <p className="text-xs text-neutral-500 mb-2">
+                For appliances not in the list above (operator-set). These add to the vendor&apos;s total.
+              </p>
+              <div className="space-y-2">
+                {editCustomElectrical.map((row, i) => {
+                  const subtotal = (Number(row.amount) || 0) * Math.max(1, Math.floor(Number(row.qty) || 1))
+                  return (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={row.label}
+                        onChange={(e) => setEditCustomElectrical((prev) =>
+                          prev.map((r, idx) => idx === i ? { ...r, label: e.target.value } : r)
+                        )}
+                        placeholder="e.g. 2x Slurpee machine"
+                        aria-label="Charge label"
+                        className="flex-1 min-w-0 border border-neutral-200 rounded-md px-2 py-1.5 text-sm"
+                      />
+                      <input
+                        type="number"
+                        value={row.amount}
+                        onChange={(e) => setEditCustomElectrical((prev) =>
+                          prev.map((r, idx) => idx === i ? { ...r, amount: Number(e.target.value) } : r)
+                        )}
+                        placeholder="R / unit"
+                        aria-label="Amount in Rand per unit"
+                        className="w-20 shrink-0 border border-neutral-200 rounded-md px-2 py-1.5 text-sm tabular-nums"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        value={row.qty}
+                        onChange={(e) => setEditCustomElectrical((prev) =>
+                          prev.map((r, idx) => idx === i ? { ...r, qty: Math.max(1, Math.floor(Number(e.target.value) || 1)) } : r)
+                        )}
+                        aria-label="Quantity"
+                        className="w-14 shrink-0 border border-neutral-200 rounded-md px-2 py-1.5 text-sm tabular-nums"
+                      />
+                      <span className="w-20 shrink-0 text-right text-xs text-neutral-500 tabular-nums">
+                        {fmtMoney(subtotal)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setEditCustomElectrical((prev) => prev.filter((_, idx) => idx !== i))}
+                        aria-label="Remove charge"
+                        className="w-6 h-6 shrink-0 rounded border border-neutral-200 text-neutral-500 hover:bg-neutral-50 inline-flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditCustomElectrical((prev) => [...prev, { label: '', amount: 0, qty: 1 }])}
+                  className="text-xs text-blue-700 hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> Add charge
+                </button>
+                {editCustomElectrical.length > 0 && (
+                  <span className="text-xs text-neutral-600 tabular-nums">
+                    Custom total: {fmtMoney(
+                      editCustomElectrical.reduce(
+                        (sum, r) => sum + (Number(r.amount) || 0) * Math.max(1, Math.floor(Number(r.qty) || 1)),
+                        0
+                      )
+                    )}
+                  </span>
+                )}
               </div>
             </div>
             {editErr && <p className="text-xs text-red-600">{editErr}</p>}

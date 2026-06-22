@@ -206,28 +206,30 @@ export async function syncPortalState(
 ): Promise<PortalState> {
   const { data: app, error } = await supabase
     .from('vendor_applications')
-    .select('payment_status, portal_stage, admin_notes, payment_amount, payment_due_date, paid_at, contract_signed_at')
+    .select('admin_notes, paid_at, contract_signed_at')
     .eq('id', applicationId)
     .single()
 
   if (error || !app) throw new Error(`syncPortalState: no row ${applicationId}`)
 
+  // The payment columns (payment_status, payment_amount, payment_due_date,
+  // portal_stage) do not exist on vendor_applications. The ⟦PORTAL⟧ marker is
+  // the source of truth for payment status/amount/due/stage. The only real
+  // column worth merging IN here is paid_at: if the row shows the vendor has
+  // paid but the marker has not caught up, reflect that into the marker.
   const state = parsePortalState(app.admin_notes || '')
 
-  if (app.payment_status) {
+  if (app.paid_at) {
     state.payment = {
       ...state.payment,
-      status: app.payment_status as NonNullable<PortalState['payment']>['status'],
-      amount: app.payment_amount || state.payment?.amount,
-      due: app.payment_due_date || state.payment?.due,
-      paid_at: app.paid_at || state.payment?.paid_at,
+      status: state.payment?.status === 'paid' ? 'paid' : (state.payment?.status || 'paid'),
+      paid_at: state.payment?.paid_at || app.paid_at,
     }
-  }
-
-  if (app.portal_stage) {
-    state.stage = app.portal_stage as PortalState['stage']
-  } else if (app.payment_status === 'paid') {
-    state.stage = 'paid'
+    // Advance to 'paid' unless the marker is already at a later stage
+    // (keep 'show_ready' if already there, matching the prior behaviour).
+    if (state.stage !== 'show_ready' && state.stage !== 'docs') {
+      state.stage = 'paid'
+    }
   }
 
   const updated = updatePortalStateImpl(app.admin_notes || '', state)

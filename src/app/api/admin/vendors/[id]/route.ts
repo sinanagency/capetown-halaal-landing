@@ -20,6 +20,7 @@
  *     product_categories?: string[]
  *     preferred_booth_tier?: string          // must be a key of TIER_META
  *     electrical_appliances?: Record<string, number>  // slug -> qty
+ *     electrical_custom?: Array<{ label: string; amount: number; qty?: number }>  // admin off-list charges (per-unit Rand)
  *   }
  */
 
@@ -144,7 +145,13 @@ export async function PATCH(
       changed.push('preferred_booth_tier')
     }
 
-    // --- electrical_appliances (merged into special_requirements JSON) ---
+    // --- special_requirements slices (electrical_appliances + electrical_custom) ---
+    // Both edit the same JSON blob, so read it once, apply each touched slice,
+    // and write once at the end. Untouched slices are left intact (no clobber).
+    let reqsDirty = false
+    const reqs = readReqs((before as { special_requirements?: unknown }).special_requirements)
+
+    // electrical_appliances: slug -> qty, whitelisted, merged into the blob.
     if (body.electrical_appliances && typeof body.electrical_appliances === 'object' && !Array.isArray(body.electrical_appliances)) {
       const cleaned: Record<string, number> = {}
       for (const [slug, qty] of Object.entries(body.electrical_appliances as Record<string, unknown>)) {
@@ -152,11 +159,34 @@ export async function PATCH(
         const q = Math.max(0, Math.floor(Number(qty) || 0))
         if (q > 0) cleaned[slug] = q
       }
-      const reqs = readReqs((before as { special_requirements?: unknown }).special_requirements)
       reqs.electrical_appliances = cleaned
+      reqsDirty = true
+      changed.push('electrical_appliances')
+    }
+
+    // electrical_custom: admin-set off-list charges. Shape is
+    // Array<{ label, amount, qty? }>. We REPLACE the whole array (not merge) so
+    // removing a row in the UI actually removes the charge. Invalid or
+    // blank-label entries are dropped. amount is per-unit Rand, qty defaults to 1.
+    if (Array.isArray(body.electrical_custom)) {
+      const cleanedCustom: Array<{ label: string; amount: number; qty: number }> = []
+      for (const raw of body.electrical_custom as unknown[]) {
+        if (!raw || typeof raw !== 'object') continue
+        const e = raw as { label?: unknown; amount?: unknown; qty?: unknown }
+        const label = typeof e.label === 'string' ? e.label.trim().slice(0, 60) : ''
+        const amount = Number(e.amount)
+        if (!label || !Number.isFinite(amount) || amount < 0) continue
+        const qty = Math.max(1, Math.floor(Number(e.qty) || 1))
+        cleanedCustom.push({ label, amount, qty })
+      }
+      reqs.electrical_custom = cleanedCustom
+      reqsDirty = true
+      changed.push('electrical_custom')
+    }
+
+    if (reqsDirty) {
       // Persist as a JSON string to match how the apply form writes the column.
       update.special_requirements = JSON.stringify(reqs)
-      changed.push('electrical_appliances')
     }
 
     if (changed.length === 0) {
