@@ -24,6 +24,8 @@ interface Vendor {
   tier: string | null
   tier_label: string
   zone: string
+  status: string
+  committed: boolean
   slot: number | null
   paid: boolean
   payment_status: string
@@ -35,6 +37,9 @@ interface Zone {
   key: string
   label: string
   capacity: number
+  committed: number
+  pending: number
+  over: boolean
   used: number
   placed: number
   checkedIn: number
@@ -122,7 +127,8 @@ export default function OutsideRoster() {
   const totals = useMemo(() => {
     const zones = data?.zones ?? []
     return {
-      used: zones.reduce((s, z) => s + z.used, 0),
+      committed: zones.reduce((s, z) => s + z.committed, 0),
+      pending: zones.reduce((s, z) => s + z.pending, 0),
       capacity: zones.reduce((s, z) => s + z.capacity, 0),
       placed: zones.reduce((s, z) => s + z.placed, 0),
       checkedIn: zones.reduce((s, z) => s + z.checkedIn, 0),
@@ -148,17 +154,17 @@ export default function OutsideRoster() {
       subtitle="Bedouin and food, dessert and snack trucks outside the marquee. No floor-plan stall, position number assigned on setup day."
     >
       <KpiStrip>
-        <Kpi label="Rostered" value={`${totals.used}/${totals.capacity}`} hint="vendors / capacity" />
+        <Kpi label="Committed" value={`${totals.committed}/${totals.capacity}`} hint="approved / capacity" />
+        <Kpi label="Waiting" value={totals.pending} hint="pending pipeline" />
         <Kpi label="Positioned" value={totals.placed} hint="have a number" />
         <Kpi label="Checked in" value={totals.checkedIn} />
-        <Kpi label="Zones" value={zones.length} />
       </KpiStrip>
 
       <div className="mt-6 space-y-3">
         {zones.map((z) => {
           const Icon = ZONE_ICON[z.key] || Tent
           const isOpen = open[z.key] ?? false
-          const pct = z.capacity > 0 ? Math.min(100, (z.used / z.capacity) * 100) : 0
+          const pct = z.capacity > 0 ? Math.min(100, (z.committed / z.capacity) * 100) : 0
           return (
             <div key={z.key} className="rounded-lg border border-neutral-200 bg-white overflow-hidden">
               <button
@@ -171,19 +177,25 @@ export default function OutsideRoster() {
                 <span className="text-sm font-semibold text-neutral-900 min-w-0 truncate">{z.label}</span>
                 <span className="ml-auto flex items-center gap-3 shrink-0">
                   <span className="text-xs tabular-nums font-medium text-neutral-600">
-                    {z.used}/{z.capacity}
+                    {z.committed}/{z.capacity} <span className="text-neutral-400">committed</span>
+                    {z.pending > 0 && (
+                      <span className="text-amber-600"> · {z.pending} waiting</span>
+                    )}
                   </span>
                   <span className="hidden sm:flex w-40 h-2 rounded-full bg-neutral-100 overflow-hidden">
                     <span
                       className="h-full rounded-full transition-all"
-                      style={{ width: `${pct}%`, backgroundColor: z.used > z.capacity ? '#dc2626' : z.used === z.capacity ? '#d97706' : ACCENT }}
+                      style={{ width: `${pct}%`, backgroundColor: z.over ? '#dc2626' : z.committed === z.capacity ? '#d97706' : ACCENT }}
                     />
                   </span>
-                  {z.used > z.capacity && <StatusPill tone="danger" label="Over" />}
+                  {z.over && <StatusPill tone="danger" label="Over" />}
                 </span>
               </button>
 
-              {isOpen && (
+              {isOpen && (() => {
+                const committedVendors = z.vendors.filter((v) => v.committed)
+                const waitingVendors = z.vendors.filter((v) => !v.committed)
+                return (
                 <div className="border-t border-neutral-100">
                   {z.vendors.length === 0 ? (
                     <div className="px-4 py-6 text-sm text-neutral-400">No vendors in this zone yet.</div>
@@ -197,8 +209,10 @@ export default function OutsideRoster() {
                           <th className="text-left font-semibold px-3 py-2 w-36">Check-in</th>
                         </tr>
                       </thead>
+                      {/* Committed (approved) vendors fill the spots: position + check-in live here. */}
+                      {committedVendors.length > 0 && (
                       <tbody className="divide-y divide-neutral-50">
-                        {z.vendors.map((v) => {
+                        {committedVendors.map((v) => {
                           const draft = slotDraft[v.id] ?? (v.slot != null ? String(v.slot) : '')
                           const busy = busyId === v.id
                           return (
@@ -259,10 +273,50 @@ export default function OutsideRoster() {
                           )
                         })}
                       </tbody>
+                      )}
+                      {/* Waiting list: pending / info_requested vendors with no spot yet.
+                          No position number, no check-in until they're approved. */}
+                      {waitingVendors.length > 0 && (
+                      <tbody className="divide-y divide-neutral-50">
+                        <tr className="bg-amber-50/40">
+                          <td colSpan={4} className="px-4 py-1.5 text-[11px] uppercase tracking-wider font-semibold text-amber-700">
+                            Waiting list · {waitingVendors.length} not yet approved
+                          </td>
+                        </tr>
+                        {waitingVendors.map((v) => (
+                          <tr key={v.id} className="hover:bg-neutral-50/60 text-neutral-500">
+                            <td className="px-4 py-2.5">
+                              <Link href={`/admin/vendors/${v.id}`} className="font-medium hover:underline text-neutral-600">
+                                {v.business_name}
+                              </Link>
+                              <div className="text-[11px] text-neutral-400 truncate">
+                                {v.tier_label}{v.contact_name ? ` · ${v.contact_name}` : ''}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <StatusPill
+                                tone={v.paid ? 'success' : v.payment_status === 'pending' ? 'warn' : 'neutral'}
+                                label={v.paid ? 'Paid' : v.payment_status === 'pending' ? 'Pending' : 'Not paid'}
+                              />
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <StatusPill
+                                tone="warn"
+                                label={v.status === 'info_requested' ? 'Info requested' : 'Awaiting approval'}
+                              />
+                            </td>
+                            <td className="px-3 py-2.5 text-[11px] text-neutral-400">
+                              Approve to position
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      )}
                     </table>
                   )}
                 </div>
-              )}
+                )
+              })()}
             </div>
           )
         })}

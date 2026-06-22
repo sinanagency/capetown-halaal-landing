@@ -54,6 +54,10 @@ interface OutsideVendorRow {
   tier: string | null
   tier_label: string
   zone: OutsideZoneKey
+  // Application status, tagged so the UI can split committed (approved) from the
+  // waiting pipeline (pending / info_requested). 'approved' = committed.
+  status: string
+  committed: boolean
   slot: number | null
   paid: boolean
   payment_status: string
@@ -82,6 +86,8 @@ async function loadRoster(admin: ReturnType<typeof createAdminClient>) {
     const portal = parsePortalState(a.admin_notes as string)
     const paymentStatus = (portal.payment?.status || 'none') as string
     const paid = paymentStatus === 'paid' || paymentStatus === 'waived'
+    const status = (a.status as string) || ''
+    const committed = status === 'approved' // fills a spot; pending/info_requested wait
 
     const row: OutsideVendorRow = {
       id: a.id,
@@ -92,6 +98,8 @@ async function loadRoster(admin: ReturnType<typeof createAdminClient>) {
       tier: (a.preferred_booth_tier as string) || null,
       tier_label: tierLabel(a.preferred_booth_tier as string),
       zone,
+      status,
+      committed,
       slot: za.slot,
       paid,
       payment_status: paymentStatus,
@@ -115,16 +123,26 @@ export async function GET() {
       const zoneVendors = vendors
         .filter((v) => v.zone === z.key)
         .sort((a, b) => {
-          // Placed (with a slot) first, ordered by slot; then unplaced by name.
+          // Committed (approved) first, then the waiting pipeline. Within each
+          // group, placed (with a slot) first ordered by slot, then by name.
+          if (a.committed !== b.committed) return a.committed ? -1 : 1
           if (a.slot != null && b.slot != null) return a.slot - b.slot
           if (a.slot != null) return -1
           if (b.slot != null) return 1
           return a.business_name.localeCompare(b.business_name)
         })
+      // committed = approved vendors that fill the spots; pending = the waiting
+      // pipeline (pending / info_requested). Capacity is judged on committed only,
+      // so "over" never fires on the waiting list.
+      const committed = zoneVendors.filter((v) => v.committed).length
+      const pending = zoneVendors.length - committed
       return {
         key: z.key,
         label: z.label,
         capacity: z.capacity,
+        committed,
+        pending,
+        over: committed > z.capacity,
         used: zoneVendors.length,
         placed: zoneVendors.filter((v) => v.slot != null).length,
         checkedIn: zoneVendors.filter((v) => v.checkedIn).length,

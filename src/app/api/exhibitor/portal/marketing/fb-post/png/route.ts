@@ -13,7 +13,7 @@ export const maxDuration = 60
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const fields = await resolveVendorMarketingFields()
+  const fields = await resolveVendorMarketingFields('fb-post')
   if (!fields) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
