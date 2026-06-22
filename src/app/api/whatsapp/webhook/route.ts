@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import {
   verifyWebhook,
   verifySignature,
@@ -6,6 +6,7 @@ import {
   parseStatuses,
   sendText,
   toE164,
+  fetchMediaBytes,
 } from '@/lib/whatsapp'
 import {
   recordOptOut,
@@ -19,7 +20,7 @@ import { detectHumanIntent, escalateToHuman, isInHandover, isPendingHandover, se
 import { notifyOwners } from '@/lib/bot/notify'
 import { resolveSwipeReplyTarget } from '@/lib/bot/swipe-reply'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { findAdmin } from '@/lib/bot/admins'
+import { findAdmin, isDevNumber } from '@/lib/bot/admins'
 import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
 import { handleAdminMessage } from '@/lib/bot/admin-chat'
 import { isMaintenanceEnabled } from '@/lib/maintenance'
@@ -148,6 +149,22 @@ async function handleInbound(msg: {
     logToChat: async (_sender, _text) => {},
   })
   if (guard.action !== "process") return
+
+  // D2) DEVELOPER-ROLE ROUTING. Taona's test number is encoded as a `developer`
+  // (master doctrine). A dev test must NOT pollute the real vendor inbox/data:
+  // we SKIP persistence entirely (no wa_messages row, no wa_thread, no ticket
+  // auto-link) so the dev conversation never appears as a real vendor thread.
+  // We still run the brain so Taona can test the answer, and the reply is sent
+  // with a `[DEV] ` prefix at the chokepoint so it's clearly marked. STOP/START
+  // and the bot-guards wall still apply (handled inside handleDev). Dev sits
+  // AFTER signature verify (POST) + dedup guard, BEFORE any persistence.
+  // Admin ALWAYS wins over dev: an admin number (e.g. Taona's master number)
+  // keeps full admin-chat even if it were ever added to DEV_WHATSAPP by mistake.
+  if (isDevNumber(e164) && !findAdmin(e164)) {
+    await handleDev(e164, msg)
+    return
+  }
+
   await logMessage({ direction: 'in', wa_phone: e164, body: msg.text, status: 'received', providerMessageId: msg.messageId, media: msg.media })
 
   // 1) STOP — hard opt-out, confirm once, then go silent.
@@ -409,6 +426,44 @@ async function handleInbound(msg: {
   await logMessage({ direction: 'out', wa_phone: e164, body: guarded.reply, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
 }
 
+// D2) Developer-session handler. Runs the festival brain so Taona can test the
+// answer, but NEVER persists (no logMessage / touchThread / ticket auto-link),
+// so a dev test creates no real vendor thread or data. Every outbound is sent
+// through devSend, which prepends `[DEV] ` at the chokepoint and still routes
+// through sendText's bot-guards wall + consent gate. STOP/START are recognised
+// so Taona can eyeball the copy, but consent state is NOT recorded (this is a
+// test handset, not a real opt-out).
+async function handleDev(
+  e164: string,
+  msg: { type: string; text: string; media?: unknown }
+) {
+  const devSend = (body: string) => sendText(e164, `[DEV] ${body}`)
+
+  if (isStopKeyword(msg.text)) {
+    await devSend("STOP recognised (test mode, consent not recorded). Reply START to test the opt-back-in copy.")
+    return
+  }
+  if (isStartKeyword(msg.text)) {
+    await devSend("START recognised (test mode). You're back in 🎉 How can I help?")
+    return
+  }
+
+  if (msg.type !== 'text' || !msg.text.trim()) {
+    await devSend("Hi! I'm the Young at Heart Festival assistant. Ask me about tickets, vendors, directions, or anything about the festival.")
+    return
+  }
+
+  let reply = ''
+  try {
+    const result = await askFestivalBrain(msg.text, { waId: e164, history: [] })
+    reply = result.message
+  } catch (e) {
+    console.error('[dev] brain error', e)
+    reply = 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
+  }
+  await devSend(reply)
+}
+
 // Forward an admin's inbound straight to the master (Taona) so he sees it
 // without waiting to open /admin/bot-inbox. Best-effort: a failure here never
 // blocks the 200 to Meta because the caller logs and swallows errors.
@@ -440,6 +495,98 @@ async function alreadySeen(providerMessageId: string): Promise<boolean> {
   return Boolean(data)
 }
 
+// B6: Inbound-media durability. Meta media ids are short-lived (~1h), so we copy
+// the bytes into the private `vendor-docs` bucket at receipt under
+// `wa-media/<mediaId>.<ext>` and return the storage path to stash in metadata.
+// Strictly best-effort: any failure (fetch, upload, missing token) returns
+// undefined and the caller keeps the legacy id-only behavior. Never throws.
+const WA_MEDIA_BUCKET = 'vendor-docs'
+const WA_MEDIA_PREFIX = 'wa-media'
+
+function extFromMime(mime?: string): string {
+  const map: Record<string, string> = {
+    'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+    'image/gif': 'gif', 'application/pdf': 'pdf', 'video/mp4': 'mp4', 'audio/ogg': 'ogg',
+    'audio/mpeg': 'mp3', 'audio/mp4': 'm4a',
+  }
+  if (!mime) return 'bin'
+  const base = mime.split(';')[0].trim().toLowerCase()
+  return map[base] || 'bin'
+}
+
+async function captureMediaToStorage(
+  db: ReturnType<typeof createAdminClient>,
+  media: { kind: string; id: string; mimeType?: string; filename?: string }
+): Promise<string | undefined> {
+  try {
+    const fetched = await fetchMediaBytes(media.id)
+    if (!fetched) return undefined
+    const contentType = fetched.contentType || media.mimeType || 'application/octet-stream'
+    const ext = extFromMime(media.mimeType || fetched.contentType)
+    const path = `${WA_MEDIA_PREFIX}/${media.id}.${ext}`
+    const { error } = await db.storage.from(WA_MEDIA_BUCKET).upload(path, fetched.bytes, {
+      contentType,
+      upsert: true,
+    })
+    if (error) {
+      console.error('[wa-media] storage upload failed:', error.message)
+      return undefined
+    }
+    return path
+  } catch (e) {
+    console.error('[wa-media] capture failed:', (e as Error).message)
+    return undefined
+  }
+}
+
+// Deferred (post-response) capture: fetch+upload the bytes, then PATCH the
+// existing wa_messages row to add metadata.media.storage_path. Runs inside
+// after() so it never blocks the webhook 200. Best-effort end to end: every
+// failure (fetch null, timeout, oversized, upload error, missing row) is caught
+// and logged, never thrown — the id-only row stays valid and the proxy serves
+// from the live Meta id until/unless storage_path lands.
+//
+// CLOBBER-SAFETY: we RE-READ the row's current metadata jsonb and merge the
+// storage_path into the EXISTING media object, rather than writing a fresh
+// metadata literal. This preserves any other metadata fields (and any media
+// fields) that may have been written in the meantime.
+async function captureMediaToStorageAndPatch(
+  rowId: string,
+  media: { kind: string; id: string; mimeType?: string; filename?: string }
+) {
+  try {
+    const db = createAdminClient()
+    const storagePath = await captureMediaToStorage(db, media)
+    // Capture skipped (oversized / timeout / fetch fail / upload fail). Leave
+    // the row id-only; the proxy falls back to the Meta id. Not an error.
+    if (!storagePath) return
+
+    // Re-read the live metadata so we merge instead of overwrite.
+    const { data: current } = await db
+      .from('wa_messages')
+      .select('metadata')
+      .eq('id', rowId)
+      .maybeSingle()
+
+    const existingMeta = ((current as { metadata?: Record<string, unknown> } | null)?.metadata ?? {}) as Record<string, unknown>
+    const existingMedia = (existingMeta.media ?? {}) as Record<string, unknown>
+    const mergedMetadata = {
+      ...existingMeta,
+      media: { ...existingMedia, storage_path: storagePath },
+    }
+
+    const { error } = await db
+      .from('wa_messages')
+      .update({ metadata: mergedMetadata })
+      .eq('id', rowId)
+    if (error) {
+      console.error('[wa-media] storage_path patch failed:', error.message)
+    }
+  } catch (e) {
+    console.error('[wa-media] deferred capture/patch error:', (e as Error).message)
+  }
+}
+
 async function logMessage(row: {
   direction: 'in' | 'out'
   wa_phone: string
@@ -452,17 +599,44 @@ async function logMessage(row: {
   // Persist the media descriptor into the existing `metadata` jsonb (no DDL,
   // Doctrine Law 8). The unified inbox media proxy reads metadata.media.id to
   // fetch the bytes from the Graph API. The wamid alone CANNOT retrieve media.
-  const metadata = row.media
+  //
+  // HOT-PATH FIX (B6.2, 2026-06-23): the row is INSERTED id-only (NO
+  // storage_path) and that single cheap INSERT is the only thing the webhook
+  // 200 waits on. The slow Meta fetch + Supabase upload (captureMediaToStorage)
+  // is deferred to Next's after() so it runs AFTER the response is flushed.
+  // Until the capture lands, the proxy falls back to the live Meta media id
+  // (~1h TTL) — a fully working intermediate state. Once after() patches in the
+  // storage_path, the proxy serves from durable storage (no expiry).
+  const idOnlyMetadata = row.media
     ? { media: { kind: row.media.kind, id: row.media.id, mime_type: row.media.mimeType, filename: row.media.filename, caption: row.media.caption } }
     : null
-  await db.from('wa_messages').insert({
+  const { data: inserted } = await db.from('wa_messages').insert({
     direction: row.direction,
     wa_phone: row.wa_phone,
     body: row.body,
     status: row.status,
     provider_message_id: row.providerMessageId || null,
-    ...(metadata ? { metadata } : {}),
-  })
+    ...(idOnlyMetadata ? { metadata: idOnlyMetadata } : {}),
+  }).select('id').single()
+
+  // Defer the slow media capture off the synchronous 200 path. after() runs
+  // post-response on Vercel and survives the function (unlike a bare floating
+  // promise, which Vercel kills once the response is flushed). Best-effort:
+  // EVERYTHING inside is wrapped so a capture error can NEVER throw into the
+  // webhook handler — the id-only row already exists and the proxy still works.
+  const mediaToCapture = row.media
+  const insertedId = (inserted as { id?: string } | null)?.id
+  if (mediaToCapture?.id && insertedId) {
+    after(async () => {
+      try {
+        await captureMediaToStorageAndPatch(insertedId, mediaToCapture)
+      } catch (e) {
+        // Defensive: captureMediaToStorageAndPatch already swallows its own
+        // errors, but this outer catch guarantees after() never rejects.
+        console.error('[wa-media] deferred capture failed:', (e as Error).message)
+      }
+    })
+  }
   // Spine: keep wa_threads in lockstep with wa_messages so the admin Bot Inbox
   // can render. Prod schema is migration v9 (PK = wa_phone). Inbound bumps
   // last_inbound_at + unread_count; outbound bumps last_outbound_at and zeroes

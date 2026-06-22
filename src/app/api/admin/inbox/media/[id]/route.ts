@@ -17,7 +17,9 @@ export const dynamic = 'force-dynamic'
 const GRAPH = 'https://graph.facebook.com/v21.0'
 const WA_TOKEN = process.env.WHATSAPP_TOKEN || ''
 
-interface MediaMeta { id?: string; mime_type?: string; filename?: string; caption?: string }
+interface MediaMeta { id?: string; mime_type?: string; filename?: string; caption?: string; storage_path?: string }
+
+const WA_MEDIA_BUCKET = 'vendor-docs'
 
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
@@ -30,8 +32,6 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const { data: adminUser } = await db.from('admin_users').select('id').eq('id', user.id).maybeSingle()
   if (!adminUser) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
-  if (!WA_TOKEN) return NextResponse.json({ error: 'whatsapp_not_configured' }, { status: 503 })
-
   // The `id` param is the wa_messages row id (UUID). Strip any "wa:" prefix the
   // unified thread uses for its synthetic message ids.
   const rowId = id.replace(/^wa:/, '')
@@ -41,7 +41,39 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     .eq('id', rowId)
     .maybeSingle()
   const media = (row?.metadata as { media?: MediaMeta } | null)?.media
-  if (!media?.id) return NextResponse.json({ error: 'no_media' }, { status: 404 })
+  if (!media?.id && !media?.storage_path) return NextResponse.json({ error: 'no_media' }, { status: 404 })
+
+  // B6: Prefer Storage. When the inbound media was copied into the private
+  // vendor-docs bucket at receipt (metadata.media.storage_path), serve those
+  // bytes directly — same-origin, no Meta fetch, no ~1h media-id expiry. Only
+  // legacy rows (captured before B6, or where the receipt-time copy failed)
+  // have no storage_path and fall through to the Meta media-id fetch below.
+  if (media.storage_path) {
+    const { data: blob, error: dlErr } = await db.storage
+      .from(WA_MEDIA_BUCKET)
+      .download(media.storage_path)
+    if (!dlErr && blob) {
+      const contentType = media.mime_type || blob.type || 'application/octet-stream'
+      const headers = new Headers({
+        'Content-Type': contentType,
+        // Private cache only — admin-gated, vendor PII (Doctrine Law 2).
+        'Cache-Control': 'private, max-age=300',
+      })
+      if (media.filename) {
+        headers.set('Content-Disposition', `inline; filename="${media.filename.replace(/["\r\n]/g, '')}"`)
+      }
+      const arrayBuf = await blob.arrayBuffer()
+      return new NextResponse(arrayBuf, { status: 200, headers })
+    }
+    // Storage download failed (object pruned / transient) — fall through to Meta
+    // only if we still have a media id, otherwise report the failure.
+    console.error('[inbox-media] storage download failed:', dlErr?.message)
+    if (!media.id) return NextResponse.json({ error: 'storage_fetch_failed' }, { status: 502 })
+  }
+
+  if (!media.id) return NextResponse.json({ error: 'no_media' }, { status: 404 })
+
+  if (!WA_TOKEN) return NextResponse.json({ error: 'whatsapp_not_configured' }, { status: 503 })
 
   try {
     // 1) Resolve the media id -> short-lived download URL.

@@ -264,6 +264,71 @@ export async function sendTicket(args: {
   )
 }
 
+// --- Resolve a Meta media id -> raw bytes (server-only, token-gated) ---
+// Meta media ids are short-lived (~1h TTL): you first GET the media id to get a
+// signed download URL, then fetch that URL with the bearer token. This is the
+// same two-step the admin inbox media proxy does on demand; centralised here so
+// the webhook can ALSO call it at receipt time to copy the bytes into Storage
+// before the id expires. Returns null (never throws) so callers can treat it as
+// best-effort.
+// Defense-in-depth bounds (B6.1, 2026-06-23): a slow Meta endpoint or an
+// oversized upload must never hang the function or buffer 100MB into memory.
+// Both fetches get a hard ~3s timeout via AbortSignal; the byte fetch is also
+// capped at ~5MB (checked first against Content-Length, then against the
+// actual buffer). Over-cap items bail to null so the caller keeps id-only
+// behavior and the proxy falls back to the live Meta id (~1h TTL).
+const WA_MEDIA_FETCH_TIMEOUT_MS = 3000
+const WA_MEDIA_MAX_BYTES = 5 * 1024 * 1024 // 5MB
+
+export async function fetchMediaBytes(
+  mediaId: string
+): Promise<{ bytes: Buffer; contentType: string } | null> {
+  if (!WA_TOKEN || !mediaId) return null
+  try {
+    const metaRes = await fetch(`${GRAPH}/${mediaId}`, {
+      headers: { Authorization: `Bearer ${WA_TOKEN}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(WA_MEDIA_FETCH_TIMEOUT_MS),
+    })
+    if (!metaRes.ok) return null
+    const meta = (await metaRes.json()) as { url?: string; mime_type?: string }
+    if (!meta.url) return null
+
+    const binRes = await fetch(meta.url, {
+      headers: { Authorization: `Bearer ${WA_TOKEN}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(WA_MEDIA_FETCH_TIMEOUT_MS),
+    })
+    if (!binRes.ok) return null
+
+    // Size cap (cheap path): if Meta advertises a Content-Length over the cap,
+    // bail before buffering a single byte.
+    const declaredLen = Number(binRes.headers.get('content-length') || '0')
+    if (declaredLen > WA_MEDIA_MAX_BYTES) {
+      console.warn(
+        `[wa-media] skipping oversized media ${mediaId}: content-length ${declaredLen} > ${WA_MEDIA_MAX_BYTES} cap`
+      )
+      return null
+    }
+
+    const arrayBuf = await binRes.arrayBuffer()
+    // Size cap (post-buffer path): some responses omit Content-Length, so also
+    // check the actual buffered length and drop it if it exceeded the cap.
+    if (arrayBuf.byteLength > WA_MEDIA_MAX_BYTES) {
+      console.warn(
+        `[wa-media] skipping oversized media ${mediaId}: buffered ${arrayBuf.byteLength} > ${WA_MEDIA_MAX_BYTES} cap`
+      )
+      return null
+    }
+
+    const contentType =
+      meta.mime_type || binRes.headers.get('content-type') || 'application/octet-stream'
+    return { bytes: Buffer.from(arrayBuf), contentType }
+  } catch {
+    return null
+  }
+}
+
 // --- Webhook verification (GET handshake from Meta) ---
 export function verifyWebhook(mode: string | null, token: string | null, challenge: string | null): string | null {
   if (mode === 'subscribe' && token && token === WA_VERIFY_TOKEN) return challenge
