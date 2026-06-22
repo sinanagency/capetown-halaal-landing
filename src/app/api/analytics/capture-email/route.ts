@@ -123,7 +123,7 @@ Business: ${business || 'Not provided'}
 They've been sent a follow-up email automatically.
 
 View all applications: https://cthalaal.co.za/admin/applications
-Follow up page: https://cthalaal.co.za/admin/follow-up`
+Contacts (started/incomplete applications): https://cthalaal.co.za/admin/contacts`
 
     try {
       await Promise.all([

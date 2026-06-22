@@ -9,6 +9,14 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+interface MediaInfo {
+  kind: 'image' | 'document' | 'video' | 'audio' | 'sticker'
+  // Same-origin proxy URL the client renders (img/link). Null when the row has
+  // no resolvable media id (legacy media logged before capture existed).
+  url: string | null
+  mimeType?: string
+  filename?: string
+}
 interface CommItem {
   id: string
   channel: 'whatsapp' | 'email'
@@ -18,6 +26,7 @@ interface CommItem {
   from: string
   subject?: string
   bot?: boolean
+  media?: MediaInfo
 }
 
 export async function GET(req: NextRequest) {
@@ -48,14 +57,30 @@ export async function GET(req: NextRequest) {
       .or(`wa_phone.eq.+${noPlus},wa_phone.eq.${noPlus}`)
       .order('created_at', { ascending: true })
       .limit(400)
-    for (const m of (msgs || []) as Array<{ id: string; direction: string; body: string | null; created_at: string; wa_phone: string; template_name: string | null; metadata: { sent_by?: string; via?: string } | null }>) {
+    for (const m of (msgs || []) as Array<{ id: string; direction: string; body: string | null; created_at: string; wa_phone: string; template_name: string | null; metadata: { sent_by?: string; via?: string; media?: { kind: 'image' | 'document' | 'video' | 'audio' | 'sticker'; id?: string; mime_type?: string; filename?: string; caption?: string } } | null }>) {
       // Internal owner-notification pings ("🛎️ …") and bracket markers are not
       // part of the customer conversation. A real inbound with no text is media.
       const raw = (m.body || '').trim()
       if (/^\s*\[[A-Z_]+\]/.test(raw) || /HUMAN_HANDOVER/.test(raw) || /^\s*🛎/u.test(raw)) continue
+      // Media descriptor captured at webhook time (metadata.media). Newer rows
+      // carry the Meta media id; the client renders via a same-origin proxy
+      // keyed on the wa_messages row id. Legacy media rows have no id => url null
+      // so the client falls back to a chip instead of the old "[media message]".
+      const md = m.metadata?.media
+      const media: MediaInfo | undefined = md
+        ? {
+            kind: md.kind,
+            url: md.id ? `/api/admin/inbox/media/${m.id}` : null,
+            mimeType: md.mime_type,
+            filename: md.filename,
+          }
+        : undefined
+      // Body: a media caption (already stored as body) or the template label.
+      // For a bare media row with no caption, leave the text empty so the bubble
+      // shows only the image/chip (no literal "[media message]" string).
       let body = raw.replace(/^\s*\[[a-z0-9_]+\]\s*/, '') || (m.template_name ? `[template: ${m.template_name}]` : '')
-      if (!body) body = m.direction === 'in' ? '[media message]' : ''
-      if (!body) continue
+      if (!body && !media) body = m.direction === 'in' ? '[media message]' : ''
+      if (!body && !media) continue
       // Outbound attribution: an agent (metadata.sent_by) replied, else it was
       // the auto-bot (no sender stamp and no human took over historically).
       const sentBy = local(m.metadata?.sent_by)
@@ -68,6 +93,7 @@ export async function GET(req: NextRequest) {
         at: m.created_at,
         from: !out ? `+${m.wa_phone.replace(/^\+/, '')}` : sentBy || 'Bot',
         bot: out && !sentBy,
+        ...(media ? { media } : {}),
       })
     }
   }

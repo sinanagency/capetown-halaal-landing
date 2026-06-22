@@ -10,6 +10,7 @@ import { provisionExhibitorAccount } from '@/lib/exhibitor-auth'
 import { sendTemplate, toE164 } from '@/lib/whatsapp'
 import { assertRole } from '@/lib/admin-rbac'
 import { capJsonbSize } from '@/lib/audit/cap'
+import { findWaTemplate, renderWaTemplatePreview } from '@/lib/templates/wa-meta'
 
 // Validation for status updates
 const updateSchema = z.object({
@@ -270,7 +271,14 @@ export async function PATCH(
             if (phone) {
               const firstName = String(data.contact_name || '').trim().split(/\s+/)[0] || 'there'
               const stallMatch = String(data.admin_notes || '').match(/⟦STALL:([^⟧]+)⟧/)
-              const stallCode = stallMatch ? stallMatch[1].trim() : 'to be confirmed shortly'
+              // {{2}} is embedded mid-sentence as "Your stall: {{2}}". When a
+              // stall is allocated we pass the code; when it is not yet
+              // allocated we pass a full clause so the sentence reads cleanly
+              // ("Your stall: to be allocated and shared closer to the
+              // festival.") instead of a dangling fragment.
+              const stallCode = stallMatch
+                ? stallMatch[1].trim()
+                : 'to be allocated and shared closer to the festival'
               const e164 = toE164(phone)
               const wa = await sendTemplate(
                 e164,
@@ -280,14 +288,20 @@ export async function PATCH(
               )
               // Paper-trail log: write to wa_messages so the auto-send is
               // visible alongside broadcasts (was silent before — no way to
-              // tell if Meta actually delivered).
+              // tell if Meta actually delivered). Render from the canonical
+              // Meta-approved body (wa-meta.ts) so the inbox shows the real
+              // message text, not a hand-rolled fragment.
+              const spec = findWaTemplate('vendor_application_approved')
+              const loggedBody = spec
+                ? renderWaTemplatePreview(spec, { first_name: firstName, stall_code: stallCode })
+                : `Great news ${firstName}! Your stall application for Young at Heart Festival 2026 is approved. Your stall: ${stallCode}. We will share setup details and a payment link shortly.`
               try {
                 await admin.from('wa_messages').insert({
                   direction: 'out',
                   wa_phone: e164.replace(/^\+/, ''),
                   template_name: 'vendor_application_approved',
                   category: 'utility',
-                  body: `Great news ${firstName}! Your stall application... Your stall: ${stallCode}`,
+                  body: loggedBody,
                   status: wa.skipped ? 'failed' : 'sent',
                   error: wa.skipped || null,
                   provider_message_id: wa.messageId || null,

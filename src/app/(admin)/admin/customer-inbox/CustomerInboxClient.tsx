@@ -6,7 +6,7 @@ import {
   Loader2, Mail, MessageCircle, Search, Send, ChevronDown, Star, MailOpen,
   MoreHorizontal, Check, Clock, RotateCcw, Sparkles, Wand2, MessageSquarePlus,
   FileText, Paperclip, ListChecks, X, ExternalLink, Bot, UserCheck, Tag as TagIcon, StickyNote,
-  IdCard, CreditCard, MapPin, FileCheck,
+  IdCard, CreditCard, MapPin, FileCheck, ImageIcon, Film, Mic,
 } from 'lucide-react'
 
 type Tab = 'all' | 'mine' | 'open' | 'snoozed' | 'resolved' | 'unread'
@@ -34,6 +34,12 @@ interface Contact {
   bot_paused: boolean
 }
 
+interface MediaInfo {
+  kind: 'image' | 'document' | 'video' | 'audio' | 'sticker'
+  url: string | null
+  mimeType?: string
+  filename?: string
+}
 interface CommItem {
   id: string
   channel: 'whatsapp' | 'email'
@@ -43,6 +49,7 @@ interface CommItem {
   at: string
   from: string
   subject?: string
+  media?: MediaInfo
 }
 
 interface Operator { id: string; email: string }
@@ -63,28 +70,47 @@ const AI_CARDS: Array<{ action: AiAction; label: string; short: string; icon: ty
 const AI_ROW_CARDS = AI_CARDS.filter((c) => c.action === 'smart_reply')
 
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// SAST = Africa/Johannesburg (UTC+2, no DST). The operator wants the real
+// time-of-occurrence in SA local time, not relative "10h ago" strings. We pin
+// the timeZone on every formatter so it reads the same regardless of where the
+// server or the operator's browser sits.
+const SA_TZ = 'Africa/Johannesburg'
+const saParts = (iso: string) => {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  // en-GB + the SA tz gives 24h HH:mm and a day/month/year we can read back.
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: SA_TZ, year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d)
+  const get = (t: string) => p.find((x) => x.type === t)?.value || ''
+  return { day: get('day'), month: get('month'), year: get('year'), hour: get('hour'), minute: get('minute') }
+}
+// Bubble timestamp: always the real SAST clock time, e.g. "14:32".
 function fmtTime(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  const p = saParts(iso)
+  return p ? `${p.hour}:${p.minute}` : ''
 }
+// Date separators, in SAST. Today / Yesterday relative to SA local day.
 function fmtDay(iso: string): string {
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const today = new Date(); const y = new Date(); y.setDate(today.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return 'Today'
-  if (d.toDateString() === y.toDateString()) return 'Yesterday'
-  return `${d.getDate()} ${MONTH[d.getMonth()]} ${d.getFullYear()}`
+  const p = saParts(iso)
+  if (!p) return ''
+  const todayP = saParts(new Date().toISOString())
+  const yP = saParts(new Date(Date.now() - 86_400_000).toISOString())
+  const same = (a: typeof p, b: typeof p | null) => !!b && a.day === b.day && a.month === b.month && a.year === b.year
+  if (same(p, todayP)) return 'Today'
+  if (same(p, yP)) return 'Yesterday'
+  return `${p.day} ${p.month} ${p.year}`
 }
-function timeAgo(iso: string | null): string {
+// Conversation-list time + notes: the real SAST time of occurrence, compact.
+// "14:32" when it happened today (SA), else "21 Jun 14:32".
+function fmtSAST(iso: string | null): string {
   if (!iso) return ''
-  const d = new Date(iso); if (Number.isNaN(d.getTime())) return ''
-  const s = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000))
-  if (s < 60) return 'now'
-  const m = Math.floor(s / 60); if (m < 60) return `${m}m`
-  const h = Math.floor(m / 60); if (h < 24) return `${h}h`
-  const dd = Math.floor(h / 24); if (dd < 30) return `${dd}d`
-  return `${Math.floor(dd / 30)}mo`
+  const p = saParts(iso)
+  if (!p) return ''
+  const todayP = saParts(new Date().toISOString())
+  const isToday = !!todayP && p.day === todayP.day && p.month === todayP.month && p.year === todayP.year
+  return isToday ? `${p.hour}:${p.minute}` : `${p.day} ${p.month} ${p.hour}:${p.minute}`
 }
 function initials(name: string): string {
   const p = name.trim().split(/\s+/).filter(Boolean)
@@ -106,6 +132,39 @@ function tagCls(t: string): string {
     case 'refund': return 'bg-red-50 text-red-700 border-red-200'
     default: return 'bg-neutral-100 text-neutral-600 border-neutral-200'
   }
+}
+
+// Render an incoming/outgoing media attachment. Images render inline via the
+// same-origin admin media proxy; other kinds get a compact tappable chip. When
+// the row predates media-id capture (url === null) we still show an honest chip
+// instead of the old literal "[media message]" text. `onDark` flips the chip
+// skin so it stays legible on the magenta operator bubble.
+function MediaBubble({ media, onDark }: { media: MediaInfo; onDark?: boolean }) {
+  const { kind, url, filename } = media
+  if (kind === 'image' && url) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt={filename || 'Image'} loading="lazy"
+          className="rounded-lg max-h-72 max-w-full w-auto object-contain border border-neutral-200 bg-white" />
+      </a>
+    )
+  }
+  const Icon = kind === 'image' ? ImageIcon : kind === 'video' ? Film : kind === 'audio' ? Mic : FileText
+  const label = filename || (kind === 'image' ? 'Image' : kind === 'video' ? 'Video' : kind === 'audio' ? 'Voice note' : 'Document')
+  const chipCls = onDark
+    ? 'bg-white/15 border-white/25 text-white hover:bg-white/25'
+    : 'bg-neutral-50 border-neutral-200 text-neutral-700 hover:bg-neutral-100'
+  const inner = (
+    <span className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-[13px] font-medium transition ${chipCls}`}>
+      <Icon className="w-4 h-4 shrink-0" />
+      <span className="truncate max-w-[220px]">{label}</span>
+      {url && <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-60" />}
+    </span>
+  )
+  return url
+    ? <a href={url} target="_blank" rel="noreferrer">{inner}</a>
+    : <span title="Original media is no longer retrievable" className="opacity-90">{inner}</span>
 }
 
 interface CannedReply { slug: string; label: string; subject: string | null; body: string }
@@ -556,6 +615,8 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                       // Bubble alignment: email always left (document); WA out = right.
                       const alignRight = !isEmail && m.direction === 'out'
                       // Bubble skin by role (WhatsApp only; email uses the card skin).
+                      // overflow-hidden + min-w-0 keep long/raw email bodies and
+                      // unbreakable URLs from blowing the bubble past the pane.
                       const bubbleSkin = isEmail
                         ? 'max-w-full w-full bg-white text-neutral-900 border border-neutral-200 rounded-lg'
                         : isBot
@@ -563,17 +624,28 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                           : isOperator
                             ? 'max-w-[78%] bg-[#cd2653] text-white rounded-2xl rounded-tr-sm'
                             : 'max-w-[78%] bg-white text-neutral-900 border border-neutral-200 rounded-2xl rounded-tl-sm'
+                      // Email bodies are long, quoted, sometimes raw: render them a
+                      // notch smaller than WhatsApp chat text so they stay readable
+                      // and don't overflow. WhatsApp stays at a comfortable chat size.
+                      const bodyText = isEmail ? 'text-[13.5px]' : 'text-[15px]'
                       return (
-                      <div key={m.id} className={`flex flex-col ${alignRight ? 'items-end' : 'items-start'}`}>
-                        <div className="flex items-center gap-1.5 mb-1 px-1 text-[11px] text-neutral-400">
-                          {m.channel === 'whatsapp' ? <MessageCircle className="w-3 h-3 text-emerald-600" /> : <Mail className="w-3 h-3 text-blue-600" />}
-                          {isBot && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-600 font-semibold text-[10px]"><Bot className="w-3 h-3" />Bot</span>}
-                          {isOperator && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-[#cd2653]/10 text-[#cd2653] font-semibold text-[10px]">You</span>}
-                          <span>{m.from}</span><span>·</span><span>{fmtTime(m.at)}</span>
+                      <div key={m.id} className={`flex flex-col min-w-0 max-w-full ${alignRight ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-center gap-1.5 mb-1 px-1 text-[11px] text-neutral-400 max-w-full min-w-0">
+                          {m.channel === 'whatsapp' ? <MessageCircle className="w-3 h-3 text-emerald-600 shrink-0" /> : <Mail className="w-3 h-3 text-blue-600 shrink-0" />}
+                          {isBot && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-neutral-200 text-neutral-600 font-semibold text-[10px] shrink-0"><Bot className="w-3 h-3" />Bot</span>}
+                          {isOperator && <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-[#cd2653]/10 text-[#cd2653] font-semibold text-[10px] shrink-0">You</span>}
+                          <span className="truncate min-w-0">{m.from}</span><span className="shrink-0">·</span><span className="shrink-0">{fmtTime(m.at)}</span>
                         </div>
-                        <div className={`px-4 py-2.5 shadow-sm ${bubbleSkin}`}>
-                          {m.subject && isEmail && <p className="text-[12px] font-semibold opacity-70 mb-1">{m.subject}</p>}
-                          <p className="whitespace-pre-wrap break-words leading-relaxed text-[15px]">{m.body}</p>
+                        <div className={`px-4 py-2.5 shadow-sm overflow-hidden min-w-0 ${bubbleSkin}`}>
+                          {m.subject && isEmail && <p className="text-[12px] font-semibold opacity-70 mb-1 break-words">{m.subject}</p>}
+                          {m.media && (
+                            <div className={m.body ? 'mb-2' : ''}>
+                              <MediaBubble media={m.media} onDark={isOperator} />
+                            </div>
+                          )}
+                          {m.body && (
+                            <p className={`whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed ${bodyText}`}>{m.body}</p>
+                          )}
                         </div>
                       </div>
                       )
@@ -719,7 +791,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                       ? <p className="text-xs text-neutral-400">No notes yet.</p>
                       : notes.map((n, i) => (
                         <div key={i} className="text-xs text-neutral-700 leading-relaxed">
-                          <span className="text-neutral-400">{n.by.split('@')[0]} · {timeAgo(n.at)}</span> {n.text}
+                          <span className="text-neutral-400">{n.by.split('@')[0]} · {fmtSAST(n.at)}</span> {n.text}
                         </div>
                       ))}
                   </div>
@@ -763,13 +835,25 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, email…"
                 className="w-full rounded-lg bg-neutral-50 border border-neutral-200 pl-8 pr-3 py-2 text-sm outline-none focus:border-[#cd2653] focus:bg-white" />
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {INBOX_TAGS.map((t) => (
-                <button key={t} onClick={() => setTagFilter(tagFilter === t ? null : t)}
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border capitalize ${tagFilter === t ? tagCls(t) + ' ring-1 ring-current' : 'bg-white text-neutral-500 border-neutral-200 hover:border-neutral-400'}`}>
-                  {t}
+            {/* Compact tag filter — a single searchable dropdown instead of the
+                old wall of chips. Drives the same `tagFilter` state, so the
+                filtering function is unchanged; only the presentation shrank. */}
+            <div className="flex items-center gap-2">
+              <div className={`relative flex-1 inline-flex items-center rounded-lg border ${tagFilter ? tagCls(tagFilter) : 'border-neutral-200 bg-neutral-50'}`}>
+                <TagIcon className={`w-3.5 h-3.5 absolute left-2.5 pointer-events-none ${tagFilter ? '' : 'text-neutral-400'}`} />
+                <select value={tagFilter ?? ''} onChange={(e) => setTagFilter((e.target.value || null) as InboxTag | null)}
+                  className={`w-full appearance-none bg-transparent pl-8 pr-7 py-1.5 text-xs font-semibold capitalize outline-none cursor-pointer ${tagFilter ? '' : 'text-neutral-600'}`}>
+                  <option value="">Filter by tag…</option>
+                  {INBOX_TAGS.map((t) => <option key={t} value={t} className="capitalize">{t}</option>)}
+                </select>
+                <ChevronDown className={`w-3.5 h-3.5 absolute right-2.5 pointer-events-none ${tagFilter ? '' : 'text-neutral-400'}`} />
+              </div>
+              {tagFilter && (
+                <button onClick={() => setTagFilter(null)} title="Clear tag filter"
+                  className="w-7 h-7 rounded-lg border border-neutral-200 hover:bg-neutral-100 flex items-center justify-center shrink-0">
+                  <X className="w-3.5 h-3.5 text-neutral-500" />
                 </button>
-              ))}
+              )}
             </div>
           </div>
 
@@ -798,7 +882,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                           <p className={`text-sm truncate ${c.unread ? 'font-bold text-neutral-900' : 'font-semibold text-neutral-800'}`}>{name}</p>
                           <span className="text-[11px] text-neutral-400 shrink-0 flex items-center gap-1">
                             {c.starred && <Star className="w-3 h-3 fill-amber-400 text-amber-400" />}
-                            {timeAgo(c.last_message_at)}
+                            {fmtSAST(c.last_message_at)}
                           </span>
                         </div>
                         <p className={`text-xs truncate mt-0.5 ${c.unread ? 'text-neutral-700 font-medium' : 'text-neutral-500'}`}>{c.last_preview || c.email || c.phone || ''}</p>

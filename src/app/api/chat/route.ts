@@ -41,7 +41,7 @@ You have access to these admin tools and pages:
 - Ticket Sales (/admin/tickets): WooCommerce order data, daily revenue, ticket type breakdown
 - Applications (/admin/applications): vendor booth applications, approve/reject/request info
 - Analytics (/admin/analytics): page views, visitors, geo data, device breakdown, referrers, vendor funnel
-- Follow Up (/admin/follow-up): failed payments, abandoned checkouts, captured emails from drop-offs
+- Contacts (/admin/contacts): incomplete and started applications, failed payments, abandoned checkouts, captured emails from drop-offs
 
 KEY METRICS YOU KNOW (source of truth: lib/venue-zones.ts):
 - ${TOTAL_DEFINED_CAPACITY} defined vendor spots across 5 zones: ${ZONE_BREAKDOWN}.
@@ -53,7 +53,7 @@ KEY METRICS YOU KNOW (source of truth: lib/venue-zones.ts):
 ADMIN GUIDANCE:
 - When asked about revenue, refer them to Dashboard or Ticket Sales page
 - When asked about vendor categories, refer to the Vendor Categories section on Dashboard
-- When asked about drop-offs, refer to Follow Up page and the vendor funnel in Analytics
+- When asked about drop-offs, refer to the Contacts page and the vendor funnel in Analytics
 - When asked about approvals, guide them to Applications page
 - Suggest actionable next steps based on the data
 - Be concise, data-driven, and helpful

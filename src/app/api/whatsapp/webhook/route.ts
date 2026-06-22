@@ -138,6 +138,7 @@ async function handleInbound(msg: {
   text: string
   name?: string
   replyToWamid?: string
+  media?: { kind: 'image' | 'document' | 'video' | 'audio' | 'sticker'; id: string; mimeType?: string; filename?: string; caption?: string }
 }) {
   const e164 = toE164(msg.from)
 
@@ -147,7 +148,7 @@ async function handleInbound(msg: {
     logToChat: async (_sender, _text) => {},
   })
   if (guard.action !== "process") return
-  await logMessage({ direction: 'in', wa_phone: e164, body: msg.text, status: 'received', providerMessageId: msg.messageId })
+  await logMessage({ direction: 'in', wa_phone: e164, body: msg.text, status: 'received', providerMessageId: msg.messageId, media: msg.media })
 
   // 1) STOP — hard opt-out, confirm once, then go silent.
   if (isStopKeyword(msg.text)) {
@@ -445,14 +446,22 @@ async function logMessage(row: {
   body: string
   status: string
   providerMessageId?: string
+  media?: { kind: 'image' | 'document' | 'video' | 'audio' | 'sticker'; id: string; mimeType?: string; filename?: string; caption?: string }
 }) {
   const db = createAdminClient()
+  // Persist the media descriptor into the existing `metadata` jsonb (no DDL,
+  // Doctrine Law 8). The unified inbox media proxy reads metadata.media.id to
+  // fetch the bytes from the Graph API. The wamid alone CANNOT retrieve media.
+  const metadata = row.media
+    ? { media: { kind: row.media.kind, id: row.media.id, mime_type: row.media.mimeType, filename: row.media.filename, caption: row.media.caption } }
+    : null
   await db.from('wa_messages').insert({
     direction: row.direction,
     wa_phone: row.wa_phone,
     body: row.body,
     status: row.status,
     provider_message_id: row.providerMessageId || null,
+    ...(metadata ? { metadata } : {}),
   })
   // Spine: keep wa_threads in lockstep with wa_messages so the admin Bot Inbox
   // can render. Prod schema is migration v9 (PK = wa_phone). Inbound bumps

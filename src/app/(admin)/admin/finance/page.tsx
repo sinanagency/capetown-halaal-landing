@@ -92,7 +92,8 @@ export default function FinancePage() {
   const [data, setData] = useState<FinanceResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'payments' | 'reconciliation'>('payments')
-  const [paymentFilter, setPaymentFilter] = useState<string>('')
+  // Operator default: show PAID vendors first on load. 'All' stays available.
+  const [paymentFilter, setPaymentFilter] = useState<string>('paid')
   // Outside-vendor payment capture (non-marquee zones — tracked, not allocated).
   const [captureOpen, setCaptureOpen] = useState(false)
   const [capVendor, setCapVendor] = useState('')
@@ -295,8 +296,8 @@ export default function FinancePage() {
       {tab === 'payments' && (
         <div>
           <FilterPillRow>
-            <FilterPill label="All" active={!paymentFilter} onClick={() => setPaymentFilter('')} />
             <FilterPill label="Paid" active={paymentFilter === 'paid'} onClick={() => setPaymentFilter('paid')} />
+            <FilterPill label="All" active={!paymentFilter} onClick={() => setPaymentFilter('')} />
             <FilterPill label="Pending" active={paymentFilter === 'pending'} onClick={() => setPaymentFilter('pending')} />
             <FilterPill label="Overdue" active={paymentFilter === 'overdue'} onClick={() => setPaymentFilter('overdue')} />
             <FilterPill label="Not invoiced" active={paymentFilter === 'none'} onClick={() => setPaymentFilter('none')} />

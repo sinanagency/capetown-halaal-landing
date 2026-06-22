@@ -293,6 +293,16 @@ export function verifySignature(rawBody: string, signatureHeader: string | null)
 }
 
 // --- Inbound message parsing (POST webhook payload) ---
+/** Inbound media descriptor (image/document/video/audio/sticker). The `id` is
+ * the Meta media id — distinct from the wamid — and is the ONLY key that can
+ * retrieve the bytes from the Graph API, so we surface + persist it. */
+export interface InboundMedia {
+  kind: 'image' | 'document' | 'video' | 'audio' | 'sticker'
+  id: string
+  mimeType?: string
+  filename?: string
+  caption?: string
+}
 export interface InboundMessage {
   from: string // wa id, digits only
   messageId: string
@@ -301,6 +311,21 @@ export interface InboundMessage {
   name?: string
   /** wamid of the message this one is a reply to (WhatsApp swipe-reply). */
   replyToWamid?: string
+  /** Present when the inbound is a media message (image/doc/video/sticker). */
+  media?: InboundMedia
+}
+
+// Pull the media descriptor (image/document/video/audio/sticker) out of a raw
+// Meta message node, if any. Each media type nests `{ id, mime_type, … }` under
+// a key named for its type. The `id` is the media id used by the media proxy.
+function extractMedia(msg: WaMessageNode): InboundMedia | undefined {
+  for (const kind of ['image', 'document', 'video', 'audio', 'sticker'] as const) {
+    const node = (msg as unknown as Record<string, { id?: string; mime_type?: string; filename?: string; caption?: string }>)[kind]
+    if (node?.id) {
+      return { kind, id: node.id, mimeType: node.mime_type, filename: node.filename, caption: node.caption }
+    }
+  }
+  return undefined
 }
 
 export function parseInbound(body: unknown): InboundMessage[] {
@@ -312,13 +337,16 @@ export function parseInbound(body: unknown): InboundMessage[] {
       const contacts = value?.contacts || []
       const profileName = contacts[0]?.profile?.name
       for (const msg of value?.messages || []) {
+        const media = extractMedia(msg)
         out.push({
           from: msg.from,
           messageId: msg.id,
           type: msg.type,
-          text: msg.text?.body || msg.button?.text || '',
+          // Use a media caption as the text so a captioned image still reads well.
+          text: msg.text?.body || msg.button?.text || media?.caption || '',
           name: profileName,
           replyToWamid: (msg as { context?: { id?: string } }).context?.id,
+          ...(media ? { media } : {}),
         })
       }
     }
@@ -352,15 +380,26 @@ export function parseStatuses(body: unknown): StatusUpdate[] {
   return out
 }
 
+// A raw Meta message node. Media types (image/document/video/audio/sticker)
+// each nest `{ id, mime_type, filename?, caption? }` under their own key.
+type WaMediaNode = { id?: string; mime_type?: string; filename?: string; caption?: string }
+interface WaMessageNode {
+  from: string
+  id: string
+  type: string
+  text?: { body: string }
+  button?: { text: string }
+  context?: { id?: string }
+  image?: WaMediaNode
+  document?: WaMediaNode
+  video?: WaMediaNode
+  audio?: WaMediaNode
+  sticker?: WaMediaNode
+}
+
 interface WaChangeValue {
   contacts?: Array<{ profile?: { name?: string }; wa_id?: string }>
-  messages?: Array<{
-    from: string
-    id: string
-    type: string
-    text?: { body: string }
-    button?: { text: string }
-  }>
+  messages?: WaMessageNode[]
   statuses?: Array<{
     id: string
     status: string

@@ -2,16 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
-import { Loader2, MessageSquare, ExternalLink, ArrowRight } from 'lucide-react'
+import { Loader2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { AdminPage } from '@/components/admin/AdminPage'
-import { RightDrawer } from '@/components/chrome/RightDrawer'
-import { StatusPill } from '@/components/chrome/StatusPill'
 import FloorCommand, { type FloorBooth, type FloorApp, type FloorStatus } from '@/components/floor/FloorCommand'
 import type { MapStall } from '@/components/admin/StallMap'
 import AllocationFilters, { type StatusFilter, type AppRowLite } from '@/components/admin/allocation/AllocationFilters'
+import { appInSector } from '@/components/admin/allocation/sectors'
 import { TIER_META, type StallType } from '@/lib/stalls'
 
 interface AppRow extends AppRowLite {
@@ -50,9 +47,8 @@ export default function AllocationPage() {
   const [status, setStatus] = useState<StatusFilter>('all')
   const [selectedVendor, setSelectedVendor] = useState<string | null>(null)
   const [vendorSearch, setVendorSearch] = useState('')
-  const [stallDrawerCode, setStallDrawerCode] = useState<string | null>(null)
-  const [drawerDocCount, setDrawerDocCount] = useState(0)
-  const [loadingDocs, setLoadingDocs] = useState(false)
+  // Left "Unallocated vendors" column can be collapsed for a full-width map.
+  const [vendorPanelCollapsed, setVendorPanelCollapsed] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -76,33 +72,6 @@ export default function AllocationPage() {
     load()
   }, [load])
 
-  // Stall drawer — find the matching application for the clicked stall.
-  const drawerApplication = useMemo<AppRow | null>(() => {
-    if (!stallDrawerCode || !data) return null
-    const stall = data.stalls.find((s) => s.code === stallDrawerCode)
-    if (!stall) return null
-    const occ = stall.occupant as { id?: string } | null
-    if (!occ?.id) return null
-    return data.applications.find((a) => a.id === occ.id) || null
-  }, [stallDrawerCode, data])
-
-  // Load documents count when drawer opens for an allocated stall.
-  useEffect(() => {
-    if (!drawerApplication?.id) { setDrawerDocCount(0); return }
-    let active = true
-    setLoadingDocs(true)
-    ;(async () => {
-      const supabase = createClient()
-      const { data: docs } = await supabase.storage
-        .from('vendor_documents')
-        .list(drawerApplication.id, { limit: 100 })
-      if (!active) return
-      setDrawerDocCount((docs || []).length)
-      setLoadingDocs(false)
-    })()
-    return () => { active = false }
-  }, [drawerApplication?.id])
-
   // Tier filter narrows which stalls render on the map (countdown applies the
   // sector + status filters too).
   const filteredStalls = useMemo<MapStall[]>(() => {
@@ -125,18 +94,11 @@ export default function AllocationPage() {
         const occ = s.occupant as { id?: string } | null
         if (!occ?.id) return false
         const app = data.applications.find((a) => a.id === occ.id)
-        if (!app || !(app.categories || []).includes(sector)) return false
+        if (!app || !appInSector(app, sector)) return false
       }
       return true
     })
   }, [data, tier, sector, status])
-
-  // Countdown stats: filtered available / total for the chip.
-  const countdownStats = useMemo(() => {
-    const total = countdownStalls.length
-    const available = countdownStalls.filter((s) => !s.status || s.status === 'available').length
-    return { available, total }
-  }, [countdownStalls])
 
   // ---- Adapter: MapStall[] + zones -> FloorBooth[] (same shape StandView builds) ----
   const booths = useMemo<FloorBooth[]>(() => {
@@ -180,7 +142,7 @@ export default function AllocationPage() {
     return data.applications
       .filter((a) => {
         if (a.app_status !== 'approved' && !a.stall) return false
-        if (sector && !(a.categories || []).includes(sector)) return false
+        if (sector && !appInSector(a, sector)) return false
         if (tier && a.tier !== tier) return false
         return true
       })
@@ -202,7 +164,7 @@ export default function AllocationPage() {
         const q = vendorSearch.toLowerCase()
         if (!a.business_name.toLowerCase().includes(q)) return false
       }
-      if (sector && !(a.categories || []).includes(sector)) return false
+      if (sector && !appInSector(a, sector)) return false
       if (tier && a.tier !== tier) return false
       return true
     })
@@ -261,24 +223,19 @@ export default function AllocationPage() {
     <div className="h-dvh overflow-hidden flex flex-col bg-neutral-50">
       <div className="flex-shrink-0 px-6 py-3 border-b border-neutral-200 bg-white flex items-center gap-4">
         {!loading && data && (
-          <div className="ml-auto min-w-0 flex-1 flex items-center gap-3">
-            <span className="text-xs font-medium text-neutral-500 bg-neutral-100/80 border border-neutral-200 px-2.5 py-1 rounded-full whitespace-nowrap">
-              {countdownStats.available}/{countdownStats.total} stalls
-            </span>
-            <AllocationFilters
-              stalls={countdownStalls}
-              applications={data.applications}
-              capacity={Object.fromEntries(
-                (Object.keys(data.availability) as StallType[]).map((t) => [t, data.availability[t].total])
-              ) as Record<StallType, number>}
-              sector={sector}
-              setSector={setSector}
-              tier={tier}
-              setTier={setTier}
-              status={status}
-              setStatus={setStatus}
-            />
-          </div>
+          <AllocationFilters
+            stalls={countdownStalls}
+            applications={data.applications}
+            capacity={Object.fromEntries(
+              (Object.keys(data.availability) as StallType[]).map((t) => [t, data.availability[t].total])
+            ) as Record<StallType, number>}
+            sector={sector}
+            setSector={setSector}
+            tier={tier}
+            setTier={setTier}
+            status={status}
+            setStatus={setStatus}
+          />
         )}
       </div>
 
@@ -299,10 +256,45 @@ export default function AllocationPage() {
             </div>
           </div>
         )}
-        {!loading && data && (
+        {!loading && data && vendorPanelCollapsed && (
+          // Collapsed rail: a slim vertical bar with a "Show" affordance so the
+          // map gets full width. State is component-local (no persistence).
+          <div className="flex-shrink-0 border-r border-neutral-200 bg-white flex flex-col items-center py-3">
+            <button
+              type="button"
+              onClick={() => setVendorPanelCollapsed(false)}
+              title="Show unallocated vendors"
+              aria-label="Show unallocated vendors"
+              aria-expanded={false}
+              className="w-8 h-8 flex items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-[#cd2653] transition-colors"
+            >
+              <PanelLeftOpen size={16} />
+            </button>
+            <span
+              className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-neutral-400"
+              style={{ writingMode: 'vertical-rl' }}
+            >
+              Unallocated · {unallocatedVendors.length}
+            </span>
+          </div>
+        )}
+        {!loading && data && !vendorPanelCollapsed && (
           <div className="w-80 flex-shrink-0 border-r border-neutral-200 bg-white flex flex-col overflow-hidden">
             <div className="p-3 border-b border-neutral-100">
-              <h2 className="text-xs font-semibold text-neutral-800 uppercase tracking-wider mb-2">Unallocated Vendors</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xs font-semibold text-neutral-800 uppercase tracking-wider">Unallocated Vendors</h2>
+                <button
+                  type="button"
+                  onClick={() => setVendorPanelCollapsed(true)}
+                  title="Hide vendor list"
+                  aria-label="Hide vendor list"
+                  aria-expanded={true}
+                  className="flex items-center gap-1 text-[11px] text-neutral-500 hover:text-[#cd2653] transition-colors"
+                >
+                  <PanelLeftClose size={14} />
+                  Hide
+                </button>
+              </div>
               <input
                 type="text"
                 value={vendorSearch}
@@ -346,6 +338,12 @@ export default function AllocationPage() {
             </div>
           )}
           {!loading && data && (
+            // FloorCommand owns the single stall detail panel (its internal
+            // aside: status / Type / Zone / Vendor / Footprint + allocate /
+            // reserve / block). We deliberately do NOT also open a page-level
+            // RightDrawer here — that produced two overlapping panels whose two
+            // close buttons toggled between states instead of dismissing. One
+            // panel, one close button.
             <FloorCommand
               mode="admin"
               hideModeSwitch
@@ -355,115 +353,9 @@ export default function AllocationPage() {
               onAllocate={handleAllocate}
               onRelease={handleRelease}
               onToggleBlock={handleToggleBlock}
-              onStallClick={(code) => setStallDrawerCode(code)}
             />
           )}
         </div>
-
-        {/* Stall detail drawer */}
-        <RightDrawer
-          open={!!stallDrawerCode}
-          onClose={() => setStallDrawerCode(null)}
-          title={
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm">{stallDrawerCode}</span>
-              {drawerApplication && (
-                <span className="text-xs text-neutral-400 font-normal font-sans">
-                  {drawerApplication.tier_label}
-                </span>
-              )}
-            </div>
-          }
-        >
-          {drawerApplication ? (
-            <div className="space-y-5 text-sm">
-              {/* Vendor name + business */}
-              <div>
-                <h3 className="text-base font-semibold text-neutral-900">{drawerApplication.business_name}</h3>
-                {drawerApplication.contact_name && (
-                  <p className="text-sm text-neutral-500 mt-0.5">{drawerApplication.contact_name}</p>
-                )}
-              </div>
-
-              {/* Category */}
-              <div className="border-t border-neutral-100 pt-4">
-                <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block mb-1.5">Category</span>
-                <p className="text-sm text-neutral-800">
-                  {(drawerApplication.categories || []).join(', ') || '—'}
-                </p>
-              </div>
-
-              {/* Payment status */}
-              <div className="border-t border-neutral-100 pt-4">
-                <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block mb-1.5">Payment</span>
-                <StatusPill
-                  tone={
-                    drawerApplication.payment_status === 'paid' || drawerApplication.payment_status === 'completed'
-                      ? 'success'
-                      : drawerApplication.payment_status === 'pending' || drawerApplication.payment_status === 'partial'
-                      ? 'warn'
-                      : 'neutral'
-                  }
-                  label={drawerApplication.payment_status || 'None'}
-                />
-                {drawerApplication.payment_amount != null && drawerApplication.payment_amount > 0 && (
-                  <p className="text-xs text-neutral-500 mt-1">
-                    R{(drawerApplication.payment_amount / 100).toFixed(2)}
-                  </p>
-                )}
-              </div>
-
-              {/* Documents status */}
-              <div className="border-t border-neutral-100 pt-4">
-                <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block mb-1.5">Documents</span>
-                <p className="text-sm text-neutral-800">
-                  {loadingDocs ? (
-                    <span className="text-neutral-400">Loading...</span>
-                  ) : drawerDocCount > 0 ? (
-                    <span className="text-emerald-700">{drawerDocCount} file(s) on record</span>
-                  ) : (
-                    <span className="text-neutral-400">No documents uploaded</span>
-                  )}
-                </p>
-              </div>
-
-              {/* Quick actions */}
-              <div className="border-t border-neutral-100 pt-4 space-y-2">
-                <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider block mb-2">Quick actions</span>
-                <Link
-                  href="/admin/customer-inbox"
-                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-lg bg-neutral-50 hover:bg-neutral-100 transition-colors text-neutral-700"
-                >
-                  <MessageSquare size={14} />
-                  <span>Message vendor</span>
-                </Link>
-                <Link
-                  href={`/admin/vendors/${drawerApplication.id}`}
-                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-lg bg-neutral-50 hover:bg-neutral-100 transition-colors text-neutral-700"
-                >
-                  <ExternalLink size={14} />
-                  <span>View full profile</span>
-                  <ArrowRight size={14} className="ml-auto text-neutral-300" />
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setStallDrawerCode(null)}
-                  className="flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-lg bg-neutral-50 hover:bg-neutral-100 transition-colors text-neutral-700"
-                >
-                  <ArrowRight size={14} />
-                  <span>Reassign stall</span>
-                </button>
-                <p className="text-[11px] text-neutral-400 pl-1">
-                  Use the allocation panel in Floor Command to reassign the stall.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-sm text-neutral-500 py-8 text-center">
-              This stall is currently available.
-            </div>
-          )}
-        </RightDrawer>
       </div>
     </div>
     </AdminPage>

@@ -126,6 +126,10 @@ export default function FloorCommand({
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const toastTimer = useRef<NodeJS.Timeout | null>(null)
+  // Refs to the scroll container + each booth <g> so a search can scroll the
+  // first matching booth into view.
+  const mapScrollRef = useRef<HTMLDivElement | null>(null)
+  const boothRefs = useRef<Record<string, SVGGElement | null>>({})
 
   useEffect(() => {
     setMode(initialMode)
@@ -177,11 +181,15 @@ export default function FloorCommand({
     return { total, ...c, committed }
   }, [booths])
 
+  const hasActiveSearch = search.trim().length > 0
+
+  // Match booths by code OR by allocated vendor business name (both lowercased).
   const searchHits = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return new Set<string>()
     const hits = new Set<string>()
     booths.forEach((b) => {
+      if (b.type === 'facility') return
       if (b.code.toLowerCase().includes(q)) hits.add(b.code)
       if (b.vendor?.toLowerCase().includes(q)) hits.add(b.code)
     })
@@ -196,6 +204,17 @@ export default function FloorCommand({
       if (m) setSelected(m.code)
     }
   }, [search, mode, booths])
+
+  // Scroll the first matching booth into view so a search on a large floor is
+  // actionable, not just a colour change buried off-screen. Runs on every
+  // search change (admin + vendor); harmless when there are no hits.
+  useEffect(() => {
+    if (!hasActiveSearch || searchHits.size === 0) return
+    const firstHit = booths.find((b) => searchHits.has(b.code))
+    if (!firstHit) return
+    const el = boothRefs.current[firstHit.code]
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+  }, [hasActiveSearch, searchHits, booths])
 
   const showToast = useCallback((msg: string) => {
     setToastMsg(msg)
@@ -395,6 +414,7 @@ export default function FloorCommand({
       {/* MAIN */}
       <main style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div
+          ref={mapScrollRef}
           data-testid="floor-map"
           style={{
             flex: 1, overflow: 'auto', padding: 24,
@@ -412,7 +432,10 @@ export default function FloorCommand({
               const isSel = selected === b.code
               const isMine = !!mineCode && b.code === mineCode
               const isHit = searchHits.has(b.code)
-              const isDimmed = mode === 'vendor' && !!mineCode && !isMine && !isHit
+              // Dim non-matches while a search is active (any mode), so the few
+              // matches stand out. Facilities never dim — they're context.
+              const searchDim = hasActiveSearch && searchHits.size > 0 && !isHit && !isFacility
+              const isDimmed = searchDim || (mode === 'vendor' && !!mineCode && !isMine && !isHit)
               const fill = isMine ? C.brand : fillFor(b.status)
               const stroke = isMine ? C.brand2 : isSel || isHit ? C.brand : strokeFor(b.status)
               const tcolor = isMine ? '#fff' : textFill(b.status)
@@ -426,6 +449,7 @@ export default function FloorCommand({
               return (
                 <g
                   key={b.code}
+                  ref={(el) => { boothRefs.current[b.code] = el }}
                   style={{
                     cursor: isFacility ? 'default' : 'pointer',
                     transition: 'filter .12s, opacity .25s',
