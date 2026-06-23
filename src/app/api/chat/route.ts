@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { askFestivalBrain } from '@/lib/festival-brain'
 import { getExhibitorContext } from '@/lib/exhibitor'
+import type { ResolvedIdentity } from '@/lib/bot/identity'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import {
@@ -151,17 +152,52 @@ export async function POST(req: NextRequest) {
         }))
       const assistantHasSpoken = messages.some((m: { role: string }) => m.role === 'assistant')
       const appRow = (exhibitor.application || {}) as Record<string, unknown>
-      const brief = [
-        appRow.business_name ? `Vendor business: ${appRow.business_name}` : null,
-        appRow.contact_name ? `Contact: ${appRow.contact_name}` : null,
-        appRow.status ? `Application status: ${appRow.status}` : null,
-      ].filter(Boolean).join('. ')
+
+      // The portal caller is an AUTHENTICATED vendor (their session = their
+      // application). Build the SAME rich identity briefing the WhatsApp bot uses
+      // so the in-portal assistant answers tailored to THIS vendor: their real
+      // status, contract, payment, allocated stall, and a deterministic NEXT STEP.
+      // We also append the exact amount owed/paid/outstanding so it can tell them
+      // precisely what to pay. No phone is needed: identity is the session.
+      const { parsePortalState } = await import('@/lib/portal-state')
+      const { parseAllocation, tierLabel } = await import('@/lib/stalls')
+      const { identityBriefing } = await import('@/lib/bot/identity')
+      const { computeVendorPricing, formatRand } = await import('@/lib/payments/pricing')
+
+      const portal = parsePortalState((appRow.admin_notes as string) || null)
+      const alloc = parseAllocation((appRow.admin_notes as string) || null)
+      const vName = (appRow.contact_name as string) || (appRow.business_name as string) || null
+      const identity: ResolvedIdentity = {
+        role: 'vendor',
+        name: vName,
+        firstName: (vName || '').trim().split(/\s+/)[0] || null,
+        e164: '',
+        vendor: {
+          id: (appRow.id as string) || '',
+          business_name: (appRow.business_name as string) || '',
+          contact_name: (appRow.contact_name as string) || null,
+          email: (appRow.email as string) || null,
+          status: (appRow.status as string) || 'pending',
+          stall: alloc.stall,
+          payment_status: portal.payment?.status || 'none',
+          tier_label: appRow.preferred_booth_tier ? tierLabel(appRow.preferred_booth_tier as string) : null,
+          contract_signed_at: (appRow.contract_signed_at as string) || null,
+        },
+      }
+      const owed = computeVendorPricing({
+        preferred_booth_tier: appRow.preferred_booth_tier as string,
+        special_requirements: appRow.special_requirements,
+      }).total
+      const paid = Number(portal.payment?.amount) || 0
+      const outstanding = Math.max(0, owed - paid)
+      const moneyLine = `Stall fee: total ${formatRand(owed)}, paid ${formatRand(paid)}, outstanding ${formatRand(outstanding)}. If they ask what to pay, the amount due now is ${formatRand(outstanding)}, payable by card in the portal.`
+      const brief = `${identityBriefing(identity)}\n\n${moneyLine}`
 
       const result = await askFestivalBrain(last?.content ?? '', {
         history,
         forceFirstContact: !assistantHasSpoken,
         surface: 'vendor',
-        extraSystem: brief || undefined,
+        extraSystem: brief,
       })
       return NextResponse.json({ message: result.message, needsHuman: result.needsHuman })
     } else {
