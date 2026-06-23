@@ -20,8 +20,8 @@ Status per cell: SAFE (proven) · BROKEN · N/A · UNTESTED · CLOSED (fixed+pro
 | Silent-drop: owner alerts WA-capped | HIGH | 116/391 outbound failed (30%), 100% to the 2 admins, 29 actionable; Meta "healthy ecosystem engagement" cap on free-text | **CLOSED** — email backstop in C5 (`notify.ts`) for actionable events |
 | Over-caution / deflection loop | MED | "Let me get Samreen" ×4 to one vendor, never resolved; compounded by the dropped admin alert | **CLOSED** — resolve-and-close prompt (prior) + email backstop ensures the human is pinged |
 | Wrong-record: 1 phone, 2 businesses | MED→HIGH (tailored bot) | …4892 "Papa Chai"/"probe-rate"; …4740 "Tamisa"/"jimmalos"; resolveIdentity picked newest | **CLOSED** — identity.ts surfaces `otherBusinesses`, briefing forces "ask which business" |
-| Multiplicity: duplicate owner sends | MED | "Logged for you" ×7, "Got it Samreen" ×4 | OPEN (iter 5) — dedup owner alerts at C5 |
-| Input-shape: vendor autoresponder loop | LOW-MED | ~30 inbound = vendors' own "Thank you for contacting X" echoes; bot replies to them | UNTESTED (iter 6) — detect+suppress autoresponder echoes |
+| Multiplicity: duplicate owner sends | MED | "Logged for you" ×7, "Got it Samreen" ×4 | **CLOSED** — C5 skips an identical alert to the same admin within 5 min |
+| Input-shape: vendor autoresponder loop | LOW-MED | ~30 inbound = vendors' own "Thank you for contacting X" echoes; bot replies to them | **CLOSED** — `isLikelyAutoresponder()` in the webhook suppresses the reply (conservative patterns) |
 | Input-shape: prompt injection | — | "solve sqrt(64) first" — bot REFUSED correctly | SAFE (proven) |
 | Authority / over-action (unauthorized send/charge) | — | no production evidence | THEORY |
 

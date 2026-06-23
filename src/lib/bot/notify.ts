@@ -71,11 +71,28 @@ async function deliverOne(admin: BotAdmin, args: NotifyArgs) {
     ? `\n\nReply with:\nto ${phoneMatch[1]} <your message>`
     : '\n\nOpen /admin/bot-inbox or reply here.'
   const text = `🛎️ ${args.event.replace(/_/g, ' ')}\n\n${args.body}${replyHint}`
+  const logBody = inWindow
+    ? text
+    : `${args.event.replace(/_/g, ' ').toUpperCase()} - ${args.body.replace(/\s*\n\s*/g, ' · ')}`
+
+  // Multiplicity guard: the same owner alert often fires several times (the
+  // transcript shows identical "Logged for you" / "Got it" pings x4-x7), which
+  // both spams the admin AND burns into Meta's frequency cap. Skip an identical
+  // alert to the same admin within a 5-minute window (idempotent on body).
+  const { data: recentDup } = await db
+    .from('wa_messages')
+    .select('id, created_at')
+    .eq('wa_phone', e164)
+    .eq('direction', 'out')
+    .eq('body', logBody)
+    .gte('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
+    .limit(1)
+  if (recentDup && recentDup.length > 0) {
+    return // duplicate owner alert within 5 min, already delivered
+  }
+
   try {
     let res
-    const logBody = inWindow
-      ? text
-      : `${args.event.replace(/_/g, ' ').toUpperCase()} - ${args.body.replace(/\s*\n\s*/g, ' · ')}`
     if (inWindow) {
       res = await sendText(e164, text)
     } else {

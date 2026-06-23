@@ -384,6 +384,18 @@ async function handleInbound(msg: {
     return
   }
 
+  // Input-shape guard: vendors' OWN WhatsApp Business autoresponders echo back
+  // at us ("Thank you for contacting Frullato!", catalogue links, business
+  // hours). The transcript shows ~30 such echoes; the bot was treating them as
+  // real queries and replying with a confused answer (wasted LLM + a pointless
+  // message into Meta's frequency cap). Detect a clear autoresponder and do NOT
+  // reply (still logged on the inbound). Conservative patterns only, so a real
+  // question is never suppressed.
+  if (isLikelyAutoresponder(msg.text)) {
+    console.log(JSON.stringify({ at: 'webhook', event: 'autoresponder_echo_suppressed', e164_last4: e164.slice(-4) }))
+    return
+  }
+
   // Resolve who this is so every reply is personalised (vendor name, ticket
   // count, etc.). Admins are already handled above; resolution here is for
   // vendors / ticket buyers / unknowns.
@@ -741,6 +753,26 @@ async function logStatuses(statuses: Array<{ messageId: string; status: string; 
       .update({ status: s.status, error: s.errorMessage || null, updated_at: new Date().toISOString() })
       .eq('provider_message_id', s.messageId)
   }
+}
+
+// Detect a vendor's own WhatsApp Business autoresponder echoing back at us, so
+// the bot does not reply to a robot. Conservative: only clear automated-greeting
+// phrasings, so a genuine vendor question is never suppressed.
+function isLikelyAutoresponder(text: string): boolean {
+  const t = (text || '').toLowerCase().trim()
+  if (!t || t.length > 600) return false
+  const AUTORESPONDER_PATTERNS = [
+    /thank you for contacting/,
+    /thanks for (contacting|reaching out|your message)/,
+    /this is an automated (reply|message|response)/,
+    /we (will|'ll) (get|be) back to you/,
+    /our (business|operating|working) hours/,
+    /out of (the )?office/,
+    /away from (my|the) (phone|desk)/,
+    /we have received your message/,
+    /your message is important to us/,
+  ]
+  return AUTORESPONDER_PATTERNS.some((re) => re.test(t))
 }
 
 async function recentHistory(e164: string): Promise<Array<{ role: 'user' | 'assistant'; content: string }>> {
