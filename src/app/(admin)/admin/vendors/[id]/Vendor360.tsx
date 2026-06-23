@@ -21,6 +21,11 @@ import type { PortalState, DocRecord, StaffMember } from '@/lib/portal-state'
 import { TIER_META } from '@/lib/stalls'
 import { computeVendorPricing } from '@/lib/payments/pricing'
 import { REQUIRED_DOC_LABELS, type RequiredDocType } from './doc-types'
+import { VendorStatusBanner } from '@/components/admin/vendor/VendorStatusBanner'
+import { VendorPaymentsSection } from '@/components/admin/vendor/VendorPaymentsSection'
+import { VendorContractSection } from '@/components/admin/vendor/VendorContractSection'
+import { VendorDocsChecklist } from '@/components/admin/vendor/VendorDocsChecklist'
+import { VendorActivityLog } from '@/components/admin/vendor/VendorActivityLog'
 
 // Mirror of ELECTRICAL_OPTIONS in src/app/apply/page.tsx (minus 'none') and
 // ELECTRICAL_PRICES in src/lib/payments/pricing.ts. Keep in sync.
@@ -453,6 +458,10 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
         />
       </ActionChipGrid>
 
+      <div className="mt-4">
+        <VendorStatusBanner vendor={v} portal={portal} stallCode={stallCode} />
+      </div>
+
       <KpiStrip>
         <Kpi
           label="Payment"
@@ -513,6 +522,10 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
         </div>
       </Section>
 
+      <VendorPaymentsSection applicationId={String(v.id)} vendor={v} portal={portal} />
+
+      <VendorContractSection applicationId={String(v.id)} vendor={v} />
+
       <Section title="Quick Notes" icon={<StickyNote className="w-4 h-4" />}>
         <QuickNotesSection applicationId={String(v.id)} />
       </Section>
@@ -567,6 +580,8 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
           </div>
         )}
       </Section>
+
+      <VendorDocsChecklist applicationId={String(v.id)} docs={portal.docs || []} />
 
       <Section title="Documents" icon={<FileText className="w-4 h-4" />}>
         <DenseTable<DocRecord>
@@ -673,6 +688,10 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
             ))}
           </div>
         )}
+      </Section>
+
+      <Section title="Activity Log" icon={<History className="w-4 h-4" />}>
+        <VendorActivityLog events={initialData.events} />
       </Section>
 
       <RightDrawer
