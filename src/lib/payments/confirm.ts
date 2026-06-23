@@ -114,13 +114,24 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
   if (!app) return { ok: false, alreadyPaid: false, amount: 0, error: 'application not found' }
 
   const before = parsePortalState(app.admin_notes as string)
-  const alreadyPaid = before.payment?.status === 'paid'
+  const amountPaidBefore = Number(before.payment?.amount) || 0
+  const beforeRefs: string[] = Array.isArray((before.payment as { refs?: unknown } | undefined)?.refs)
+    ? ((before.payment as { refs?: string[] }).refs as string[])
+    : []
+  // Already settled in a PRIOR confirmed call? Gates top-ups (a top-up only
+  // happens after a first payment has landed).
+  const wasPaidBefore = before.payment?.status === 'paid' || !!before.payment?.paid_at
 
   const pricing = computeVendorPricing({
     preferred_booth_tier: app.preferred_booth_tier as string,
     special_requirements: app.special_requirements,
   })
-  const amount = input.amount ?? before.payment?.amount ?? pricing.total
+  // What THIS payment settles: the explicit charged amount (Yoco/admin), else
+  // the current outstanding balance (live total minus what is already paid).
+  const outstandingBefore = Math.max(0, pricing.total - amountPaidBefore)
+  const amount = input.amount ?? outstandingBefore
+  const ref = input.providerRef || ''
+  const isDuplicateRef = !!ref && (beforeRefs.includes(ref) || before.payment?.provider_ref === ref)
 
   const paidAtIso = new Date().toISOString()
 
@@ -160,28 +171,50 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
   // treat the transition as NOT won (wonTransition = false) so a failed/ambiguous
   // write never triggers a send. A retried/concurrent duplicate matches 0 rows
   // here and therefore skips all sends below while the first caller proceeds.
-  const wonTransition = !colErr && Array.isArray(transitioned) && transitioned.length > 0
+  const wonFirst = !colErr && Array.isArray(transitioned) && transitioned.length > 0
 
-  // Keep the base64 marker on admin_notes in sync (admin UI + portal read it).
-  // This stays idempotent for marker state regardless of who won the column
-  // transition, so the marker is correct even on a retried call.
-  await updatePortalState(input.applicationId, (s) => ({
-    ...s,
-    payment: {
-      ...(s.payment || {}),
-      status: 'paid',
-      amount,
-      provider_ref: input.providerRef || s.payment?.provider_ref,
-      paid_at: s.payment?.paid_at || paidAtIso,
-    },
-    stage: s.stage === 'show_ready' ? 'show_ready' : 'paid',
-  }))
+  // Classify this call: first payment, genuine top-up, or duplicate/no-op.
+  //  - wonFirst: this call atomically settled the FIRST payment.
+  //  - top-up: vendor was ALREADY paid in a prior settled call, this is a NEW
+  //    provider ref, and amount > 0 (operator added charges after payment; the
+  //    vendor pays the difference). Gated on wasPaidBefore so two concurrent
+  //    FIRST-payment webhooks can never both count (the loser of the atomic
+  //    guard sees wasPaidBefore === false and no-ops).
+  //  - otherwise: duplicate webhook / lost the first-payment race / colErr -> no-op.
+  let isTopUp = false
+  let newCumulative = amountPaidBefore
+  if (wonFirst) {
+    newCumulative = amount
+  } else if (!colErr && wasPaidBefore && !isDuplicateRef && amount > 0) {
+    isTopUp = true
+    newCumulative = amountPaidBefore + amount
+  } else {
+    return { ok: true, alreadyPaid: true, amount: amountPaidBefore }
+  }
 
-  // Send-gating: only the call that actually performed the unpaid -> paid
-  // transition sends. `silent` still suppresses sends for backfill/corrections.
-  // A duplicate webhook (wonTransition === false) returns here WITHOUT sending.
-  if (!wonTransition || input.silent) {
-    return { ok: true, alreadyPaid: !wonTransition, amount }
+  // Record cumulative paid + this ref in the marker (admin UI + portal read it).
+  await updatePortalState(input.applicationId, (s) => {
+    const prevRefs: string[] = Array.isArray((s.payment as { refs?: unknown } | undefined)?.refs)
+      ? ((s.payment as { refs?: string[] }).refs as string[])
+      : []
+    return {
+      ...s,
+      payment: {
+        ...(s.payment || {}),
+        status: 'paid',
+        amount: newCumulative,
+        provider_ref: ref || s.payment?.provider_ref,
+        refs: ref ? Array.from(new Set([...prevRefs, ref])) : prevRefs,
+        paid_at: s.payment?.paid_at || paidAtIso,
+      },
+      stage: s.stage === 'show_ready' ? 'show_ready' : 'paid',
+    }
+  })
+
+  // Send-gating: `silent` suppresses sends for backfill/corrections. Both a
+  // first payment and a top-up send a confirmation for THIS payment's amount.
+  if (input.silent) {
+    return { ok: true, alreadyPaid: !wonFirst, amount }
   }
 
   const contactName = (app.contact_name as string) || 'there'
@@ -208,7 +241,7 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
     const { notifyOwners } = await import('@/lib/bot/notify')
     await notifyOwners({
       event: 'payment_succeeded',
-      body: `${businessName} marked paid via ${input.method}. Amount ${formatRand(amount)}${providerRef ? `, ref ${providerRef}` : ''}.`,
+      body: `${businessName} ${isTopUp ? 'paid an ADDITIONAL' : 'marked paid via ' + input.method + '. Amount'} ${formatRand(amount)}${isTopUp ? ` (total paid ${formatRand(newCumulative)})` : ''}${providerRef ? `, ref ${providerRef}` : ''}.`,
       audience: 'all',
     })
   } catch (e) {

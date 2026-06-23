@@ -191,8 +191,8 @@ async function handleInbound(msg: {
   // and AFTER message logging (audit preserved). Master (Taona) bypasses
   // entirely so testing the bot during sweep still works. Festival_owner
   // (Samreen) gets a personalized soft message. Everyone else gets the
-  // generic maintenance reply with ticket purchase still pointed at
-  // tickets.youngatheart.co.za (Doctrine Laws 3+4 stay live).
+  // generic maintenance reply with ticket purchase still pointed at the one
+  // canonical ticket URL cthalaal.co.za (Doctrine Laws 3+4 stay live).
   if (isMaintenanceEnabled()) {
     const known = findAdmin(e164)
     if (known?.role === 'master') {
@@ -210,7 +210,7 @@ async function handleInbound(msg: {
       })
       return
     } else {
-      const genericMsg = `Hi! The Cape Town Halaal vendor portal is being tuned up tonight. Back online tomorrow. Festival tickets are still available now at tickets.youngatheart.co.za. If you started a vendor application, your progress is saved. Reply STOP to unsubscribe.`
+      const genericMsg = `Hi! The Cape Town Halaal vendor portal is being tuned up tonight. Back online tomorrow. Festival tickets are still available now at cthalaal.co.za. If you started a vendor application, your progress is saved. Reply STOP to unsubscribe.`
       const res = await sendText(e164, genericMsg)
       await logMessage({
         direction: 'out',
@@ -312,6 +312,19 @@ async function handleInbound(msg: {
   }
 
   if (msg.type !== 'text' || !msg.text.trim()) {
+    // Non-text inbound (image / document / sticker). The media bytes are already
+    // captured to vendor-docs by logMessage above. Resolve who sent it so a known
+    // vendor gets a warm "got your document, attached it to your application"
+    // acknowledgement instead of the generic tour. Never deflect a document.
+    const mediaSender = await resolveIdentity(e164)
+    if (mediaSender.role === 'vendor' && msg.type !== 'sticker') {
+      const ack = mediaSender.firstName
+        ? `Thanks ${mediaSender.firstName}, I have your document and attached it to your application. The team will review it. Anything else I can help with in the meantime?`
+        : `Thanks, I have your document and attached it to your application. The team will review it. Anything else I can help with in the meantime?`
+      const res = await sendText(e164, ack)
+      await logMessage({ direction: 'out', wa_phone: e164, body: ack, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
+      return
+    }
     await sendText(e164, "Hi! I'm the Young at Heart Festival assistant. Ask me about tickets, vendors, directions, or anything about the festival. Type 'talk to human' to reach our support team. Reply STOP to unsubscribe.")
     return
   }
@@ -388,8 +401,8 @@ async function handleInbound(msg: {
   if (!llmAllowed) {
     await logLLMThrottle(e164, LLM_MAX_PER_5MIN + 1)
     reply = identity.firstName
-      ? `Thanks ${identity.firstName}, we've received your message. A human will respond shortly. For tickets visit tickets.youngatheart.co.za`
-      : "We've received your message. A human will respond shortly. For tickets visit tickets.youngatheart.co.za"
+      ? `Thanks ${identity.firstName}, we've received your message. A human will respond shortly. For tickets visit cthalaal.co.za`
+      : "We've received your message. A human will respond shortly. For tickets visit cthalaal.co.za"
   } else {
     try {
       const result = await askFestivalBrain(msg.text, {
@@ -406,8 +419,8 @@ async function handleInbound(msg: {
     } catch (e) {
       console.error('brain error', e)
       reply = identity.firstName
-        ? `Thanks for your message, ${identity.firstName}! Our team will get back to you. For tickets visit tickets.youngatheart.co.za`
-        : 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
+        ? `Thanks for your message, ${identity.firstName}! Our team will get back to you. For tickets visit cthalaal.co.za`
+        : 'Thanks for your message! Our team will get back to you. For tickets visit cthalaal.co.za'
     }
   }
   // OUTPUT-side PII guard (KT #114 pattern). Redact phones/emails/IDs in
@@ -459,7 +472,7 @@ async function handleDev(
     reply = result.message
   } catch (e) {
     console.error('[dev] brain error', e)
-    reply = 'Thanks for your message! Our team will get back to you. For tickets visit tickets.youngatheart.co.za'
+    reply = 'Thanks for your message! Our team will get back to you. For tickets visit cthalaal.co.za'
   }
   await devSend(reply)
 }

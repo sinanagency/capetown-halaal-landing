@@ -19,6 +19,7 @@ import { ActionChip } from '@/components/chrome/ActionChip'
 import { RightDrawer } from '@/components/chrome/RightDrawer'
 import type { PortalState, DocRecord, StaffMember } from '@/lib/portal-state'
 import { TIER_META } from '@/lib/stalls'
+import { computeVendorPricing } from '@/lib/payments/pricing'
 import { REQUIRED_DOC_LABELS, type RequiredDocType } from './doc-types'
 
 // Mirror of ELECTRICAL_OPTIONS in src/app/apply/page.tsx (minus 'none') and
@@ -235,11 +236,13 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
       const cats = editCategory.trim()
         ? [editCategory.trim(), ...((v.product_categories as string[]) || []).slice(1)]
         : ((v.product_categories as string[]) || [])
-      // Drop blank add-rows; coerce amount to a number and qty to >= 1.
+      // Keep any row with an amount > 0 (the amount is what charges). Default a
+      // blank label so typing just an amount still adds the charge. Drop only
+      // truly empty rows (no amount).
       const customCharges = editCustomElectrical
-        .filter((c) => c.label.trim() !== '')
+        .filter((c) => (Number(c.amount) || 0) > 0)
         .map((c) => ({
-          label: c.label.trim(),
+          label: c.label.trim() || 'Additional charge',
           amount: Number(c.amount) || 0,
           qty: Math.max(1, Math.floor(Number(c.qty) || 1)),
         }))
@@ -317,7 +320,16 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
 
   function openMarkPaid() {
     setDrawerView('paid')
-    setMarkPaidAmount(portal.payment?.amount ? String(portal.payment.amount) : '')
+    // Vendors pay the OUTSTANDING balance (total owed minus what they've already
+    // paid), not the cumulative already-paid figure. Pre-fill the field with the
+    // amount due NOW so the operator records the right payment.
+    const total = computeVendorPricing({
+      preferred_booth_tier: v.preferred_booth_tier as string,
+      special_requirements: v.special_requirements,
+    }).total
+    const paidSoFar = portal.payment?.amount || 0
+    const outstanding = Math.max(0, total - paidSoFar)
+    setMarkPaidAmount(outstanding > 0 ? String(outstanding) : '')
     setMarkPaidRef('')
     setMarkPaidNote('')
     setMarkPaidErr(null)
@@ -765,9 +777,9 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-neutral-600 block mb-1">Custom electrical charges</label>
+              <label className="text-xs font-medium text-neutral-600 block mb-1">Additional charges</label>
               <p className="text-xs text-neutral-500 mb-2">
-                For appliances not in the list above (operator-set). These add to the vendor&apos;s total.
+                Add a charge to this vendor (off-list appliances, extra space, or any additional payment request). Each adds to their total and what they pay.
               </p>
               <div className="space-y-2">
                 {editCustomElectrical.map((row, i) => {
@@ -857,6 +869,7 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
             <p className="text-xs text-neutral-500">Logs a payment_manual audit event and flips the portal marker.</p>
             <div>
               <label className="text-xs font-medium text-neutral-600 block mb-1">Amount (R)</label>
+              <p className="text-xs text-neutral-500 mb-1">Outstanding balance (what they still owe)</p>
               <input
                 type="number"
                 value={markPaidAmount}

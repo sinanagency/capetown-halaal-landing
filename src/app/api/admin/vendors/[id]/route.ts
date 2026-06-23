@@ -173,9 +173,12 @@ export async function PATCH(
       for (const raw of body.electrical_custom as unknown[]) {
         if (!raw || typeof raw !== 'object') continue
         const e = raw as { label?: unknown; amount?: unknown; qty?: unknown }
-        const label = typeof e.label === 'string' ? e.label.trim().slice(0, 60) : ''
         const amount = Number(e.amount)
-        if (!label || !Number.isFinite(amount) || amount < 0) continue
+        // The amount is what charges. Keep any finite amount > 0 even if the
+        // label is blank (default it), so an operator can add a charge by just
+        // typing an amount. Only drop empty/zero/negative amounts.
+        if (!Number.isFinite(amount) || amount <= 0) continue
+        const label = (typeof e.label === 'string' && e.label.trim().slice(0, 60)) || 'Additional charge'
         const qty = Math.max(1, Math.floor(Number(e.qty) || 1))
         cleanedCustom.push({ label, amount, qty })
       }

@@ -237,9 +237,9 @@ export function PreviewPane({
     setElecMsg(null)
     try {
       const electrical_custom = customElec
-        .filter((c) => c.label.trim() !== '')
+        .filter((c) => (Number(c.amount) || 0) > 0)
         .map((c) => ({
-          label: c.label.trim(),
+          label: c.label.trim() || 'Additional charge',
           amount: Number(c.amount) || 0,
           qty: Math.max(1, Math.floor(Number(c.qty) || 1)),
         }))
@@ -425,10 +425,10 @@ export function PreviewPane({
             total via computeVendorPricing and persist to electrical_custom. */}
         <section className="space-y-2">
           <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-neutral-400">
-            <Zap className="w-3 h-3" /> Electrical charges (operator)
+            <Zap className="w-3 h-3" /> Additional charges (operator)
           </div>
           <p className="text-[11px] text-neutral-500">
-            Add charges for appliances the vendor under-declared (e.g. picked None but listed equipment). These add to their total.
+            Add a charge to this vendor (off-list appliances, extra space, or any additional payment request). Each adds to their total and what they pay.
           </p>
           <div className="space-y-1.5">
             {customElec.map((charge, i) => {

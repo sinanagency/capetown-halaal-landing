@@ -95,16 +95,17 @@ export function computeVendorPricing(app: ApplicationLike): VendorPricing {
     }
   }
 
-  // Admin-set custom electrical charges for off-list appliances (Samreen).
-  // Each entry: per-unit Rand amount * qty (defaults to 1). Blank labels or
-  // non-finite/<=0 amounts are skipped so a half-filled row never charges.
+  // Admin-set custom charges (Samreen): off-list appliances OR any additional
+  // payment request. The AMOUNT is what matters: any entry with a finite amount
+  // > 0 charges, even if the label is blank (default it). Only non-finite/<=0
+  // amounts are skipped, so typing just an amount adds it to the total.
   const custom = reqs.electrical_custom
   if (Array.isArray(custom)) {
     for (const entry of custom) {
       if (!entry || typeof entry !== 'object') continue
-      const label = typeof entry.label === 'string' ? entry.label.trim() : ''
       const amt = Number(entry.amount)
-      if (!label || !Number.isFinite(amt) || amt <= 0) continue
+      if (!Number.isFinite(amt) || amt <= 0) continue
+      const label = (typeof entry.label === 'string' && entry.label.trim()) || 'Additional charge'
       const qty = Math.max(1, Math.floor(Number(entry.qty) || 1))
       electrical.push({ label, amount: amt * qty, qty })
     }

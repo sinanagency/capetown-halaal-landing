@@ -56,7 +56,8 @@ interface Operator { id: string; email: string }
 
 type AiAction = 'smart_reply' | 'tone_adjust' | 'follow_up' | 'summarize' | 'attachments' | 'status_update'
 // Full catalogue kept so runAI()/AI_CARDS.find() label lookups stay intact for
-// every endpoint action. Only AI_ROW_CARDS is rendered as always-visible pills.
+// every endpoint action (Smart Reply via the composer sparkle, Summarize via the
+// More menu). No always-visible AI pill row: it duplicated the composer sparkle.
 const AI_CARDS: Array<{ action: AiAction; label: string; short: string; icon: typeof Sparkles }> = [
   { action: 'smart_reply', label: 'Smart Reply', short: 'Reply', icon: MessageSquarePlus },
   { action: 'tone_adjust', label: 'Tone Adjustment', short: 'Tone', icon: Wand2 },
@@ -65,9 +66,6 @@ const AI_CARDS: Array<{ action: AiAction; label: string; short: string; icon: ty
   { action: 'attachments', label: 'Suggested Attachments', short: 'Links', icon: Paperclip },
   { action: 'status_update', label: 'Automated Status Updates', short: 'Status', icon: ListChecks },
 ]
-// De-cluttered: only Smart Reply stays in the always-visible row (the composer
-// already has a ✨ icon for it too). Summarize moves into the More-menu.
-const AI_ROW_CARDS = AI_CARDS.filter((c) => c.action === 'smart_reply')
 
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 // SAST = Africa/Johannesburg (UTC+2, no DST). The operator wants the real
@@ -518,7 +516,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
           ) : (
             <>
               {/* Header */}
-              <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-neutral-100">
+              <div className="flex items-start justify-between gap-3 px-5 py-3 border-b border-neutral-100">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="relative shrink-0">
                     <div className="w-11 h-11 rounded-full bg-[#cd2653]/10 text-[#cd2653] flex items-center justify-center text-sm font-bold">{initials(nameOf(active))}</div>
@@ -553,9 +551,6 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                       {active.bot_paused ? 'Hand back' : 'Take over'}
                     </button>
                   )}
-                  <button title="Mark unread" onClick={() => doStatus('unread')} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
-                    <MailOpen className="w-4 h-4 text-neutral-400" />
-                  </button>
                   <div className="relative">
                     <button title="More" onClick={() => setMenuOpen((v) => !v)} className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center">
                       <MoreHorizontal className="w-4 h-4 text-neutral-500" />
@@ -571,6 +566,23 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                         <button onClick={() => { runAI('summarize'); setMenuOpen(false) }} disabled={!!aiBusy} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2 disabled:opacity-50">
                           {aiBusy === 'summarize' ? <Loader2 className="w-4 h-4 animate-spin text-[#cd2653]" /> : <FileText className="w-4 h-4 text-[#cd2653]" />}Summarize thread
                         </button>
+                        <button onClick={() => { doStatus('unread'); setMenuOpen(false) }} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><MailOpen className="w-4 h-4 text-neutral-500" />Mark unread</button>
+                        {canned.length > 0 && (
+                          <div className="relative">
+                            <button onClick={() => setCannedOpen((v) => !v)} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><MessageSquarePlus className="w-4 h-4 text-neutral-500" />Canned replies…</button>
+                            {cannedOpen && (
+                              <div className="absolute right-full top-0 mr-1 w-72 max-h-56 overflow-y-auto bg-white border border-neutral-200 rounded-xl shadow-lg py-1">
+                                {canned.map((c) => (
+                                  <button key={c.slug} onClick={() => { setReply((r) => (r ? r + '\n' + c.body : c.body)); setCannedOpen(false); setMenuOpen(false) }}
+                                    className="w-full px-3 py-2 text-left hover:bg-neutral-50">
+                                    <p className="text-xs font-semibold text-neutral-800">{c.label}</p>
+                                    <p className="text-[11px] text-neutral-400 truncate">{c.body}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <div className="relative">
                           <button onClick={() => setTagOpen((v) => !v)} className="w-full px-3 py-2 text-left hover:bg-neutral-50 flex items-center gap-2"><TagIcon className="w-4 h-4 text-neutral-500" />Tag…</button>
                           {tagOpen && (
@@ -627,7 +639,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                       // Email bodies are long, quoted, sometimes raw: render them a
                       // notch smaller than WhatsApp chat text so they stay readable
                       // and don't overflow. WhatsApp stays at a comfortable chat size.
-                      const bodyText = isEmail ? 'text-[13.5px]' : 'text-[15px]'
+                      const bodyText = isEmail ? 'text-[14px]' : 'text-[15px]'
                       return (
                       <div key={m.id} className={`flex flex-col min-w-0 max-w-full ${alignRight ? 'items-end' : 'items-start'}`}>
                         <div className="flex items-center gap-1.5 mb-1 px-1 text-[11px] text-neutral-400 max-w-full min-w-0">
@@ -670,18 +682,6 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                 </div>
               )}
 
-              {/* AI assist — compact icon row so the chat keeps its height */}
-              <div className="px-4 pt-2 flex items-center gap-1.5 overflow-x-auto">
-                <Sparkles className="w-3.5 h-3.5 text-[#cd2653] shrink-0" />
-                {AI_ROW_CARDS.map(({ action, label, short, icon: Icon }) => (
-                  <button key={action} onClick={() => runAI(action)} disabled={!!aiBusy} title={label}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50/60 hover:bg-white hover:border-[#cd2653]/40 px-2.5 py-1.5 text-[11px] font-semibold text-neutral-700 disabled:opacity-50 transition">
-                    {aiBusy === action ? <Loader2 className="w-3.5 h-3.5 animate-spin text-[#cd2653]" /> : <Icon className="w-3.5 h-3.5 text-[#cd2653]" />}
-                    {short}
-                  </button>
-                ))}
-              </div>
-
               {/* Outside-24h-window template prompt */}
               {windowClosed && active.phone && (
                 <div className="mx-4 mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 flex items-center justify-between gap-2">
@@ -694,27 +694,8 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
               )}
 
               {/* Composer */}
-              <div className="px-4 py-3">
+              <div className="px-4 py-2.5">
                 {sendMsg && <div className="mb-2 text-[11px] text-[#cd2653]">{sendMsg}</div>}
-                {canned.length > 0 && (
-                  <div className="relative mb-2 inline-block">
-                    <button onClick={() => setCannedOpen((v) => !v)}
-                      className="text-[11px] font-semibold text-neutral-500 hover:text-[#cd2653] inline-flex items-center gap-1 border border-neutral-200 rounded-lg px-2 py-1">
-                      <MessageSquarePlus className="w-3.5 h-3.5" /> Canned replies
-                    </button>
-                    {cannedOpen && (
-                      <div className="absolute bottom-9 left-0 z-20 w-72 max-h-56 overflow-y-auto bg-white border border-neutral-200 rounded-xl shadow-lg py-1">
-                        {canned.map((c) => (
-                          <button key={c.slug} onClick={() => { setReply((r) => (r ? r + '\n' + c.body : c.body)); setCannedOpen(false) }}
-                            className="w-full px-3 py-2 text-left hover:bg-neutral-50">
-                            <p className="text-xs font-semibold text-neutral-800">{c.label}</p>
-                            <p className="text-[11px] text-neutral-400 truncate">{c.body}</p>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
                 {attachment && (
                   <div className="mb-2 inline-flex items-center gap-2 text-[11px] bg-neutral-100 border border-neutral-200 rounded-lg px-2 py-1">
                     <Paperclip className="w-3 h-3 text-neutral-500" />
@@ -736,7 +717,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
                     className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center self-center">
                     <Paperclip className="w-4 h-4 text-neutral-400" />
                   </button>
-                  <textarea ref={taRef} value={reply} onChange={(e) => setReply(e.target.value)} rows={3}
+                  <textarea ref={taRef} value={reply} onChange={(e) => setReply(e.target.value)} rows={2}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitReply() } }}
                     placeholder={`Reply via ${replyChannel}…`}
                     className="flex-1 resize-none py-1.5 text-sm outline-none bg-transparent leading-relaxed" />
@@ -808,19 +789,22 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
           )}
 
           <div className="px-4 pt-4 pb-3 border-b border-neutral-100 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg font-serif text-neutral-900">All messages</h2>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}
-                    className="appearance-none text-xs font-semibold text-[#cd2653] bg-transparent pr-5 outline-none cursor-pointer">
-                    <option value="all">All Platforms{counts ? ` (${counts.all})` : ''}</option>
-                    <option value="whatsapp">WhatsApp{counts ? ` (${counts.whatsapp})` : ''}</option>
-                    <option value="email">Email{counts ? ` (${counts.email})` : ''}</option>
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-[#cd2653] absolute right-0 top-0.5 pointer-events-none" />
-                </div>
-              </div>
+            {/* Channel is the PRIMARY axis: a prominent segmented control,
+                counted, server-side filtered via setChannel -> load(). The
+                status row below stays the secondary axis. */}
+            <div className="flex gap-0.5 rounded-lg bg-neutral-100 p-0.5">
+              <button onClick={() => setChannel('all')}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-md ${channel === 'all' ? 'bg-[#cd2653] text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}>
+                All{counts ? ` (${counts.all})` : ''}
+              </button>
+              <button onClick={() => setChannel('whatsapp')}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-md ${channel === 'whatsapp' ? 'bg-[#cd2653] text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}>
+                <MessageCircle className={`w-3.5 h-3.5 ${channel === 'whatsapp' ? 'text-white' : 'text-emerald-600'}`} />WhatsApp{counts ? ` (${counts.whatsapp})` : ''}
+              </button>
+              <button onClick={() => setChannel('email')}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-2 py-1.5 rounded-md ${channel === 'email' ? 'bg-[#cd2653] text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}>
+                <Mail className={`w-3.5 h-3.5 ${channel === 'email' ? 'text-white' : 'text-blue-600'}`} />Email{counts ? ` (${counts.email})` : ''}
+              </button>
             </div>
             <div className="flex gap-0.5 rounded-lg bg-neutral-100 p-0.5">
               {(['all', 'mine', 'unread', 'open', 'snoozed', 'resolved'] as const).map((t) => (

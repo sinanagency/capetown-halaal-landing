@@ -68,9 +68,15 @@ export default async function PaymentsPage() {
         special_requirements: app.special_requirements,
       })
     : null
-  const amount = state.payment?.amount && state.payment.amount > 0
-    ? state.payment.amount
-    : pricing?.total ?? null
+  // Balance model: state.payment.amount = cumulative amount PAID; owed = the live
+  // computed total; outstanding = what is still due. A top-up is when the operator
+  // added charges after the vendor paid, leaving an outstanding balance.
+  const owed = pricing?.total ?? null
+  const paidSoFar = Number(state.payment?.amount) || 0
+  const outstanding = owed !== null ? Math.max(0, owed - paidSoFar) : null
+  const fullyPaid = status === 'paid' && (outstanding === null || outstanding <= 0)
+  const topUpDue = paidSoFar > 0 && (outstanding || 0) > 0
+  const amount = owed
 
   // Countdown banner. Until the vendor pays, the rest of the portal is locked
   // (requirePaid on every other route redirects them here). The banner makes
@@ -95,9 +101,11 @@ export default async function PaymentsPage() {
       <MiniTaskStrip activeKey="payment" />
       <PageHeader
         kicker="Payments"
-        title={status === 'paid' ? 'You are paid in full' : 'Pay your stall fee'}
-        subtitle={status === 'paid'
+        title={fullyPaid ? 'You are paid in full' : topUpDue ? 'Additional payment due' : 'Pay your stall fee'}
+        subtitle={fullyPaid
           ? 'Thank you. Your booth is confirmed. The full festival portal is unlocked for you below.'
+          : topUpDue
+          ? 'Extra charges were added to your stall. Please settle the balance below to stay confirmed.'
           : 'Your portal unlocks the moment your stall fee clears. Pay by card via Yoco, EFT details on request via support.'}
       />
 
@@ -120,13 +128,25 @@ export default async function PaymentsPage() {
         </div>
       )}
 
-      {status === 'paid' && (
+      {fullyPaid && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 mb-6 flex items-start gap-4 text-emerald-800">
           <CheckCircle2 className="w-6 h-6 shrink-0 mt-0.5" />
           <div>
             <p className="font-bold">Payment confirmed</p>
             <p className="text-sm mt-1 opacity-90">
               Your booth is locked in. Use the menu above to view your stand, upload documents, register staff and watch announcements.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {topUpDue && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 mb-6 flex items-start gap-4 text-amber-800">
+          <AlertCircle className="w-6 h-6 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-bold">Additional payment due: {formatRand(outstanding || 0)}</p>
+            <p className="text-sm mt-1 opacity-90">
+              You have paid {formatRand(paidSoFar)} so far. Extra charges were added to your stall, so a balance of {formatRand(outstanding || 0)} is now due. Settle it below to keep your booth confirmed.
             </p>
           </div>
         </div>
@@ -179,6 +199,20 @@ export default async function PaymentsPage() {
                 {amount !== null ? formatRand(amount) : 'TBC'}
               </span>
             </div>
+            {paidSoFar > 0 && (
+              <div className="mt-2 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[#1B1A17]/70">Paid so far</span>
+                  <span className="text-emerald-700 font-medium">{formatRand(paidSoFar)}</span>
+                </div>
+                {(outstanding || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-[#1B1A17]/70">Outstanding</span>
+                    <span className="text-[#cd2653] font-semibold">{formatRand(outstanding || 0)}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         )}
 
@@ -186,6 +220,7 @@ export default async function PaymentsPage() {
           enabled={paymentsEnabled()}
           status={status}
           amount={amount}
+          outstanding={outstanding}
           reference={reference}
           dueDate={due}
           attemptedAt={attemptedAt || null}

@@ -11,7 +11,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { updatePortalState, syncPortalState } from '@/lib/portal-state'
+import { parsePortalState, syncPortalState } from '@/lib/portal-state'
+import { confirmPayment } from '@/lib/payments/confirm'
 import { requireOperator } from '@/lib/admin-rbac'
 
 export const dynamic = 'force-dynamic'
@@ -32,22 +33,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const reference = body.reference ? String(body.reference).slice(0, 80) : undefined
   const note = body.note ? String(body.note).slice(0, 500) : 'Marked paid manually by admin.'
 
-  const before = await updatePortalState(id, (s) => ({
-    ...s,
-    payment: {
-      ...(s.payment || {}),
-      status: 'paid',
-      paid_at: new Date().toISOString(),
-      amount: amount ?? s.payment?.amount,
-      reference: reference || s.payment?.reference,
-    },
-  }))
+  // Route through the SAME confirmPayment authority as the Yoco webhook and the
+  // vendor-ops mark-paid, so a manual payment ACCUMULATES into the cumulative
+  // paid (first payment OR top-up) instead of overwriting it, sets the paid_at
+  // column atomically, and de-dups by providerRef. A unique ref per manual entry
+  // (or the operator's reference) prevents a double-click from double-counting.
+  // silent: the operator is recording an offline payment, so no auto vendor /
+  // owner sends (matches the prior behaviour of this endpoint).
+  const providerRef = reference || `manual-${id}-${Date.now()}`
+  const result = await confirmPayment({
+    applicationId: id,
+    method: 'eft',
+    amount,
+    providerRef,
+    silent: true,
+  })
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: 500 })
+  }
 
   try {
     await db.from('vendor_application_events').insert({
       application_id: id,
       event_type: 'payment_manual',
-      after_value: { paid_at: before.payment?.paid_at, amount, reference, note },
+      after_value: { amount, total_paid: result.amount, reference: providerRef, note },
       actor_email: user.email || null,
       actor_role: 'admin',
       note,
@@ -60,5 +69,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     console.error('[mark-paid] syncPortalState failed:', (e as Error).message)
   )
 
-  return NextResponse.json({ ok: true, payment: before.payment })
+  const after = parsePortalState((await db.from('vendor_applications').select('admin_notes').eq('id', id).maybeSingle()).data?.admin_notes as string || null)
+  return NextResponse.json({ ok: true, payment: after.payment })
 }

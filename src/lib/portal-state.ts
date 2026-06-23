@@ -71,7 +71,11 @@ export interface PortalState {
   v: number
   payment?: {
     status?: 'none' | 'deferred' | 'pending' | 'paid' | 'waived'
+    /** Cumulative amount PAID so far (Rand), across the first payment plus any
+     *  operator-requested top-ups. Outstanding = computeVendorPricing.total - amount. */
     amount?: number
+    /** Provider refs already settled, for top-up idempotency (de-dup). */
+    refs?: string[]
     due?: string
     reference?: string
     provider_ref?: string   // gateway's own txn id (FNB txnToken), used to validate on return
