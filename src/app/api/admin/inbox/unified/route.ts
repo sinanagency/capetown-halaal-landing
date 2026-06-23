@@ -47,6 +47,19 @@ function parseTag(v: string | null): { starred: boolean; tag: string | null } {
 // (the notifyOwners "🛎️ …" system messages) so the customer inbox shows real
 // conversations, not our own internal pings.
 const isMarker = (b: string) => /^\s*\[[A-Z_]+\]/.test(b) || /HUMAN_HANDOVER/.test(b) || /^\s*🛎/u.test(b)
+// Conversation-list preview label for a media-only message, so the list shows
+// "📷 Photo" / "📎 Document" / "🎙 Voice note" instead of the bare "[no text]"
+// fallback. Mirrors the kinds the webhook captures into metadata.media.kind.
+function mediaPreviewLabel(kind: string | undefined): string | null {
+  switch (kind) {
+    case 'image': return '📷 Photo'
+    case 'document': return '📎 Document'
+    case 'audio': return '🎙 Voice note'
+    case 'video': return '🎬 Video'
+    case 'sticker': return '😊 Sticker'
+    default: return null
+  }
+}
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -146,7 +159,7 @@ export async function GET(req: NextRequest) {
   if (channelFilter !== 'email') {
     const { data: wa } = await db
       .from('wa_messages')
-      .select('wa_phone, direction, body, created_at')
+      .select('wa_phone, direction, body, created_at, metadata')
       .order('created_at', { ascending: false })
       .limit(3000)
     const seenPhone = new Set<string>()
@@ -154,7 +167,7 @@ export async function GET(req: NextRequest) {
     // phone is the latest (rows are created_at DESC). ON => bot paused, a human
     // is handling; OFF => bot auto-replying.
     const handoverSeen = new Set<string>()
-    for (const m of (wa || []) as Array<{ wa_phone: string; direction: string; body: string | null; created_at: string }>) {
+    for (const m of (wa || []) as Array<{ wa_phone: string; direction: string; body: string | null; created_at: string; metadata: { media?: { kind?: string } } | null }>) {
       const phone = norm(m.wa_phone || '')
       if (!phone) continue
       const raw = (m.body || '').trim()
@@ -164,8 +177,12 @@ export async function GET(req: NextRequest) {
       }
       if (isMarker(raw)) continue
       // Strip a leading lowercase template tag (e.g. "[vendor_payment_confirmation] …")
-      // so the preview reads as the actual message, not the tag.
-      const body = (raw.replace(/^\s*\[[a-z0-9_]+\]\s*/, '') || '[no text]')
+      // so the preview reads as the actual message, not the tag. When the message
+      // is media with no caption, show a media label ("📷 Photo") instead of the
+      // bare "[no text]" fallback so the operator can see what the vendor sent.
+      const stripped = raw.replace(/^\s*\[[a-z0-9_]+\]\s*/, '')
+      const mediaLabel = mediaPreviewLabel(m.metadata?.media?.kind)
+      const body = (stripped || mediaLabel || '[no text]')
       const vendor = byPhone.get(phone)
       const appId = vendor?.id || null
       const st = appId ? tByApp.get(appId) : undefined

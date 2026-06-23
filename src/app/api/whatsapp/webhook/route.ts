@@ -147,7 +147,7 @@ async function handleInbound(msg: {
   const guard = await shouldProcess("cth", e164, msg.messageId, msg.text, {
     seenByWamid: async (id) => alreadySeen(id),
     logToChat: async (_sender, _text) => {},
-  })
+  }, { hasMedia: Boolean(msg.media) })
   if (guard.action !== "process") return
 
   // D2) DEVELOPER-ROLE ROUTING. Taona's test number is encoded as a `developer`

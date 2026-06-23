@@ -874,7 +874,7 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
               </button>
             </div>
             <div className="flex gap-0.5 rounded-lg bg-neutral-100 p-0.5">
-              {(['all', 'mine', 'unread', 'open', 'snoozed', 'resolved'] as const).map((t) => (
+              {(['all', 'unread', 'open', 'resolved'] as const).map((t) => (
                 <button key={t} onClick={() => setTab(t)}
                   className={`flex-1 text-[11px] font-semibold px-1 py-1 rounded-md capitalize ${tab === t ? 'bg-white text-[#cd2653] shadow-sm' : 'text-neutral-500 hover:text-neutral-900'}`}>
                   {t}{t === 'unread' && counts?.unread ? ` ${counts.unread}` : ''}
