@@ -76,13 +76,13 @@ export async function GET(req: Request): Promise<NextResponse<FetcherReport>> {
   let written = 0
   let skipped = 0
 
-  if (process.env.CRON_SECRET) {
-    if (!verifyCronAuth(req.headers.get('authorization'))) {
-      return NextResponse.json(
-        { ok: false, fetched: 0, written: 0, skipped: 0, errors: ['unauthorized'], host: '', durationMs: 0 },
-        { status: 401 }
-      )
-    }
+  // Fail-closed cron gate (verifyCronAuth returns false when CRON_SECRET is
+  // unset), so this IMAP-reading route is never publicly triggerable.
+  if (!verifyCronAuth(req.headers.get('authorization'))) {
+    return NextResponse.json(
+      { ok: false, fetched: 0, written: 0, skipped: 0, errors: ['unauthorized'], host: '', durationMs: 0 },
+      { status: 401 }
+    )
   }
 
   const host = process.env.IMAP_HOST || 'imap.secureserver.net'

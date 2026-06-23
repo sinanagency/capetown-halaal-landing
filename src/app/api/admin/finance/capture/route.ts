@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { updatePortalState } from '@/lib/portal-state'
+import { confirmPayment } from '@/lib/payments/confirm'
 import { zoneByKey } from '@/lib/venue-zones'
 import { notifyOwners } from '@/lib/bot/notify'
 import { requireOperator } from '@/lib/admin-rbac'
@@ -52,18 +53,35 @@ export async function POST(req: NextRequest) {
     .single()
   if (!appRow) return NextResponse.json({ error: 'application not found' }, { status: 404 })
 
+  // Route the money through the SAME confirmPayment authority as Yoco + admin
+  // mark-paid: it ACCUMULATES into the cumulative paid (first capture or top-up),
+  // sets paid_at atomically, and de-dups by providerRef so a double-click does
+  // not double-capture (when a reference is supplied). silent: we send our own
+  // zone-specific owner notify below. (Was: a direct marker overwrite that reset
+  // cumulative paid and re-notified on every POST.)
   const paidAt = new Date().toISOString()
+  const providerRef = parsed.reference || `capture-${parsed.applicationId}-${Date.now()}`
+  const result = await confirmPayment({
+    applicationId: parsed.applicationId,
+    method: 'eft',
+    amount: parsed.amount,
+    providerRef,
+    silent: true,
+  })
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error || 'capture failed' }, { status: 500 })
+  }
+
+  // Layer the zone + capture metadata onto the marker (confirmPayment is
+  // zone-agnostic). This merge does NOT touch the cumulative amount/status.
   await updatePortalState(parsed.applicationId, (s) => ({
     ...s,
     payment: {
       ...(s.payment || {}),
-      status: 'paid',
-      amount: parsed.amount,
       method: 'manual',
       zone: parsed.zone,
       reference: parsed.reference || (s.payment?.reference ?? undefined),
       capture_note: parsed.note,
-      paid_at: s.payment?.paid_at || paidAt,
     },
   }))
 

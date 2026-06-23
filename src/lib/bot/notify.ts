@@ -8,6 +8,22 @@
 import { sendTemplate, sendText, toE164 } from '@/lib/whatsapp'
 import { BOT_ADMINS, type BotAdmin } from '@/lib/bot/admins'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendEmail } from '@/lib/email/resend'
+
+// EMAIL BACKSTOP for the silent-drop failure surface: Meta frequency-caps
+// repeated free-text owner alerts (production: ~30% of owner WhatsApp sends to
+// the two admins were dropped with "healthy ecosystem engagement", 29 of them
+// actionable new-application / talk-to-human pings the team never saw). Email
+// has no such cap, so for events where the admin must REACT to something
+// external we ALSO email them. Admin-initiated events (approve/reject/info) are
+// excluded: the admin already knows, no need to backstop their own action.
+const EMAIL_BACKSTOP_EVENTS: ReadonlySet<PortalEvent> = new Set<PortalEvent>([
+  'application_received',
+  'vendor_support_message',
+  'payment_succeeded',
+  'payment_failed',
+  'system_alert',
+])
 
 export type PortalEvent =
   | 'application_received'
@@ -75,6 +91,23 @@ async function deliverOne(admin: BotAdmin, args: NotifyArgs) {
     })
   } catch (e) {
     console.error('[notify] deliver failed', admin.name, (e as Error).message)
+  }
+
+  // Email backstop: WhatsApp owner alerts get frequency-capped by Meta and drop
+  // silently (the failure is async, set later by a status webhook), so the WA
+  // send above can never be trusted as delivered. For actionable events we ALSO
+  // email the admin so the ping always lands. Best-effort, never throws.
+  if (EMAIL_BACKSTOP_EVENTS.has(args.event) && admin.email) {
+    try {
+      const label = args.event.replace(/_/g, ' ')
+      await sendEmail({
+        to: admin.email,
+        subject: `[YAH] ${label}: ${args.body.split('\n')[0].slice(0, 80)}`,
+        text: `${args.body}\n\nOpen the admin inbox to action this: https://cthalaal.co.za/admin/bot-inbox`,
+      })
+    } catch (e) {
+      console.error('[notify] email backstop failed', admin.name, (e as Error).message)
+    }
   }
 }
 
