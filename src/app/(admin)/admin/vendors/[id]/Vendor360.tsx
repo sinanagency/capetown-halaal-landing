@@ -391,8 +391,11 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
     }
   }
 
-  const whatsappLink = phone
-    ? `https://wa.me/${phone.replace(/[^0-9]/g, '').replace(/^0/, '27')}`
+  // In-app targets (never leave the admin site). WhatsApp/Email open the master
+  // inbox on THIS vendor's thread via a deep-link param; the old wa.me / mailto
+  // links flung the operator out to an external app.
+  const waContact = phone
+    ? `+${phone.replace(/[^0-9]/g, '').replace(/^0/, '27')}`
     : null
 
   return (
@@ -428,13 +431,13 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
           icon={<MessageCircle className="w-4 h-4" />}
           label="Send WhatsApp"
           tone="mint"
-          onClick={whatsappLink ? () => window.open(whatsappLink, '_blank') : undefined}
+          onClick={waContact ? () => router.push(`/admin/customer-inbox?contact=${encodeURIComponent(waContact)}&channel=whatsapp`) : undefined}
         />
         <ActionChip
           icon={<Mail className="w-4 h-4" />}
           label="Send Email"
           tone="sky"
-          onClick={email ? () => window.open(`mailto:${email}`) : undefined}
+          onClick={email ? () => router.push(`/admin/customer-inbox?contact=${encodeURIComponent(email)}&channel=email`) : undefined}
         />
         <ActionChip
           icon={<CreditCard className="w-4 h-4" />}
@@ -444,9 +447,9 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
         />
         <ActionChip
           icon={<MapPin className="w-4 h-4" />}
-          label="View Stand"
+          label={stallCode ? 'View Stand' : 'Allocate Stall'}
           tone="lavender"
-          onClick={stallCode ? () => router.push(`/admin/allocation?focus=${encodeURIComponent(stallCode)}`) : undefined}
+          onClick={() => router.push(stallCode ? `/admin/allocation?focus=${encodeURIComponent(stallCode)}` : '/admin/allocation')}
         />
       </ActionChipGrid>
 

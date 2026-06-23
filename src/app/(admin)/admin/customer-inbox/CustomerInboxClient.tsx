@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { AdminPage } from '@/components/admin/AdminPage'
 import {
   Loader2, Mail, MessageCircle, Search, Send, ChevronDown, Star, MailOpen,
@@ -208,6 +209,17 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
   const prevSearch = useRef('')
   const autoOpened = useRef(false)
 
+  // Deep-link: another page (e.g. the vendor profile "Send WhatsApp" / "Send
+  // Email" buttons) can hand us ?contact=<E.164-or-email>&channel=<whatsapp|email>
+  // so the operator lands straight on that vendor's thread with the composer
+  // ready. We read it once, set the channel, then auto-select the matching
+  // contact after the list has loaded. didDeepLink guards against re-firing on
+  // every 15s poll (which would yank the operator back off a manual selection).
+  const searchParams = useSearchParams()
+  const deepLinkContact = searchParams.get('contact')
+  const deepLinkChannel = searchParams.get('channel')
+  const didDeepLink = useRef(false)
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -319,6 +331,61 @@ export function CustomerInboxClient({ currentUserId, operators }: { currentUserI
       })
     } catch { /* best effort */ }
   }, [])
+
+  // Deep-link handler. Runs once, after the contacts list has loaded, when a
+  // ?contact= param is present. Sets the channel from ?channel=, then finds the
+  // contact whose phone matches (compared digits-only, tolerant of +, leading 0
+  // and the 27 country code) or whose email matches (case-insensitive), and
+  // selects it through the SAME setActiveId a click uses. No match (vendor never
+  // messaged): we just set the channel and pre-fill the search box so the
+  // operator sees there is no thread yet. Either way we mark autoOpened so the
+  // "open most recent" fallback below does not override the deep-link.
+  useEffect(() => {
+    if (didDeepLink.current) return
+    if (!deepLinkContact) return
+    if (loading) return // wait until the first contacts load resolves
+    didDeepLink.current = true
+
+    if (deepLinkChannel === 'whatsapp' || deepLinkChannel === 'email') {
+      setChannel(deepLinkChannel)
+    }
+
+    const digits = (v: string | null | undefined) => (v || '').replace(/\D/g, '')
+    const target = deepLinkContact.trim()
+    const targetDigits = digits(target)
+    const targetEmail = target.toLowerCase()
+    const isEmailTarget = target.includes('@')
+
+    // Phone match: compare digits-only and tolerate the common ZA variants:
+    // exact, with/without leading + (already stripped by digits()), a leading 0
+    // local form (0727...) vs the 27 country-code form (27727...).
+    const phoneMatches = (cd: string) => {
+      if (!cd || !targetDigits) return false
+      if (cd === targetDigits) return true
+      const norm = (d: string) => {
+        if (d.startsWith('27')) return d.slice(2)
+        if (d.startsWith('0')) return d.slice(1)
+        return d
+      }
+      return norm(cd) === norm(targetDigits)
+    }
+
+    const match = contacts.find((c) => {
+      if (isEmailTarget) return (c.email || '').toLowerCase() === targetEmail
+      return phoneMatches(digits(c.phone)) || (!!c.email && c.email.toLowerCase() === targetEmail)
+    })
+
+    // Block the "open most recent" fallback from firing regardless of outcome.
+    autoOpened.current = true
+
+    if (match) {
+      setActiveId(match.id)
+    } else {
+      // No thread yet: surface the contact value in the search box so the
+      // operator can see there is nothing to open for this vendor.
+      setSearch(target)
+    }
+  }, [deepLinkContact, deepLinkChannel, loading, contacts])
 
   // Open the most recent conversation automatically so the inbox "opens well".
   useEffect(() => {
