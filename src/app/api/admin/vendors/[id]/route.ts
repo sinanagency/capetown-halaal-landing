@@ -27,7 +27,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireOperator } from '@/lib/admin-rbac'
-import { TIER_META } from '@/lib/stalls'
+import { TIER_META, parseAllocation } from '@/lib/stalls'
+import { parsePortalState, updatePortalStateImpl } from '@/lib/portal-state'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -224,6 +225,105 @@ export async function PATCH(
     return NextResponse.json({ ok: true, updated: after, changed })
   } catch (err) {
     console.error('[vendors PATCH] error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
+ * DELETE /api/admin/vendors/[id]
+ *
+ * Withdraw a vendor that no longer wants to trade. This is a SOFT delete, not a
+ * row drop: the DB status column has a CHECK constraint (pending|approved|
+ * rejected|info_requested) and DDL is blocked (doctrine Law 8), and most child
+ * FKs cascade on delete, so a hard delete would irreversibly wipe the vendor's
+ * documents, payments, threads and audit trail. Instead we:
+ *   1. Release every stall the vendor holds back to the floor (strip ⟦STALL⟧).
+ *   2. Stamp a ⟦PORTAL⟧ `withdrawn` marker (who/when/reason/freed stalls).
+ *   3. Set status='rejected' so the vendor drops out of every approved-vendor
+ *      list (vendors page, allocation panel, CSV export) in a single write.
+ * The marker distinguishes a withdrawal from a genuine rejection and makes the
+ * action reversible (re-approve under Applications).
+ *
+ * Body (optional): { reason?: string }
+ * Auth: owner | operator (same gate as PATCH / mark-paid).
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json({ error: 'Invalid application id' }, { status: 400 })
+    }
+
+    const gate = await requireOperator()
+    if (!gate.ok) return gate.response
+    const { adminUser } = gate
+
+    const db = createAdminClient()
+    const actorEmail = adminUser.email
+
+    const body = await req.json().catch(() => ({}))
+    const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 280) : ''
+
+    const { data: before, error: beforeErr } = await db
+      .from('vendor_applications')
+      .select('id, business_name, status, admin_notes')
+      .eq('id', id)
+      .single()
+    if (beforeErr || !before) {
+      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    }
+
+    const notes = (before.admin_notes as string) || ''
+    // parseAllocation().human strips the ⟦STALL⟧ marker but keeps prose + the
+    // ⟦PORTAL⟧ marker, freeing the booth(s). Capture the freed codes for the audit.
+    const { stalls: freedStalls, human: notesNoStall } = parseAllocation(notes)
+    const state = parsePortalState(notes)
+    const nowIso = new Date().toISOString()
+    state.withdrawn = {
+      at: nowIso,
+      by: actorEmail ?? null,
+      ...(reason ? { reason } : {}),
+      ...(freedStalls.length ? { freed_stalls: freedStalls } : {}),
+    }
+    // updatePortalStateImpl re-writes the ⟦PORTAL⟧ marker on notesNoStall,
+    // preserving prose. Net result: no stall marker, refreshed portal marker.
+    const newNotes = updatePortalStateImpl(notesNoStall, state)
+
+    const { error: updErr } = await db
+      .from('vendor_applications')
+      .update({ status: 'rejected', admin_notes: newNotes })
+      .eq('id', id)
+    if (updErr) {
+      console.error('[vendors DELETE] update error:', updErr.message)
+      return NextResponse.json({ error: updErr.message || 'Withdraw failed' }, { status: 500 })
+    }
+
+    // Audit row — never block the response on a logging failure.
+    try {
+      await db.from('vendor_application_events').insert({
+        application_id: id,
+        event_type: 'vendor_withdrawn',
+        before_value: { status: before.status, stalls: freedStalls },
+        after_value: { status: 'rejected', withdrawn: state.withdrawn },
+        actor_email: actorEmail,
+        actor_role: 'operator',
+        note: reason ? `Vendor withdrawn: ${reason}` : 'Vendor withdrawn (no longer trading)',
+      })
+    } catch (e) {
+      console.warn('[vendors DELETE] event log insert failed:', (e as Error).message)
+    }
+
+    return NextResponse.json({
+      ok: true,
+      withdrawn: true,
+      business_name: before.business_name,
+      freed_stalls: freedStalls,
+    })
+  } catch (err) {
+    console.error('[vendors DELETE] error:', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

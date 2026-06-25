@@ -149,6 +149,18 @@ export interface PortalState {
     createdAt: string
     adminNote?: string
   }
+  /** Vendor withdrew / was removed by an operator (no longer trading). The DB
+   *  status column has a CHECK constraint (no 'withdrawn' value) and DDL is
+   *  blocked (Law 8), so a withdrawn vendor is stored as status='rejected' PLUS
+   *  this marker — which distinguishes a genuine application rejection from a
+   *  vendor who pulled out, and makes the action reversible (un-set + re-approve).
+   *  Writer: DELETE /api/admin/vendors/[id]. */
+  withdrawn?: {
+    at: string                 // ISO timestamp
+    by: string | null          // operator email
+    reason?: string            // optional note (e.g. "no longer trading")
+    freed_stalls?: string[]    // stall codes released back to the floor
+  }
 }
 
 export interface SupportMessage {

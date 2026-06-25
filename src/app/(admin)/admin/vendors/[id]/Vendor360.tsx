@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, MessageCircle, Mail, CreditCard, MapPin, Phone,
   FileText, Users, History, Eye, ChevronDown, ChevronUp, Loader2,
-  StickyNote, Plus, Check, X,
+  StickyNote, Plus, Check, X, Trash2, AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AdminPage } from '@/components/admin/AdminPage'
@@ -199,6 +199,12 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
   const [editBusy, setEditBusy] = useState(false)
   const [editErr, setEditErr] = useState<string | null>(null)
   const [editOk, setEditOk] = useState(false)
+
+  // --- Withdraw (soft-delete) state ---
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [withdrawBusy, setWithdrawBusy] = useState(false)
+  const isWithdrawn = !!portal.withdrawn || status === 'rejected'
 
   function toggleCommExpanded(id: string) {
     setCommExpanded((prev) => {
@@ -396,6 +402,32 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
     }
   }
 
+  // Withdraw (soft-delete) a vendor that no longer wants to trade. Frees their
+  // stall and removes them from the approved-vendor lists. Reversible by
+  // re-approving under Applications. Hits DELETE /api/admin/vendors/[id].
+  async function handleWithdraw() {
+    setWithdrawBusy(true)
+    try {
+      const r = await fetch(`/api/admin/vendors/${v.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: withdrawReason.trim() || undefined }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { toast.error(j.error || `Failed to withdraw (${r.status})`); return }
+      const freed = Array.isArray(j.freed_stalls) && j.freed_stalls.length
+        ? ` Stall ${j.freed_stalls.join(', ')} freed.`
+        : ''
+      toast.success(`${businessName} withdrawn.${freed}`)
+      setWithdrawOpen(false)
+      router.push('/admin/vendors')
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setWithdrawBusy(false)
+    }
+  }
+
   // In-app targets (never leave the admin site). WhatsApp/Email open the master
   // inbox on THIS vendor's thread via a deep-link param; the old wa.me / mailto
   // links flung the operator out to an external app.
@@ -428,7 +460,23 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
             {stallCode}
           </span>
         )}
-        <StatusPill tone={statusTone(status)} label={status} />
+        <StatusPill tone={statusTone(status)} label={isWithdrawn ? 'withdrawn' : status} />
+        {isWithdrawn ? (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-neutral-500">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+            Withdrawn{portal.withdrawn?.at ? ` · ${fmtShortDate(portal.withdrawn.at)}` : ''}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setWithdrawReason(''); setWithdrawOpen(true) }}
+            className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-rose-600 border border-neutral-200 hover:border-rose-300 rounded-md px-2.5 py-1.5 transition-colors"
+            title="Remove this vendor if they no longer want to trade"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Withdraw vendor
+          </button>
+        )}
       </div>
 
       <ActionChipGrid>
@@ -1036,6 +1084,63 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
           </div>
         )}
       </RightDrawer>
+
+      {withdrawOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !withdrawBusy && setWithdrawOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-xl border border-neutral-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-neutral-100 flex items-start gap-3">
+              <div className="mt-0.5 flex-shrink-0 w-9 h-9 rounded-full bg-rose-50 flex items-center justify-center">
+                <Trash2 className="w-4 h-4 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-neutral-900">Withdraw {businessName}?</h3>
+                <p className="text-xs text-neutral-500 mt-1">
+                  This removes them from the vendors list and allocations, and frees
+                  any stall they hold{stallCode ? ` (${stallCode})` : ''}. Their record
+                  and history are kept, so you can re-approve them later under Applications.
+                </p>
+              </div>
+            </div>
+            <div className="p-5">
+              <label className="block text-xs font-medium text-neutral-600 mb-1">
+                Reason <span className="text-neutral-400 font-normal">(optional)</span>
+              </label>
+              <textarea
+                value={withdrawReason}
+                onChange={(e) => setWithdrawReason(e.target.value)}
+                rows={2}
+                placeholder="e.g. No longer trading"
+                className="w-full px-2.5 py-2 text-sm border border-neutral-200 rounded-md focus:outline-none focus:ring-2 focus:ring-rose-400"
+              />
+            </div>
+            <div className="px-5 pb-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setWithdrawOpen(false)}
+                disabled={withdrawBusy}
+                className="px-3 py-1.5 text-sm font-medium text-neutral-600 hover:text-neutral-900 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleWithdraw}
+                disabled={withdrawBusy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-60"
+              >
+                {withdrawBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                Withdraw vendor
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminPage>
   )
 }

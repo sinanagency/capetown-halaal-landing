@@ -4,8 +4,11 @@
  * Streams a CSV of approved vendors with the columns Samreen uses for ops
  * planning. Defaults to all approved vendors when no ids are supplied.
  *
- * Columns: business_name, contact_name, phone, email, sector, status,
- * stall_code, payment_status, contract_signed_at.
+ * Columns: business_name, contact_name, phone, email, sector, description,
+ * status, stall_code, payment_status, contract_signed_at.
+ *
+ * `description` is the vendor's own "Business or menu description" captured on
+ * the apply form (vendor_applications.business_description).
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -46,7 +49,7 @@ export async function GET(req: NextRequest) {
   const CSV_MAX_ROWS = 1000
   let q = db
     .from('vendor_applications')
-    .select('id, business_name, contact_name, email, phone, product_categories, status, admin_notes, contract_signed_at')
+    .select('id, business_name, contact_name, email, phone, product_categories, business_description, status, admin_notes, contract_signed_at')
     .order('business_name', { ascending: true })
     .limit(CSV_MAX_ROWS)
   if (ids && ids.length) q = q.in('id', ids)
@@ -87,8 +90,8 @@ export async function GET(req: NextRequest) {
   }
 
   const headers = [
-    'business_name', 'contact_name', 'phone', 'email', 'sector', 'status',
-    'stall_code', 'payment_status', 'contract_signed_at',
+    'business_name', 'contact_name', 'phone', 'email', 'sector', 'description',
+    'status', 'stall_code', 'payment_status', 'contract_signed_at',
   ]
   const lines: string[] = [headers.join(',')]
   for (const row of (data || []) as Array<{
@@ -97,6 +100,7 @@ export async function GET(req: NextRequest) {
     email: string | null
     phone: string | null
     product_categories: string[] | null
+    business_description: string | null
     status: string | null
     admin_notes: string | null
     contract_signed_at: string | null
@@ -111,6 +115,7 @@ export async function GET(req: NextRequest) {
       escapeCsv(row.phone),
       escapeCsv(row.email),
       escapeCsv(sector),
+      escapeCsv(row.business_description),
       escapeCsv(row.status),
       escapeCsv(stall),
       escapeCsv(paymentStatus),

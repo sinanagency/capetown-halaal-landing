@@ -162,6 +162,12 @@ export default function AllocationPage() {
     if (!data) return []
     return data.applications.filter((a) => {
       if (a.app_status !== 'approved') return false
+      // Only vendors who have settled count for allocation. Approved != paid:
+      // a vendor is allocatable once payment_status is 'paid' (money received)
+      // or 'waived' (comped, legitimately owes nothing). 'none'/'pending'/
+      // 'deferred' vendors are approved but unpaid, so they do NOT take a stall.
+      const pay = a.payment_status ?? 'none'
+      if (pay !== 'paid' && pay !== 'waived') return false
       // Placed = the vendor's booth list is non-empty (multi-booth aware).
       const boothCount = a.booth_count ?? (a.stalls?.length ?? (a.stall ? 1 : 0))
       if (boothCount > 0) return false
@@ -287,7 +293,7 @@ export default function AllocationPage() {
           <div className="w-80 flex-shrink-0 border-r border-neutral-200 bg-white flex flex-col overflow-hidden">
             <div className="p-3 border-b border-neutral-100">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xs font-semibold text-neutral-800 uppercase tracking-wider">Unallocated Vendors</h2>
+                <h2 className="text-xs font-semibold text-neutral-800 uppercase tracking-wider" title="Approved vendors who have paid (or been waived) and don't yet have a stall. Unpaid vendors are hidden until payment lands.">Unallocated · Paid</h2>
                 <button
                   type="button"
                   onClick={() => setVendorPanelCollapsed(true)}
