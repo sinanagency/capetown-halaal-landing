@@ -322,6 +322,25 @@ export async function confirmPayment(input: ConfirmPaymentInput): Promise<Confir
     }
   }
 
+  // Logo nudge: the moment a vendor FIRST becomes paid, ask them to upload a
+  // logo so they go live (with branding) in the public sector listings. Only on
+  // the first paid transition, and only if no logo is on file yet. Best-effort,
+  // NEVER throws into the money path. Weekly re-nudges are handled by the
+  // /api/cron/logo-reminders sweep until the logo lands.
+  if (!wasPaidBefore && !before.profile?.logo_path) {
+    try {
+      const { sendLogoReminder } = await import('@/lib/logo-reminder')
+      await sendLogoReminder({
+        applicationId: input.applicationId,
+        name: contactName,
+        email: app.email as string,
+        phone: (before.wa?.phone as string) || (app.phone as string) || null,
+      })
+    } catch (e) {
+      console.error('[confirmPayment] logo reminder failed:', (e as Error).message)
+    }
+  }
+
   // Reached only by the call that won the unpaid -> paid transition and sent.
   return { ok: true, alreadyPaid: false, amount }
 }
