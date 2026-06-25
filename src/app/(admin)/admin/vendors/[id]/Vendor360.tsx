@@ -204,7 +204,10 @@ export function Vendor360({ initialData }: { initialData: InitialData }) {
   const [withdrawOpen, setWithdrawOpen] = useState(false)
   const [withdrawReason, setWithdrawReason] = useState('')
   const [withdrawBusy, setWithdrawBusy] = useState(false)
-  const isWithdrawn = !!portal.withdrawn || status === 'rejected'
+  // Only a vendor carrying the withdrawn marker AND sitting at status='rejected'
+  // is "withdrawn". A genuine application rejection (no marker) still reads as
+  // 'rejected'; a re-approved vendor (status flips back) sheds the label.
+  const isWithdrawn = !!portal.withdrawn && status === 'rejected'
 
   function toggleCommExpanded(id: string) {
     setCommExpanded((prev) => {
