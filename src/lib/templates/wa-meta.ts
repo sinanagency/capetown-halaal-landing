@@ -191,6 +191,27 @@ export const WA_META_TEMPLATES: WaTemplateSpec[] = [
       { key: 'stall_label', label: 'Stall', placeholder: 'Food stall F-12', required: true },
     ],
   },
+  // ---------------------------------------------------------------------------
+  // PENDING META APPROVAL — added 2026-06-25 for the logo-upload campaign. Paid
+  // vendors are almost never inside the 24h customer service window, so this
+  // proactive nudge MUST go via a business-initiated template. Create + approve
+  // a template named EXACTLY `vendor_logo_reminder` (English, Utility category)
+  // in Meta Business Manager against the YAH WABA with this body before it will
+  // deliver. Until approved, notifyVendor / the logo-campaign endpoint will skip
+  // observably (logged) instead of silently failing.
+  // ---------------------------------------------------------------------------
+  {
+    key: 'vendor_logo_reminder',
+    label: 'Vendor logo reminder',
+    description: 'Ask a paid vendor to upload their logo so they go live in the public sector listings.',
+    category: 'utility',
+    lang: 'en',
+    previewBody:
+      'Hi {{1}}, your stall at Young at Heart Festival 2026 is paid and confirmed. One step left: upload your logo in your vendor portal so you appear with your branding in the public sector listings shoppers browse. It takes under a minute: https://cthalaal.co.za/exhibitor/portal/profile',
+    params: [
+      { key: 'first_name', label: 'First name', placeholder: 'Aisha', required: true },
+    ],
+  },
 ]
 
 export function findWaTemplate(key: string): WaTemplateSpec | undefined {

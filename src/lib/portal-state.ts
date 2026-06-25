@@ -161,6 +161,9 @@ export interface PortalState {
     reason?: string            // optional note (e.g. "no longer trading")
     freed_stalls?: string[]    // stall codes released back to the floor
   }
+  /** ISO timestamp the logo-upload campaign last messaged this vendor. Set by
+   *  /api/admin/vendors/logo-campaign so re-runs do not double-message. */
+  logo_prompt_sent_at?: string
 }
 
 export interface SupportMessage {

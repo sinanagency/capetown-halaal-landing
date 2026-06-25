@@ -93,6 +93,8 @@ interface VendorLite {
   business_description: string | null
   website: string | null
   instagram: string | null
+  logo_url: string | null
+  has_profile: boolean
 }
 
 interface MenuItem { name: string; price?: string; desc?: string }
@@ -351,12 +353,25 @@ function VendorDrawerPanel({ sector, onClose }: { sector: Sector; onClose: () =>
                             onClick={() => setSelected(profSlug)}
                             className="relative snap-start text-left p-5 rounded-2xl bg-neutral-900/80 backdrop-blur-sm border border-white/5 hover:border-[#cd2653]/40 transition-all duration-300 flex flex-col group h-full"
                           >
-                            <div
-                              className={cn('w-11 h-11 rounded-xl flex items-center justify-center mb-3 bg-gradient-to-br shadow-lg shrink-0', sector.color)}
-                              style={{ boxShadow: `0 8px 30px ${sector.bgGlow}` }}
-                            >
-                              <sector.icon className="w-5 h-5 text-white" />
-                            </div>
+                            {v.logo_url ? (
+                              // Vendor's own logo on a white tile (logos are
+                              // public brand assets). Falls back to the sector
+                              // icon below when no logo has been uploaded yet.
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={v.logo_url}
+                                alt={`${v.business_name} logo`}
+                                className="w-11 h-11 rounded-xl object-contain bg-white p-1 shadow-lg shrink-0 mb-3"
+                                style={{ boxShadow: `0 8px 30px ${sector.bgGlow}` }}
+                              />
+                            ) : (
+                              <div
+                                className={cn('w-11 h-11 rounded-xl flex items-center justify-center mb-3 bg-gradient-to-br shadow-lg shrink-0', sector.color)}
+                                style={{ boxShadow: `0 8px 30px ${sector.bgGlow}` }}
+                              >
+                                <sector.icon className="w-5 h-5 text-white" />
+                              </div>
+                            )}
                             <h4 className="text-sm font-bold text-white group-hover:text-neutral-50 transition-colors line-clamp-1 mb-1">
                               {v.business_name}
                             </h4>
