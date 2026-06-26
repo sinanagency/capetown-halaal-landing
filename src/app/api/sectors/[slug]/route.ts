@@ -80,9 +80,21 @@ export async function GET(
     // then alphabetical (the query already ordered by name within each group).
     vendors.sort((a, b) => (a.logo_url ? 0 : 1) - (b.logo_url ? 0 : 1))
 
-    return NextResponse.json({ vendors })
+    // Edge-cache this PUBLIC, slow-changing list at Vercel's CDN so repeat
+    // clicks are near-instant instead of re-running the Supabase query every
+    // time. Served fresh for 2 min, then served stale (instant) for up to 10
+    // more while it revalidates in the background. A newly uploaded logo shows
+    // within ~2 min. No PII here (Law 2), so edge caching is safe.
+    return NextResponse.json({ vendors }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=600',
+      },
+    })
   } catch (error) {
     console.error('Sector API error:', error)
-    return NextResponse.json({ vendors: [] })
+    // Do not cache an error response.
+    return NextResponse.json({ vendors: [] }, {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   }
 }
