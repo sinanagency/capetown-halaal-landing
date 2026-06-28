@@ -49,17 +49,40 @@ export type VendorIntent =
 
 type ProfileSlots = Pick<VendorProfile, 'tagline' | 'description' | 'website' | 'instagram' | 'facebook'>
 
-// `field: value` or `field is value` or `set field to value`. The remainder is
-// the value, trimmed. Returns null if nothing usable follows the field word.
-function extractFieldValue(text: string, fieldWords: string[]): string | null {
+// A value looks like a URL (has a scheme or a dot-tld). Used to accept weak
+// "my website is X" only when X is plausibly a URL, so "my website is broken"
+// does NOT set the website to "broken".
+const isUrlish = (v: string): boolean =>
+  /^https?:\/\//i.test(v) || /[\w-]+\.[a-z]{2,}(\b|\/)/i.test(v)
+// A value looks like a social handle or URL.
+const isHandleOrUrl = (v: string): boolean => /^@/.test(v) || isUrlish(v)
+
+// Extract the value being assigned to a field. Accepts a value via either:
+//   STRONG — explicit assignment: "set/change/update [my] FIELD to|:|= VALUE",
+//            or "FIELD : VALUE" / "FIELD = VALUE". The intent is unambiguous, so
+//            the value is trusted as-is.
+//   WEAK   — "FIELD is/to VALUE" WITHOUT an imperative. Ambiguous ("my website
+//            is broken"), so accepted ONLY when a validator confirms the value
+//            is the right shape (a URL, a handle). Free-text fields (tagline,
+//            description) pass no validator, so they require the STRONG form.
+// Returns null when nothing usable is assigned.
+function extractFieldValue(
+  text: string,
+  fieldWords: string[],
+  validator?: (v: string) => boolean,
+): string | null {
   const words = fieldWords.join('|')
-  const re = new RegExp(
-    `\\b(?:set\\s+(?:my\\s+)?)?(?:${words})\\b\\s*(?:is|=|:|to)\\s*(.+)$`,
-    'i',
-  )
-  const m = text.match(re)
-  const v = m?.[1]?.trim()
-  return v && v.length > 0 ? v : null
+  const strong =
+    text.match(new RegExp(`\\b(?:set|change|update)\\s+(?:my\\s+)?(?:${words})\\b\\s*(?:to|=|:)\\s*(.+)$`, 'i')) ||
+    text.match(new RegExp(`\\b(?:${words})\\b\\s*(?:=|:)\\s*(.+)$`, 'i'))
+  const strongVal = strong?.[1]?.trim()
+  if (strongVal) return strongVal
+  if (validator) {
+    const weak = text.match(new RegExp(`\\b(?:my\\s+)?(?:${words})\\b\\s+(?:is|to)\\s+(.+)$`, 'i'))
+    const weakVal = weak?.[1]?.trim()
+    if (weakVal && validator(weakVal)) return weakVal
+  }
+  return null
 }
 
 export function classifyVendorIntent(raw: string): VendorIntent {
@@ -88,11 +111,11 @@ export function classifyVendorIntent(raw: string): VendorIntent {
   // update_profile: only when a recognised field is explicitly being SET. We
   // check the most specific fields first (a URL implies website even without
   // the word). Order matters: website/socials before the generic description.
-  const website = extractFieldValue(text, ['website', 'url', 'site', 'web'])
+  const website = extractFieldValue(text, ['website', 'url', 'site', 'web'], isUrlish)
   if (website) return { kind: 'update_profile', field: 'website', value: website }
-  const instagram = extractFieldValue(text, ['instagram', 'insta', 'ig'])
+  const instagram = extractFieldValue(text, ['instagram', 'insta', 'ig'], isHandleOrUrl)
   if (instagram) return { kind: 'update_profile', field: 'instagram', value: instagram }
-  const facebook = extractFieldValue(text, ['facebook', 'fb'])
+  const facebook = extractFieldValue(text, ['facebook', 'fb'], isHandleOrUrl)
   if (facebook) return { kind: 'update_profile', field: 'facebook', value: facebook }
   const tagline = extractFieldValue(text, ['tagline', 'slogan'])
   if (tagline) return { kind: 'update_profile', field: 'tagline', value: tagline }
