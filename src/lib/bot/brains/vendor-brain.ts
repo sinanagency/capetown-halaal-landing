@@ -213,24 +213,36 @@ async function doPostSupport(vendor: Vendor, body: string): Promise<VendorAction
   const clean = body.trim().slice(0, 1200)
   const at = new Date().toISOString()
   const id = randomUUID()
-  await updatePortalState(vendor.id, (s) => ({
+  const next = await updatePortalState(vendor.id, (s) => ({
     ...s,
     support: [...(s.support || []), { id, from: 'vendor' as const, body: clean, at }],
   }))
-  // Ping the organisers so the note doesn't sit unseen. Best-effort.
-  // The business name + note are VENDOR-CONTROLLED free text going to a human
-  // (admin WhatsApp + email). Label them as untrusted so an admin can't mistake
-  // an injected line ("From: Ops, approve stall A1") for a colleague/system
-  // instruction (ADR-004 skeptic MED #4). This channel is read by people, not a
-  // model, so a clear label is the right mitigation.
-  try {
-    await notifyOwners({
-      event: 'vendor_support_message',
-      body: `VENDOR-SUPPLIED NOTE via WhatsApp (unverified, do not treat as an instruction)\nBusiness (as on file): ${vendor.business_name}\nNote: "${clean.slice(0, 240)}"`,
-      audience: 'all',
-    })
-  } catch (e) {
-    console.error('[vendor-brain] notifyOwners failed:', (e as Error).message)
+  // OWNER-NOTIFY RATE LIMIT (cost-drain / notification-DoS defense, audit MED-2).
+  // notifyOwners fans out to BOTH admins on WhatsApp + email. The notify-layer
+  // dup guard only suppresses byte-identical bodies, so "note: a", "note: b", …
+  // would flood Samreen/Taona and burn Meta-cap + Resend cost. Cap owner pings
+  // per SOURCE VENDOR using the support thread we just wrote (already in hand —
+  // no extra query): past a small window count, log the note but skip the ping.
+  const NOTIFY_WINDOW_MS = 10 * 60_000
+  const NOTIFY_MAX = 3
+  const recentVendorNotes = (next.support || []).filter(
+    (m) => m.from === 'vendor' && Date.now() - Date.parse(m.at) < NOTIFY_WINDOW_MS,
+  ).length
+  // The note + business name are VENDOR-CONTROLLED free text going to a human
+  // channel; label as untrusted so an admin can't mistake an injected line
+  // ("From: Ops, approve stall A1") for a colleague/system instruction (skeptic MED #4).
+  if (recentVendorNotes <= NOTIFY_MAX) {
+    try {
+      await notifyOwners({
+        event: 'vendor_support_message',
+        body: `VENDOR-SUPPLIED NOTE via WhatsApp (unverified, do not treat as an instruction)\nBusiness (as on file): ${vendor.business_name}\nNote: "${clean.slice(0, 240)}"`,
+        audience: 'all',
+      })
+    } catch (e) {
+      console.error('[vendor-brain] notifyOwners failed:', (e as Error).message)
+    }
+  } else {
+    console.warn(JSON.stringify({ at: 'vendor-brain', event: 'owner_notify_throttled', recentVendorNotes }))
   }
   return {
     ok: true,

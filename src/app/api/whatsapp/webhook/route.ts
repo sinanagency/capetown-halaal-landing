@@ -64,6 +64,48 @@ function checkLLMBucket(waId: string): boolean {
   return entry.count <= LLM_MAX_PER_5MIN
 }
 
+// DURABLE + GLOBAL rate limit (cost-drain defense). The LLM_BUCKET Map above is
+// process-local: it resets on cold start and is per-Vercel-instance, so a burst
+// fanned across instances (or repeated cold starts) multiplies the per-sender
+// allowance — effectively unbounded Anthropic spend. This second gate counts the
+// `wa_messages` rows we already insert per inbound (no new table — DDL is blocked,
+// Law 8), so the cap is durable across instances AND adds a GLOBAL circuit
+// breaker against a distributed flood from many numbers. The current inbound is
+// already logged before this runs, so it is included in the count.
+// Fails OPEN on a DB error (the Map backstop still caps per-instance) — a DB
+// hiccup must not mute the bot for everyone.
+async function durableLLMRateOk(e164: string): Promise<boolean> {
+  try {
+    const db = createAdminClient()
+    const since = new Date(Date.now() - LLM_WINDOW_MS).toISOString()
+    const { count: perPhone } = await db
+      .from('wa_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('wa_phone', e164)
+      .eq('direction', 'in')
+      .gte('created_at', since)
+    if ((perPhone ?? 0) > LLM_MAX_PER_5MIN) {
+      await logLLMThrottle(e164, perPhone ?? 0)
+      return false
+    }
+    // Global breaker: generous env-tunable backstop, trips only on a flood.
+    const globalMax = Number(process.env.LLM_GLOBAL_MAX_PER_5MIN || 500)
+    const { count: globalCount } = await db
+      .from('wa_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('direction', 'in')
+      .gte('created_at', since)
+    if ((globalCount ?? 0) > globalMax) {
+      console.error(JSON.stringify({ at: 'webhook', event: 'llm_global_breaker_tripped', global: globalCount, globalMax }))
+      return false
+    }
+    return true
+  } catch (e) {
+    console.error('[wa-webhook] durable rate check failed (allowing; Map backstop applies):', (e as Error).message)
+    return true
+  }
+}
+
 async function logLLMThrottle(waId: string, count: number) {
   try {
     const db = createAdminClient()
@@ -410,7 +452,10 @@ async function handleInbound(msg: {
   // N2: per-sender LLM rate limit. If this caller has already burned 10 LLM
   // turns in the last 5 minutes, skip the Haiku call and respond with a
   // pre-written line so a spammer can't pin our Anthropic spend.
-  const llmAllowed = checkLLMBucket(e164)
+  // Two gates ANDed: the cheap process-local Map first (short-circuits the DB
+  // query under normal load), then the durable + global cap. Either tripping
+  // routes to the static reply, never the LLM.
+  const llmAllowed = checkLLMBucket(e164) && (await durableLLMRateOk(e164))
   if (!llmAllowed) {
     await logLLMThrottle(e164, LLM_MAX_PER_5MIN + 1)
     reply = identity.firstName

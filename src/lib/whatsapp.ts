@@ -338,17 +338,20 @@ export function verifyWebhook(mode: string | null, token: string | null, challen
 // --- Payload signature check (POST webhook) ---
 // Meta signs every POST with the app secret. Reject anything that doesn't match
 // so nobody can spoof inbound messages / opt-outs against the bot.
-// Audit C5: fail CLOSED in production. A missing WHATSAPP_APP_SECRET on a
-// preview deploy or after a Vercel env-var \n trim must NOT silently accept
-// every unsigned POST. In dev (NODE_ENV !== 'production'), accept-without-key
-// stays — useful for local webhook tests.
+// Fail CLOSED everywhere by default. The webhook signature is the ONLY thing
+// authenticating the sender's identity (resolveIdentity + findAdmin trust
+// msg.from verbatim), so an open verify = anyone can impersonate any vendor OR
+// the master admin by POSTing a forged payload. The previous NODE_ENV==='production'
+// carve-out failed OPEN on Vercel PREVIEW/branch deploys (NODE_ENV !== 'production'),
+// which are reachable URLs wired to the same creds — full bot impersonation.
+// Now: missing secret rejects on every DEPLOYED env; local dev must opt in
+// EXPLICITLY with WHATSAPP_ALLOW_UNSIGNED=1 (set only in .env.local, never on a
+// deploy).
 export function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
   if (!WA_APP_SECRET) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[whatsapp] WHATSAPP_APP_SECRET missing in production — rejecting webhook')
-      return false
-    }
-    return true
+    if (process.env.WHATSAPP_ALLOW_UNSIGNED === '1') return true
+    console.error('[whatsapp] WHATSAPP_APP_SECRET missing — rejecting webhook (set WHATSAPP_ALLOW_UNSIGNED=1 for LOCAL dev only)')
+    return false
   }
   if (!signatureHeader?.startsWith('sha256=')) return false
   const expected = 'sha256=' + createHmac('sha256', WA_APP_SECRET).update(rawBody).digest('hex')
