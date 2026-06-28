@@ -91,6 +91,36 @@ WEB-only by nature:
 - Magic-link: short TTL + single-use + signed + vendor-scoped.
 - CTH_VENDOR_ACTIONS flag still gates the whole action surface (instant off).
 
+## DECISION (2026-06-28): Vendor Concierge = a reasoning specialist over a self-scoping toolset
+Taona: "be a problem-solver... a specialist that understands what problem must be
+solved and what options/tools it has." This AMENDS ADR-004's pure-deterministic
+routing. The deterministic handlers deflect ("go to the portal") and can't reason
+about compound asks ("send my invoice and what else to complete my booking").
+
+The synthesis (keeps the ADR-004 isolation wall, gains problem-solving):
+- A Claude TOOL-USE loop reads the vendor's message + their live state and SOLVES
+  the request by choosing tools and composing a reply that actually delivers.
+- FIXED toolset; EVERY tool is hard-bound to identity.vendor.id INTERNALLY. The
+  model chooses WHICH tool, never supplies a scope key or an id. The isolation
+  wall moves to the tool boundary, it is not abandoned. (Mitigates KT #206540:
+  the model only selects + composes; the scoped tool does the real work.)
+- Tools (reuse what's built + add): send_invoice (PDF, done), send_contract (PDF),
+  send_documents, document_checklist, booking_status, payment_link, update_profile,
+  leave_note_for_team, get_announcements, resend_login.
+- Money / legal / irreversible tools (charge, sign, add-staff-order) stay
+  CONFIRM-GATED (stage -> "yes" -> commit). Heavy file sends use the deferred
+  after() pattern (already built for the invoice).
+- Behind CTH_VENDOR_ACTIONS; new tool-selection surface gets an adversarial
+  skeptic pass (can the model be steered to cross-tenant / over-act / leak? must
+  be impossible because tools self-scope — verify).
+
+Build order: (1) extract each capability into a scoped tool fn + Anthropic tool
+schema; (2) the specialist loop (system prompt: "solve the vendor's problem using
+ONLY these tools; never expose ids/scope/lanes"); (3) confirm-gate the dangerous
+tools; (4) golden-set eval (right tool fires for realistic messages) + skeptic;
+(5) deploy + soak. This is a focused Tier-1 build, NOT a tail-end job — done
+properly with its own verify pass.
+
 ## Open at build (decide in-flight, non-blocking)
 - Exact admin "demo" artifact to remove (locate in Phase 4).
 - Whether "mandatory stall" also means defaulting public publish_stall=on for
