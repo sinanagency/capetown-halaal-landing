@@ -30,12 +30,18 @@ const GOLDEN: Row[] = [
   ['my instagram is down today', 'question'],     // bare word, no @ → question
   ['the description on my page is wrong', 'question'],
 
-  // --- stall publish / hide ---
-  ['publish my stall', 'publish_stall'],
-  ["I'd like to show my booth on the public map", 'publish_stall'],
-  ['hide my stall please', 'hide_stall'],
-  ['take down my booth location', 'hide_stall'],
-  ['where is my stall?', 'question'],             // a question, not a publish action
+  // --- help / menu ---
+  ['help', 'help'],
+  ['what can you do', 'help'],
+  ['menu', 'help'],
+  // --- invoice ---
+  ['send my invoice', 'get_invoice'],
+  ['can I get my bill', 'get_invoice'],
+  ["where's my invoice", 'get_invoice'],
+  // --- stall toggle is REMOVED (mandatory) → these are plain questions now ---
+  ['publish my stall', 'question'],
+  ['hide my stall', 'question'],
+  ['where is my stall?', 'question'],
 
   // --- support notes ---
   ['note for team: I need extra power points', 'post_support'],
@@ -75,7 +81,7 @@ test('vendor brain golden set: realistic phrasings route correctly', () => {
 
 test('golden set covers every action kind at least once', () => {
   const kinds = new Set<string>(GOLDEN.map(([msg]) => classifyVendorIntent(msg).kind))
-  for (const k of ['question', 'update_profile', 'publish_stall', 'hide_stall', 'post_support', 'pay']) {
+  for (const k of ['question', 'help', 'update_profile', 'post_support', 'get_invoice', 'pay']) {
     assert.ok(kinds.has(k), `golden set must exercise ${k}`)
   }
 })

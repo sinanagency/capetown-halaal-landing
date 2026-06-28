@@ -41,11 +41,13 @@ const PORTAL_LOGIN = 'cthalaal.co.za/exhibitor/login'
 
 export type VendorIntent =
   | { kind: 'question' }
+  | { kind: 'help' }
   | { kind: 'update_profile'; field: keyof ProfileSlots; value: string }
-  | { kind: 'publish_stall' }
-  | { kind: 'hide_stall' }
   | { kind: 'post_support'; body: string }
+  | { kind: 'get_invoice' }
   | { kind: 'pay' }
+  // NOTE: publish/hide stall removed — stalls are mandatory/auto-shown, not a
+  // vendor toggle (Taona 2026-06-28).
 
 type ProfileSlots = Pick<VendorProfile, 'tagline' | 'description' | 'website' | 'instagram' | 'facebook'>
 
@@ -100,12 +102,14 @@ export function classifyVendorIntent(raw: string): VendorIntent {
     return { kind: 'post_support', body: supportTrigger[1].trim() }
   }
 
-  // publish / hide the allocated stall code on the public page.
-  if (/\b(publish|show|make public|list)\b/.test(lower) && /\b(stall|booth|location|spot)\b/.test(lower)) {
-    return { kind: 'publish_stall' }
+  // help / menu: vendor wants to know what they can do here.
+  if (/^(help|menu|options|what can (you|u) do|what can i do|how (do|does) this work|commands?)\b/.test(lower)) {
+    return { kind: 'help' }
   }
-  if (/\b(hide|unpublish|unlist|remove|take down)\b/.test(lower) && /\b(stall|booth|location|spot)\b/.test(lower)) {
-    return { kind: 'hide_stall' }
+
+  // get_invoice: wants their invoice / bill document.
+  if (/\b(send|get|show|email|where('?s| is))\b[^?]*\b(invoice|bill|receipt)\b/.test(lower)) {
+    return { kind: 'get_invoice' }
   }
 
   // update_profile: only when a recognised field is explicitly being SET. We
@@ -182,30 +186,43 @@ async function doUpdateProfile(vendor: Vendor, field: keyof ProfileSlots, value:
   }
 }
 
-async function doPublishStall(vendor: Vendor, publish: boolean): Promise<VendorActionResult> {
-  // Exact enum match, not a substring (a substring /approv/ also matches "not
-  // approved" — ADR-004 skeptic LOW). Publishing a stall is a public-exposure
-  // action, so the gate must be precise.
-  const isApproved = ['approved', 'confirmed', 'accepted'].includes((vendor.status || '').toLowerCase().trim())
-  if (publish && (!isApproved || !vendor.stall)) {
-    return {
-      ok: false,
-      event: 'vendor_action_publish_stall_blocked',
-      reply: !isApproved
-        ? `I can publish your stall once your application is confirmed. It is currently ${vendor.status}. I'll let you know the moment it's approved.`
-        : `Your stall placement isn't allocated yet, so there's nothing to publish. It gets assigned closer to the festival and I'll message you here when it's set.`,
-    }
-  }
-  await updatePortalState(vendor.id, (s) => ({
-    ...s,
-    profile: { ...(s.profile || {}), publish_stall: publish },
-  }))
+// HELP / menu — the child-simple list of what a vendor can do here. Mirrors the
+// approval + announcement templates so the promise and the bot stay in lockstep.
+function firstNameOf(vendor: Vendor): string {
+  return (vendor.contact_name || '').trim().split(/\s+/)[0] || ''
+}
+
+function doHelp(vendor: Vendor): VendorActionResult {
+  const fn = firstNameOf(vendor)
+  const name = fn ? `${fn}, here` : 'Here'
   return {
     ok: true,
-    event: publish ? 'vendor_action_publish_stall' : 'vendor_action_hide_stall',
-    reply: publish
-      ? `Your stall code ${vendor.stall} is now shown publicly on the festival map. Reply "hide my stall" anytime to take it back down.`
-      : `Your stall code is now hidden from the public map. Reply "publish my stall" anytime to show it again.`,
+    event: 'vendor_action_help',
+    reply:
+      `${name} is what you can do right here on WhatsApp, just type it:\n\n` +
+      `• "what's my status" - your application, payment and stall\n` +
+      `• "send my invoice" - your bill\n` +
+      `• "what documents do I need" - your checklist\n` +
+      `• "update my website to ..." (also tagline, description, Instagram, Facebook)\n` +
+      `• "pay" - a secure link to pay your stall fee\n` +
+      `• "note for team: ..." - leave a message for the organisers\n\n` +
+      `Prefer the website? Everything is also on your portal: ${PORTAL_LOGIN}`,
+  }
+}
+
+// get_invoice — point the vendor to their invoice. The invoice lives behind
+// login on the portal Payments page; we send the secure portal link (no PII in
+// chat). Direct PDF-to-WhatsApp delivery is the next slice (needs the signed
+// magic-link auth surface — built + skeptic-reviewed separately).
+function doGetInvoice(vendor: Vendor): VendorActionResult {
+  const fn = firstNameOf(vendor)
+  const firstName = fn ? `${fn}, your` : 'Your'
+  return {
+    ok: true,
+    event: 'vendor_action_get_invoice',
+    reply:
+      `${firstName} invoice is on your portal. Log in here and open Payments to view or download it: ${PORTAL_LOGIN}\n` +
+      `It shows the exact amount, what's paid, and a card or EFT option. Want me to resend your login link?`,
   }
 }
 
@@ -298,7 +315,7 @@ export function vendorPortalFacts(state: PortalState, vendor: Vendor): string {
   lines.push(`Payment status: ${payStatus}${pay.amount ? `, R${pay.amount} recorded` : ''}${pay.due ? `, due ${pay.due}` : ''}.`)
 
   lines.push(`Contract: ${vendor.contract_signed_at ? 'signed' : 'not signed yet'}.`)
-  lines.push(`Stall: ${vendor.stall ? vendor.stall + (state.profile?.publish_stall ? ' (shown publicly)' : ' (private)') : 'not allocated yet'}.`)
+  lines.push(`Stall: ${vendor.stall ? vendor.stall + ' (shown on the public festival map once confirmed)' : 'not allocated yet'}.`)
   lines.push(`For document details, staff names, or to make changes, they can use the portal at ${PORTAL_LOGIN} or tell me what to change here.`)
   return lines.join(' ')
 }
@@ -345,10 +362,10 @@ export async function runVendorBrain(
   if (intent.kind !== 'question') {
     let res: VendorActionResult
     switch (intent.kind) {
+      case 'help':           res = doHelp(vendor); break
       case 'update_profile': res = await doUpdateProfile(vendor, intent.field, intent.value); break
-      case 'publish_stall':  res = await doPublishStall(vendor, true); break
-      case 'hide_stall':     res = await doPublishStall(vendor, false); break
       case 'post_support':   res = await doPostSupport(vendor, intent.body); break
+      case 'get_invoice':    res = doGetInvoice(vendor); break
       case 'pay':            res = doPay(vendor); break
       default: {
         const _exhaustive: never = intent

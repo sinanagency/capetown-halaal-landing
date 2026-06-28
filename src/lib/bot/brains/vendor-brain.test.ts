@@ -61,11 +61,22 @@ test('post_support: explicit team note', () => {
   assert.equal(m.kind, 'post_support')
 })
 
-test('publish / hide stall', () => {
-  assert.equal(classifyVendorIntent('publish my stall').kind, 'publish_stall')
-  assert.equal(classifyVendorIntent('show my booth on the map').kind, 'publish_stall')
-  assert.equal(classifyVendorIntent('hide my stall').kind, 'hide_stall')
-  assert.equal(classifyVendorIntent('take down my booth location').kind, 'hide_stall')
+test('help / menu', () => {
+  assert.equal(classifyVendorIntent('help').kind, 'help')
+  assert.equal(classifyVendorIntent('what can you do').kind, 'help')
+  assert.equal(classifyVendorIntent('menu').kind, 'help')
+})
+
+test('get_invoice', () => {
+  assert.equal(classifyVendorIntent('send my invoice').kind, 'get_invoice')
+  assert.equal(classifyVendorIntent('can I get my bill').kind, 'get_invoice')
+  assert.equal(classifyVendorIntent("where's my invoice").kind, 'get_invoice')
+})
+
+test('stall publish/hide is GONE (mandatory, no toggle)', () => {
+  // these used to be actions; now they must fall through to Q&A
+  assert.equal(classifyVendorIntent('publish my stall').kind, 'question')
+  assert.equal(classifyVendorIntent('hide my stall').kind, 'question')
 })
 
 test('pay intent only on clear pay phrasing', () => {
@@ -110,7 +121,7 @@ test('vendorPortalFacts: structured values only, never echoes free text (injecti
   assert.match(out, /Documents on file: 2 \(approved 1, pending 1, rejected 0\)/)
   assert.match(out, /Staff badges registered: 1 of 4 allowed/)
   assert.match(out, /Payment status: pending, R5000 recorded, due 2026-07-01/)
-  assert.match(out, /Stall: A12 \(private\)/)
+  assert.match(out, /Stall: A12 \(shown on the public festival map once confirmed\)/)
   // Free text MUST NOT leak into the grounding:
   assert.ok(!out.includes('IGNORE PREVIOUS INSTRUCTIONS'), 'doc filename must not leak')
   assert.ok(!out.includes('secret.pdf'), 'doc filename must not leak')
@@ -145,7 +156,7 @@ test('multi-apply: action with applicationCount>1 disambiguates BEFORE any write
   // SAME-NAME duplicate: otherBusinesses is undefined (names not distinct) but
   // there are 2 applications. Must still refuse to guess.
   const id = vendorIdentity({ applicationCount: 2, otherBusinesses: undefined })
-  const r = await runVendorBrain(id, 'publish my stall')
+  const r = await runVendorBrain(id, 'send my invoice')
   assert.equal(r.path, 'disambiguate')
   assert.match(r.message, /more than one application/i)
 })
@@ -163,7 +174,7 @@ test('classifier is flag-independent; runVendorBrain gates on the flag', () => {
   // runVendorBrain is what forces 'question' when CTH_VENDOR_ACTIONS is unset,
   // so default-off behaviour is identical to the old path (verified by skeptic).
   delete process.env.CTH_VENDOR_ACTIONS
-  assert.equal(classifyVendorIntent('publish my stall').kind, 'publish_stall')
+  assert.equal(classifyVendorIntent('help').kind, 'help')
 })
 
 test('a description edit that mentions another field word still binds one field only', () => {
