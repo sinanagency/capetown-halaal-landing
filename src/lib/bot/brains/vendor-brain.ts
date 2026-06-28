@@ -112,8 +112,14 @@ export function classifyVendorIntent(raw: string): VendorIntent {
     return { kind: 'help' }
   }
 
-  // get_invoice: wants their invoice / bill document.
-  if (/\b(send|get|show|email|where('?s| is))\b[^?]*\b(invoice|bill|receipt)\b/.test(lower)) {
+  // get_invoice: any message clearly ABOUT their invoice/bill should DELIVER the
+  // invoice PDF (it shows amount + status, answering most invoice questions). We
+  // match "invoice/bill/receipt" together with a request/possessive cue, so bare
+  // "My invoice", "invoice please", "I need my bill" all work (not just verbed
+  // "send my invoice"). This whack-a-mole on phrasings is why the reasoning
+  // specialist is the real answer (spec 003); this is the interim widen.
+  if (/\b(invoice|bill|receipt)\b/.test(lower) &&
+      /\b(my|send|get|give|need|want|where|copy|email|please|the|receive|share|resend)\b/.test(lower)) {
     return { kind: 'get_invoice' }
   }
 
@@ -272,13 +278,26 @@ function doGetInvoice(identity: ResolvedIdentity): VendorActionResult {
         return
       }
       const slug = (vendor.business_name || 'invoice').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'invoice'
-      await sendMedia(identity.e164, {
+      const sent = await sendMedia(identity.e164, {
         bytes: pdf,
         mimeType: 'application/pdf',
         filename: `CTH-Invoice-${slug}.pdf`,
         kind: 'document',
         caption: 'Your Cape Town Halaal Festival invoice.',
       })
+      // Observability: log the document send so the watcher / inbox can confirm
+      // the invoice actually went out (sendMedia does not log itself).
+      try {
+        await db.from('wa_messages').insert({
+          direction: 'out',
+          wa_phone: identity.e164.replace(/^\+/, ''),
+          body: '[invoice PDF] Your Cape Town Halaal Festival invoice.',
+          status: sent.skipped ? 'failed' : 'sent',
+          error: sent.skipped || null,
+          provider_message_id: sent.messageId || null,
+        })
+      } catch { /* best-effort log */ }
+      if (sent.skipped) console.error('[vendor-brain] invoice sendMedia skipped:', sent.skipped)
     } catch (e) {
       console.error('[vendor-brain] invoice deliver failed:', (e as Error).message)
     }

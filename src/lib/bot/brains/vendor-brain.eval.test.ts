@@ -38,6 +38,9 @@ const GOLDEN: Row[] = [
   ['send my invoice', 'get_invoice'],
   ['can I get my bill', 'get_invoice'],
   ["where's my invoice", 'get_invoice'],
+  ['My invoice', 'get_invoice'],            // bare, no verb (the live gap Raeesa hit)
+  ['invoice please', 'get_invoice'],
+  ['I need my invoice', 'get_invoice'],
   // --- stall toggle is REMOVED (mandatory) → these are plain questions now ---
   ['publish my stall', 'question'],
   ['hide my stall', 'question'],
