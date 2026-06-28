@@ -30,6 +30,10 @@ import { shouldProcess } from '@/lib/brain-core/index.js'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+// Raised so a deferred after() task (e.g. rendering an invoice PDF with puppeteer
+// then sendMedia) has time to finish post-200. The 200 itself still returns fast;
+// this only extends how long the function may keep running for the after() work.
+export const maxDuration = 60
 
 // ---------------------------------------------------------------------------
 // N2: per-sender LLM rate limit.
@@ -449,6 +453,9 @@ async function handleInbound(msg: {
   // history, and per-caller identity briefing as extraSystem. The brain owns
   // the system prompt, intent routing, FAQ short-circuit, and sign-off rule.
   let reply = ''
+  // Slow follow-up (e.g. render + send an invoice PDF) the brain hands back; run
+  // it AFTER the 200 via after() so the inbound response is never blocked.
+  let deferredAction: (() => Promise<void>) | undefined
   // N2: per-sender LLM rate limit. If this caller has already burned 10 LLM
   // turns in the last 5 minutes, skip the Haiku call and respond with a
   // pre-written line so a spammer can't pin our Anthropic spend.
@@ -469,6 +476,7 @@ async function handleInbound(msg: {
       // read-only attendee brain. Admins are handled above and never reach here.
       const result = await routeToBrain(identity, msg.text, { history })
       reply = result.message
+      deferredAction = result.deferred
     } catch (e) {
       console.error('brain error', e)
       reply = identity.firstName
@@ -490,6 +498,17 @@ async function handleInbound(msg: {
   }
   const res = await sendText(e164, guarded.reply)
   await logMessage({ direction: 'out', wa_phone: e164, body: guarded.reply, status: res.skipped ? 'failed' : 'sent', providerMessageId: res.messageId })
+
+  // Deliver any heavy follow-up (e.g. the invoice PDF) AFTER the 200. after()
+  // survives past the response on Vercel (unlike a floating promise) and runs
+  // within maxDuration (raised to 60s below for the puppeteer render). Fully
+  // best-effort: a failure here never affects the inbound 200 or the text reply.
+  if (deferredAction) {
+    const run = deferredAction
+    after(async () => {
+      try { await run() } catch (e) { console.error('[wa-webhook] deferred action failed:', (e as Error).message) }
+    })
+  }
 }
 
 // D2) Developer-session handler. Runs the festival brain so Taona can test the

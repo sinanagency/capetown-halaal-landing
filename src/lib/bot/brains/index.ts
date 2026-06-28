@@ -33,6 +33,8 @@ export interface BrainTurn {
   /** Sub-path inside the brain (e.g. vendor 'action' vs 'question'). */
   path?: string
   event?: string
+  /** Slow follow-up the webhook runs after the 200 (e.g. deliver a PDF file). */
+  deferred?: () => Promise<void>
 }
 
 export interface BrainCtx {
@@ -66,7 +68,7 @@ export async function routeToBrain(
 ): Promise<BrainTurn> {
   if (identity.role === 'vendor') {
     const r = await runVendorBrain(identity, message, ctx)
-    return { message: r.message, brain: 'vendor', path: r.path, event: r.event }
+    return { message: r.message, brain: 'vendor', path: r.path, event: r.event, deferred: r.deferred }
   }
   // ticket_buyer | unknown → attendee brain.
   return attendeeBrain(identity, message, ctx)

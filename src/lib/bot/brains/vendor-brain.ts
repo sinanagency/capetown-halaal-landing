@@ -19,10 +19,15 @@
 
 import { randomUUID } from 'node:crypto'
 import type { ResolvedIdentity } from '@/lib/bot/identity'
-import { updatePortalState, getPortalState, type PortalState, type VendorProfile } from '@/lib/portal-state'
+import { updatePortalState, getPortalState, parsePortalState, type PortalState, type VendorProfile } from '@/lib/portal-state'
 import { askFestivalBrain } from '@/lib/festival-brain'
 import { identityBriefing } from '@/lib/bot/identity'
 import { notifyOwners } from '@/lib/bot/notify'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sendMedia } from '@/lib/whatsapp'
+import { computeVendorPricing } from '@/lib/payments/pricing'
+import { paymentReference } from '@/lib/payments'
+import { renderInvoicePdf } from '@/lib/payments/invoice-pdf'
 
 type Vendor = NonNullable<ResolvedIdentity['vendor']>
 
@@ -161,6 +166,11 @@ export interface VendorActionResult {
   reply: string
   ok: boolean
   event: string
+  /** Heavy/slow follow-up (e.g. render a PDF + sendMedia) that the webhook runs
+   *  AFTER the 200 via after(), so the inbound 200 is never blocked. The text
+   *  `reply` is sent first as the immediate ack; the deferred work delivers the
+   *  actual file moments later. */
+  deferred?: () => Promise<void>
 }
 
 async function doUpdateProfile(vendor: Vendor, field: keyof ProfileSlots, value: string): Promise<VendorActionResult> {
@@ -210,19 +220,75 @@ function doHelp(vendor: Vendor): VendorActionResult {
   }
 }
 
-// get_invoice — point the vendor to their invoice. The invoice lives behind
-// login on the portal Payments page; we send the secure portal link (no PII in
-// chat). Direct PDF-to-WhatsApp delivery is the next slice (needs the signed
-// magic-link auth surface — built + skeptic-reviewed separately).
-function doGetInvoice(vendor: Vendor): VendorActionResult {
+// Plain-language "what's left to finish your booking", reasoned from the
+// vendor's real state. So the bot SOLVES the request ("complete my booking")
+// instead of dumping a portal link.
+function bookingNextStep(vendor: Vendor, paid: boolean): string {
+  if (!vendor.contract_signed_at) return `To finish your booking your contract still needs signing. Reply "send my contract" and I'll send it through.`
+  if (!paid) return `To finish your booking the stall fee still needs paying. Reply "pay" and I'll send you a secure payment link.`
+  return `Your booking is all set, nothing outstanding. 🎉`
+}
+
+// get_invoice — ACTUALLY DELIVER the invoice as a PDF over WhatsApp (no "go to
+// the portal" deflection). The text reply is the immediate ack + the reasoned
+// next step; the PDF render (puppeteer, slow) + sendMedia run in the deferred
+// step so the webhook 200 is never blocked. Scoped: the PDF is built from THIS
+// vendor's own application id only.
+function doGetInvoice(identity: ResolvedIdentity): VendorActionResult {
+  const vendor = identity.vendor!
   const fn = firstNameOf(vendor)
-  const firstName = fn ? `${fn}, your` : 'Your'
+  const deferred = async () => {
+    try {
+      const db = createAdminClient()
+      const { data } = await db
+        .from('vendor_applications')
+        .select('preferred_booth_tier, special_requirements, business_name, contact_name, email, phone, admin_notes')
+        .eq('id', vendor.id)
+        .single()
+      if (!data) return
+      const app = data as Record<string, unknown>
+      const state = parsePortalState((app.admin_notes as string) || null)
+      const amount = state.payment?.amount ?? (() => {
+        try { return computeVendorPricing({ preferred_booth_tier: app.preferred_booth_tier as string, special_requirements: app.special_requirements }).total } catch { return 0 }
+      })()
+      const pdf = await renderInvoicePdf({
+        applicationId: vendor.id,
+        businessName: (app.business_name as string) || vendor.business_name,
+        contactName: (app.contact_name as string) || '',
+        email: (app.email as string) || '',
+        phone: identity.e164,
+        amount,
+        status: state.payment?.status || vendor.payment_status || 'none',
+        reference: state.payment?.reference || paymentReference(vendor.id),
+        providerRef: state.payment?.provider_ref || '',
+        paidAt: state.payment?.paid_at
+          ? new Date(state.payment.paid_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })
+          : undefined,
+        preferredBoothTier: (app.preferred_booth_tier as string) || '',
+        specialRequirements: app.special_requirements,
+      })
+      if (!pdf) {
+        console.error('[vendor-brain] invoice render returned null for', vendor.id.slice(0, 8))
+        return
+      }
+      const slug = (vendor.business_name || 'invoice').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'invoice'
+      await sendMedia(identity.e164, {
+        bytes: pdf,
+        mimeType: 'application/pdf',
+        filename: `CTH-Invoice-${slug}.pdf`,
+        kind: 'document',
+        caption: 'Your Cape Town Halaal Festival invoice.',
+      })
+    } catch (e) {
+      console.error('[vendor-brain] invoice deliver failed:', (e as Error).message)
+    }
+  }
+  const paid = (vendor.payment_status || '').toLowerCase() === 'paid'
   return {
     ok: true,
     event: 'vendor_action_get_invoice',
-    reply:
-      `${firstName} invoice is on your portal. Log in here and open Payments to view or download it: ${PORTAL_LOGIN}\n` +
-      `It shows the exact amount, what's paid, and a card or EFT option. Want me to resend your login link?`,
+    reply: `${fn ? fn + ', s' : 'S'}ending your invoice as a PDF now 📄. ${bookingNextStep(vendor, paid)}`,
+    deferred,
   }
 }
 
@@ -328,6 +394,8 @@ export interface VendorBrainResult {
    *  'disambiguate' = asked which business. Logged, not user-visible. */
   path: 'action' | 'question' | 'disambiguate'
   event?: string
+  /** Slow follow-up to run after the webhook 200 (e.g. deliver a PDF). */
+  deferred?: () => Promise<void>
 }
 
 /**
@@ -365,14 +433,14 @@ export async function runVendorBrain(
       case 'help':           res = doHelp(vendor); break
       case 'update_profile': res = await doUpdateProfile(vendor, intent.field, intent.value); break
       case 'post_support':   res = await doPostSupport(vendor, intent.body); break
-      case 'get_invoice':    res = doGetInvoice(vendor); break
+      case 'get_invoice':    res = doGetInvoice(identity); break
       case 'pay':            res = doPay(vendor); break
       default: {
         const _exhaustive: never = intent
         throw new Error(`unreachable vendor intent: ${JSON.stringify(_exhaustive)}`)
       }
     }
-    return { message: res.reply, path: 'action', event: res.event }
+    return { message: res.reply, path: 'action', event: res.event, deferred: res.deferred }
   }
 
   // Question → existing read-only brain with the vendor surface + briefing,
