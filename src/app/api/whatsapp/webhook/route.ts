@@ -21,8 +21,9 @@ import { notifyOwners } from '@/lib/bot/notify'
 import { resolveSwipeReplyTarget } from '@/lib/bot/swipe-reply'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findAdmin, isDevNumber } from '@/lib/bot/admins'
-import { resolveIdentity, identityBriefing } from '@/lib/bot/identity'
+import { resolveIdentity } from '@/lib/bot/identity'
 import { handleAdminMessage } from '@/lib/bot/admin-chat'
+import { routeToBrain } from '@/lib/bot/brains'
 import { isMaintenanceEnabled } from '@/lib/maintenance'
 import { guardReply, logGuardRedaction } from '@/lib/bot/reply-guard'
 import { shouldProcess } from '@/lib/brain-core/index.js'
@@ -417,16 +418,11 @@ async function handleInbound(msg: {
       : "We've received your message. A human will respond shortly. For tickets visit cthalaal.co.za"
   } else {
     try {
-      const result = await askFestivalBrain(msg.text, {
-        waId: e164,
-        history,
-        extraSystem: identityBriefing(identity),
-        // V1: a known approved/applying vendor on WhatsApp gets the vendor scope
-        // (real per-vendor facts in identityBriefing + EXHIBITOR PORTAL FACTS),
-        // not the public deflection. Strictly gated on the vendor role so public
-        // / ticket_buyer / unknown / admin callers never see vendor scope.
-        ...(identity.role === 'vendor' ? { surface: 'vendor' as const } : {}),
-      })
+      // Brain mesh (ADR-004): identity-partitioned. routeToBrain sends a vendor
+      // to the scoped vendor brain (self-service actions hard-bound to their own
+      // application id + Q&A fallthrough), and a ticket_buyer / unknown to the
+      // read-only attendee brain. Admins are handled above and never reach here.
+      const result = await routeToBrain(identity, msg.text, { history })
       reply = result.message
     } catch (e) {
       console.error('brain error', e)

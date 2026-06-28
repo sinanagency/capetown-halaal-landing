@@ -183,6 +183,21 @@ export function parsePortalState(adminNotes?: string | null): PortalState {
   }
 }
 
+/**
+ * Read-only fetch of a vendor's portal state. Scoped by applicationId (the
+ * caller is responsible for binding it to a resolved identity). Returns the
+ * default empty state if the row or marker is missing.
+ */
+export async function getPortalState(applicationId: string): Promise<PortalState> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('vendor_applications')
+    .select('admin_notes')
+    .eq('id', applicationId)
+    .single()
+  return parsePortalState((data?.admin_notes as string) || '')
+}
+
 function encode(state: PortalState): string {
   return '⟦PORTAL:' + Buffer.from(JSON.stringify(state)).toString('base64') + '⟧'
 }
@@ -216,7 +231,12 @@ export async function updatePortalState(
   const notes = (data?.admin_notes as string) || ''
   const next = mutate(parsePortalState(notes))
   const newNotes = updatePortalStateImpl(notes, next)
-  await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', applicationId)
+  // Idempotency: skip the write when the mutation produced no change. Kills the
+  // write-flood / public-flicker a repeated WhatsApp action ("publish my stall"
+  // x20) would otherwise cause (ADR-004 skeptic HIGH #7).
+  if (newNotes !== notes) {
+    await admin.from('vendor_applications').update({ admin_notes: newNotes }).eq('id', applicationId)
+  }
   return next
 }
 
