@@ -61,13 +61,25 @@ export async function resolveIdentity(e164: string): Promise<ResolvedIdentity> {
   // rows may be plain digits. Try both surfaces. This Supabase schema doesn't
   // have a wa_phone column on vendor_applications; phone is the source of truth.
   const e164NoPlus = e164.replace(/^\+/, '')
+  // PHONE-FORMAT LINKING FIX (2026-06-28): 83% of vendor rows store the phone in
+  // LOCAL SA format ("0769157856"), but an inbound WhatsApp arrives as E.164
+  // ("+27769157856"). Matching only eq.{e164}/eq.{noPlus} missed every local-
+  // format vendor -> the bot treated them as strangers and gave none of the
+  // self-service. Fix: ALSO match on the last 9 digits (the unique SA subscriber
+  // number, identical across 0.../27.../+27... forms). last9 is pure digits sliced
+  // from the inbound number, so the .like is injection-safe. Mirrors the ticket
+  // auto-linker's last-9 match. Only apply when we have a full 9 digits.
+  const last9 = e164.replace(/\D/g, '').slice(-9)
+  const phoneOr = last9.length === 9
+    ? `phone.eq.${e164},phone.eq.${e164NoPlus},phone.like.*${last9}`
+    : `phone.eq.${e164},phone.eq.${e164NoPlus}`
   // Multi-apply: a person can have several applications. Take the most recent
   // as the active identity and surface applicationCount so callers can offer an
   // app picker. (Was .limit(1), which silently ignored the others.)
   const { data: vendors } = await db
     .from('vendor_applications')
     .select('id, business_name, contact_name, email, status, admin_notes, preferred_booth_tier, contract_signed_at, created_at')
-    .or(`phone.eq.${e164},phone.eq.${e164NoPlus}`)
+    .or(phoneOr)
     .order('created_at', { ascending: false })
   const vendor = (vendors || [])[0] as {
     id: string
@@ -122,7 +134,7 @@ export async function resolveIdentity(e164: string): Promise<ResolvedIdentity> {
   const { data: buyers } = await db
     .from('ticket_buyers')
     .select('email, name, phone, ticket_count, total_spent, last_purchase_at, created_at')
-    .or(`phone.eq.${e164},phone.eq.${e164NoPlus}`)
+    .or(phoneOr)
     .order('last_purchase_at', { ascending: false, nullsFirst: false })
     .limit(1)
   const buyer = (buyers || [])[0] as {
