@@ -405,6 +405,28 @@ export function vendorPortalFacts(state: PortalState, vendor: Vendor): string {
   return lines.join(' ')
 }
 
+// 2025 vendor history grounding. When a vendor references "last year" / "same as
+// before" (Jess, Raeesa), the bot needs their prior festival record. Looked up by
+// the same last-9 phone match. Scoped read of a server-only table (RLS-on).
+async function vendor2025Grounding(e164: string): Promise<string> {
+  const last9 = e164.replace(/\D/g, '').slice(-9)
+  if (last9.length < 9) return ''
+  try {
+    const db = createAdminClient()
+    const { data } = await db
+      .from('vendors_2025')
+      .select('brand_name,category,description,traded_before')
+      .eq('whatsapp_last9', last9)
+      .limit(1)
+    const r = (data || [])[0] as { brand_name?: string; category?: string; description?: string } | undefined
+    if (!r) return ''
+    return `\n\n=== THEIR 2025 FESTIVAL HISTORY (data) ===\nThis number traded at Cape Town Halaal 2025 as "${r.brand_name || 'a vendor'}"${r.category ? ` in ${r.category}` : ''}${r.description ? `, described as: ${r.description}` : ''}. So when they say "last year" or "same as before", you DO have their prior details. For the same stall size/setup as last year, confirm you've noted it and the team will match their previous setup.`
+  } catch (e) {
+    console.error('[vendor-brain] 2025 lookup failed:', (e as Error).message)
+    return ''
+  }
+}
+
 // --- Brain entry -------------------------------------------------------------
 
 export interface VendorBrainResult {
@@ -473,10 +495,11 @@ export async function runVendorBrain(
   } catch (e) {
     console.error('[vendor-brain] getPortalState failed:', (e as Error).message)
   }
+  const history2025 = await vendor2025Grounding(identity.e164)
   const result = await askFestivalBrain(message, {
     waId: identity.e164,
     history: ctx.history,
-    extraSystem: identityBriefing(identity) + portalFacts,
+    extraSystem: identityBriefing(identity) + portalFacts + history2025,
     surface: 'vendor',
   })
   return { message: result.message, path: 'question' }
